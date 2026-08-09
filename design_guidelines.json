@@ -1,0 +1,211 @@
+{
+  "project_name": "SignMar",
+  "theme": "Dark Mode Default",
+  "archetype": "Marine Tactical (Adapted Performance Pro + Luxury)",
+  "vibe": "Elegant, Modern, Reassuring, Highly Legible, Urgent",
+  "global_rules": {
+    "sunlight_legibility": "High contrast is mandatory. Avoid subtle greys on dark backgrounds for critical text. Use stark white (#FFFFFF) against deep navy.",
+    "touch_targets": "Minimum 48x48px for all interactive elements to accommodate moving environments (boats/waves).",
+    "testing": "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., `data-testid=\"report-fab\"`)."
+  },
+  "colors": {
+    "background": {
+      "primary": "#0B132B",
+      "secondary": "#1C2541",
+      "overlay": "rgba(11, 19, 43, 0.85)"
+    },
+    "brand": {
+      "primary": "#48CAE4",
+      "primary_active": "#00B4D8",
+      "secondary": "#90E0EF"
+    },
+    "urgency": {
+      "danger": "#E63946",
+      "danger_active": "#D90429",
+      "warning": "#F4A261"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A3CEF1",
+      "disabled": "#5C6B73",
+      "inverse": "#0B132B"
+    },
+    "borders": {
+      "subtle": "rgba(255, 255, 255, 0.1)",
+      "focus": "#48CAE4"
+    }
+  },
+  "typography": {
+    "primary_font": "System (SF Pro Display / Roboto) or Manrope if custom fonts are configured",
+    "weights": {
+      "regular": "400",
+      "medium": "500",
+      "bold": "700",
+      "black": "900"
+    },
+    "sizes": {
+      "h1_distress": {
+        "size": "48px",
+        "weight": "900",
+        "tracking": "-1px",
+        "description": "Used ONLY for SOS countdown and critical GPS coordinates"
+      },
+      "h2": {
+        "size": "28px",
+        "weight": "700",
+        "tracking": "0px"
+      },
+      "h3": {
+        "size": "20px",
+        "weight": "700"
+      },
+      "body_large": {
+        "size": "18px",
+        "weight": "500",
+        "description": "Used for main buttons and key readable text"
+      },
+      "body": {
+        "size": "16px",
+        "weight": "400"
+      },
+      "caption": {
+        "size": "13px",
+        "weight": "500",
+        "tracking": "1px",
+        "textTransform": "uppercase"
+      }
+    }
+  },
+  "layout_and_spacing": {
+    "grid": "4-point grid system",
+    "spacing": {
+      "xs": "4px",
+      "sm": "8px",
+      "md": "16px",
+      "lg": "24px",
+      "xl": "32px",
+      "xxl": "48px"
+    },
+    "radii": {
+      "sm": "8px",
+      "md": "16px",
+      "lg": "24px",
+      "pill": "9999px"
+    }
+  },
+  "components": {
+    "map_view": {
+      "description": "Full screen OpenSeaMap tiles. Map should ideally have a dark/night mode style applied to tiles if possible. User location is a prominent glowing turquoise dot.",
+      "fab_report": {
+        "position": "Bottom right, above bottom nav/safe area",
+        "size": "64x64px",
+        "background": "#48CAE4",
+        "icon": "Plus (White, 32px)",
+        "shadow": "0px 8px 24px rgba(72, 202, 228, 0.4)",
+        "radius": "pill",
+        "data_testid": "map-report-fab"
+      }
+    },
+    "bottom_sheet_report": {
+      "background": "#1C2541",
+      "borderTopRadius": "24px",
+      "header": "Centered drag handle (40x4px, #5C6B73) + Title 'Signaler'",
+      "grid": "2 columns for report types to maximize tap area",
+      "items": {
+        "style": "Vertical stack: 48x48px circle icon background + Label below",
+        "types": [
+          {"id": "authorities", "label": "Autorités maritimes", "color": "#48CAE4", "icon": "shield"},
+          {"id": "obstacle", "label": "Obstacle", "color": "#F4A261", "icon": "alert-triangle"},
+          {"id": "pollution", "label": "Pollution", "color": "#9D4CDD", "icon": "droplet"},
+          {"id": "fishing_act", "label": "Activité halieutique", "color": "#2A9D8F", "icon": "anchor"},
+          {"id": "ofni", "label": "OFNI", "color": "#E63946", "icon": "help-circle"},
+          {"id": "fishing_pro", "label": "Pêche pro", "color": "#E76F51", "icon": "navigation"},
+          {"id": "species", "label": "Espèces protégées", "color": "#8AB17D", "icon": "camera"}
+        ]
+      }
+    },
+    "report_detail": {
+      "layout": "Modal or push screen",
+      "header": "Type of report + Time (e.g. 'Obstacle - 14:32')",
+      "actions": "Large 'Confirmer / Mettre à jour' primary button",
+      "media": "Horizontal scroll view for photo gallery",
+      "chat": "Mini-chat section at bottom with clear input field and send button"
+    },
+    "distress_screen": {
+      "background": "#0B132B",
+      "main_action": {
+        "label": "APPELER LE 1616",
+        "background": "#E63946",
+        "text_color": "#FFFFFF",
+        "size": "Massive circular button (min 200x200px) centered",
+        "animation": "Pulsing red shadow",
+        "countdown": "5s display above/inside button before auto-call (if implemented)"
+      },
+      "gps_display": {
+        "layout": "Top of screen, highly visible card",
+        "background": "#1C2541",
+        "border": "1px solid #E63946",
+        "font_size": "48px for decimal, 20px for DMS",
+        "font_weight": "900",
+        "alignment": "center"
+      },
+      "secondary_numbers": "List below the main button (VHF Canal 16, CROSS, etc.)"
+    },
+    "weather_alerts": {
+      "card_style": "Background #1C2541, Border left 4px solid depending on severity (Red/Orange/Yellow)",
+      "content": "Title, Date/Time, Description. High contrast text."
+    },
+    "profile": {
+      "header": "Avatar (centered, 96x96px) + Name + Gamified Rank/Points",
+      "stats_row": "3 columns: Reports, Confirmations, Distance",
+      "history": "List of past reports with small icon and date"
+    },
+    "safety_screen": {
+      "layout": "Tabs or accordion",
+      "sections": [
+        {"title": "Checklist matériel", "style": "Checkbox list with strikethrough on check"},
+        {"title": "Bouées cardinales", "style": "Visual grid showing North, South, East, West buoys with their light patterns"},
+        {"title": "Règles de navigation", "style": "Simple list of rules"}
+      ]
+    },
+    "auth": {
+      "background": "Deep navy with subtle ocean background image",
+      "buttons": {
+        "email": "Solid #48CAE4",
+        "google": "Solid #FFFFFF with dark text (#0B132B) and Google icon"
+      }
+    }
+  },
+  "assets": {
+    "icons": {
+      "library": "lucide-react-native or @expo/vector-icons (Feather/Ionicons)",
+      "usage": "Use solid shapes where possible for better visibility in sunlight."
+    },
+    "image_urls": {
+      "onboarding_background": {
+        "url": "https://images.unsplash.com/photo-1543140313-318677635120?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwxfHxtYXJpbmUlMjBuYXZpZ2F0aW9uJTIwb2NlYW4lMjBib2F0ZXJ8ZW58MHx8fHwxNzgyMjMxMjM4fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Aerial view of a boat on dark blue sea, perfect for auth/onboarding background with a heavy dark overlay."
+      },
+      "distress_background": {
+        "url": "https://images.unsplash.com/photo-1468581264429-2548ef9eb732?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwxfHxjYWxtJTIwb2NlYW4lMjBiYWNrZ3JvdW5kJTIwYmxhbmt8ZW58MHx8fHwxNzgyMjMxMjM4fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Calm ocean background for general app empty states or calm mode."
+      },
+      "avatar_placeholder": {
+        "url": "https://images.unsplash.com/photo-1740252117044-2af197eea287?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxzYWlsb3IlMjBhdmF0YXIlMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODIyMzEyMzh8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Cartoon sailor avatar for default profile picture."
+      },
+      "buoy_reference": {
+        "url": "https://images.unsplash.com/photo-1590524761651-fc4070aa033b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxyZWQlMjBuYXZpZ2F0aW9uJTIwYnVveSUyMHNlYXxlbnwwfHx8fDE3ODIyMzEyMzh8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Reference image for safety screen buoy section."
+      }
+    }
+  },
+  "instructions_to_main_agent": {
+    "stack": "React Native (Expo), use StyleSheet or NativeWind for styling (.js files).",
+    "navigation": "Use React Navigation (Bottom Tabs + Stack for Distress/Report details).",
+    "map": "Use react-native-maps. If OpenSeaMap tiles are required, use UrlTile component over the standard map.",
+    "theme": "Force dark mode in app configuration or set default background colors to Deep Navy (#0B132B).",
+    "accessibility": "Ensure all text has extremely high contrast for readability at sea.",
+    "testing": "Add data-testid to ALL touchable elements and inputs."
+  }
+}

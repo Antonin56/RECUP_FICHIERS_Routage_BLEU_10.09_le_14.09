@@ -1,24 +1,38 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "SignalMar",
     "slug": "frontend",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "1.5.0",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "scheme": "signalmar",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.githubmobileimport.hqr9s5"
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Afficher votre position en mer pour signaler.",
+        "NSCameraUsageDescription": "Photographier un signalement.",
+        "NSPhotoLibraryUsageDescription": "Joindre une photo au signalement.",
+        "NSContactsUsageDescription": "Retrouver vos amis marins déjà sur SignalMar."
+      },
+      "bundleIdentifier": "com.emergent.signmarwazemer.sa5b3v"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#0B132B"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.githubmobileimport.hqr9s5"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "READ_CONTACTS"
+      ],
+      "package": "com.emergent.signmarwazemer.sa5b3v"
     },
     "web": {
       "bundler": "metro",
@@ -27,15 +41,37 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-image.png",
+          "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#0B132B"
         }
-      ]
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "SignalMar utilise votre position pour signaler en mer."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SignalMar accède à vos photos pour les joindre à un signalement."
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Retrouver vos amis marins déjà sur SignalMar."
+        }
+      ],
+      "expo-mail-composer",
+      "expo-audio",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

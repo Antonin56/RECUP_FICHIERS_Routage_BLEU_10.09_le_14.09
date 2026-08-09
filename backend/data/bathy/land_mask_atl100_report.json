@@ -1,0 +1,1467 @@
+{
+ "checked_named": 853,
+ "fails_big": [],
+ "fails_small": [
+  {
+   "name": "Fort Boyard",
+   "lat": 45.99965,
+   "lng": -1.21392,
+   "span_m": 64
+  },
+  {
+   "name": "La Teignouse",
+   "lat": 47.45733,
+   "lng": -3.04579,
+   "span_m": 35
+  },
+  {
+   "name": "Men Portz Plouz",
+   "lat": 47.38349,
+   "lng": -2.98308,
+   "span_m": 148
+  },
+  {
+   "name": "Spernic",
+   "lat": 47.53452,
+   "lng": -3.15685,
+   "span_m": 26
+  },
+  {
+   "name": "Île Glazic",
+   "lat": 47.41658,
+   "lng": -3.02667,
+   "span_m": 139
+  },
+  {
+   "name": "Le Grand Coin",
+   "lat": 47.40798,
+   "lng": -3.0046,
+   "span_m": 86
+  },
+  {
+   "name": "Karreg Houat",
+   "lat": 47.41139,
+   "lng": -3.00824,
+   "span_m": 38
+  },
+  {
+   "name": "Île Thinic",
+   "lat": 47.53361,
+   "lng": -3.146,
+   "span_m": 95
+  },
+  {
+   "name": "Baguen Hir",
+   "lat": 47.49676,
+   "lng": -3.10322,
+   "span_m": 28
+  },
+  {
+   "name": "Grand Mulon",
+   "lat": 47.33622,
+   "lng": -2.86167,
+   "span_m": 59
+  },
+  {
+   "name": "Men Toul",
+   "lat": 47.5187,
+   "lng": -2.50552,
+   "span_m": 31
+  },
+  {
+   "name": "Île de Brouel Sud",
+   "lat": 47.58473,
+   "lng": -2.82743,
+   "span_m": 69
+  },
+  {
+   "name": "Île de l'Œuf",
+   "lat": 47.5692,
+   "lng": -2.84201,
+   "span_m": 25
+  },
+  {
+   "name": "La Dervenn",
+   "lat": 47.57352,
+   "lng": -2.7437,
+   "span_m": 86
+  },
+  {
+   "name": "Île du Charles",
+   "lat": 47.57803,
+   "lng": -2.78535,
+   "span_m": 26
+  },
+  {
+   "name": "Île de la Pointe",
+   "lat": 47.55851,
+   "lng": -2.73185,
+   "span_m": 57
+  },
+  {
+   "name": "Île des Œufs",
+   "lat": 47.55776,
+   "lng": -2.78641,
+   "span_m": 137
+  },
+  {
+   "name": "Petit Veïzit",
+   "lat": 47.56949,
+   "lng": -2.92041,
+   "span_m": 134
+  },
+  {
+   "name": "Penn Bleï",
+   "lat": 47.56863,
+   "lng": -2.76215,
+   "span_m": 47
+  },
+  {
+   "name": "Corn Bihan",
+   "lat": 47.58398,
+   "lng": -2.71993,
+   "span_m": 45
+  },
+  {
+   "name": "Trohennec",
+   "lat": 47.55445,
+   "lng": -2.73594,
+   "span_m": 91
+  },
+  {
+   "name": "Le Bedun",
+   "lat": 47.52103,
+   "lng": -2.51811,
+   "span_m": 31
+  },
+  {
+   "name": "Le Cohty",
+   "lat": 47.57228,
+   "lng": -2.74058,
+   "span_m": 45
+  },
+  {
+   "name": "La Pierre de la Croix",
+   "lat": 47.51909,
+   "lng": -2.50702,
+   "span_m": 48
+  },
+  {
+   "name": "Île-aux-Moines",
+   "lat": 47.58473,
+   "lng": -2.82743,
+   "span_m": 69
+  },
+  {
+   "name": "Île-aux-Moines",
+   "lat": 47.5692,
+   "lng": -2.84201,
+   "span_m": 25
+  },
+  {
+   "name": "Île de la Pointe de Penvins",
+   "lat": 47.49157,
+   "lng": -2.68273,
+   "span_m": 88
+  },
+  {
+   "name": "Rocher de Préhel",
+   "lat": 47.42379,
+   "lng": -2.46377,
+   "span_m": 40
+  },
+  {
+   "name": "Ar-Men",
+   "lat": 48.05012,
+   "lng": -4.99772,
+   "span_m": 15
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04312,
+   "lng": -4.9519,
+   "span_m": 55
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04944,
+   "lng": -4.85012,
+   "span_m": 41
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04994,
+   "lng": -4.87095,
+   "span_m": 33
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04812,
+   "lng": -4.82986,
+   "span_m": 24
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04683,
+   "lng": -4.85412,
+   "span_m": 24
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04353,
+   "lng": -4.95154,
+   "span_m": 21
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.05012,
+   "lng": -4.99772,
+   "span_m": 15
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.0442,
+   "lng": -4.87795,
+   "span_m": 27
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04456,
+   "lng": -4.87415,
+   "span_m": 48
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04363,
+   "lng": -4.95127,
+   "span_m": 10
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04497,
+   "lng": -4.87429,
+   "span_m": 27
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.04536,
+   "lng": -4.87322,
+   "span_m": 19
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.07139,
+   "lng": -4.79757,
+   "span_m": 29
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.0721,
+   "lng": -4.79795,
+   "span_m": 28
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.07226,
+   "lng": -4.79845,
+   "span_m": 33
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.07259,
+   "lng": -4.79917,
+   "span_m": 13
+  },
+  {
+   "name": "Île-de-Sein",
+   "lat": 48.07269,
+   "lng": -4.79979,
+   "span_m": 32
+  },
+  {
+   "name": "La Plate",
+   "lat": 48.03946,
+   "lng": -4.75959,
+   "span_m": 10
+  },
+  {
+   "name": "Ar Milinou",
+   "lat": 48.04456,
+   "lng": -4.87415,
+   "span_m": 48
+  },
+  {
+   "name": "Île Monika",
+   "lat": 48.03995,
+   "lng": -4.74151,
+   "span_m": 41
+  },
+  {
+   "name": "Gorlebella",
+   "lat": 48.04063,
+   "lng": -4.75643,
+   "span_m": 55
+  },
+  {
+   "name": "An Ezodi",
+   "lat": 48.04944,
+   "lng": -4.85012,
+   "span_m": 41
+  },
+  {
+   "name": "An Namouic",
+   "lat": 48.04312,
+   "lng": -4.9519,
+   "span_m": 55
+  },
+  {
+   "name": "La Louve",
+   "lat": 48.00313,
+   "lng": -4.58617,
+   "span_m": 26
+  },
+  {
+   "name": "An Arc'h",
+   "lat": 48.04364,
+   "lng": -4.88163,
+   "span_m": 62
+  },
+  {
+   "name": "Île aux Rats",
+   "lat": 47.85248,
+   "lng": -4.18433,
+   "span_m": 91
+  },
+  {
+   "name": "La Rousse",
+   "lat": 47.86041,
+   "lng": -4.11005,
+   "span_m": 23
+  },
+  {
+   "name": "Le Four",
+   "lat": 47.86325,
+   "lng": -4.10685,
+   "span_m": 23
+  },
+  {
+   "name": "La Bombe",
+   "lat": 47.71321,
+   "lng": -3.98956,
+   "span_m": 36
+  },
+  {
+   "name": "Le Huic",
+   "lat": 47.73143,
+   "lng": -4.01302,
+   "span_m": 26
+  },
+  {
+   "name": "Île de Guiriden",
+   "lat": 47.72521,
+   "lng": -3.97411,
+   "span_m": 41
+  },
+  {
+   "name": "Roc'h ar C'hoar",
+   "lat": 47.72441,
+   "lng": -4.01158,
+   "span_m": 46
+  },
+  {
+   "name": "Le Run",
+   "lat": 47.7305,
+   "lng": -4.02951,
+   "span_m": 18
+  },
+  {
+   "name": "Le Run",
+   "lat": 47.73121,
+   "lng": -4.03006,
+   "span_m": 17
+  },
+  {
+   "name": "Le Run",
+   "lat": 47.73124,
+   "lng": -4.03054,
+   "span_m": 29
+  },
+  {
+   "name": "Le Run",
+   "lat": 47.73171,
+   "lng": -4.03031,
+   "span_m": 33
+  },
+  {
+   "name": "Bondiliguet",
+   "lat": 47.72511,
+   "lng": -4.01966,
+   "span_m": 14
+  },
+  {
+   "name": "Bondiliguet",
+   "lat": 47.72527,
+   "lng": -4.02162,
+   "span_m": 14
+  },
+  {
+   "name": "Bondiliguet",
+   "lat": 47.7253,
+   "lng": -4.02197,
+   "span_m": 21
+  },
+  {
+   "name": "Bondiliguet",
+   "lat": 47.72563,
+   "lng": -4.01812,
+   "span_m": 13
+  },
+  {
+   "name": "Bondiliguet",
+   "lat": 47.72573,
+   "lng": -4.01742,
+   "span_m": 27
+  },
+  {
+   "name": "Les Pierres Noires",
+   "lat": 47.72995,
+   "lng": -3.99052,
+   "span_m": 43
+  },
+  {
+   "name": "Les Pierres Noires",
+   "lat": 47.7303,
+   "lng": -3.98955,
+   "span_m": 46
+  },
+  {
+   "name": "Les Pierres Noires",
+   "lat": 47.73066,
+   "lng": -3.98476,
+   "span_m": 19
+  },
+  {
+   "name": "Les Pierres Noires",
+   "lat": 47.73048,
+   "lng": -3.98422,
+   "span_m": 66
+  },
+  {
+   "name": "Les Pierres Noires",
+   "lat": 47.73144,
+   "lng": -3.988,
+   "span_m": 40
+  },
+  {
+   "name": "Men Bret",
+   "lat": 47.82186,
+   "lng": -4.1513,
+   "span_m": 46
+  },
+  {
+   "name": "Île Percée",
+   "lat": 47.78754,
+   "lng": -3.70518,
+   "span_m": 44
+  },
+  {
+   "name": "La Vache Noire",
+   "lat": 47.76715,
+   "lng": -3.58749,
+   "span_m": 54
+  },
+  {
+   "name": "Les Méaban",
+   "lat": 47.70677,
+   "lng": -3.96597,
+   "span_m": 10
+  },
+  {
+   "name": "Les Méaban",
+   "lat": 47.70726,
+   "lng": -3.9647,
+   "span_m": 29
+  },
+  {
+   "name": "Les Méaban",
+   "lat": 47.70689,
+   "lng": -3.96475,
+   "span_m": 6
+  },
+  {
+   "name": "Les Méaban",
+   "lat": 47.70902,
+   "lng": -3.96295,
+   "span_m": 26
+  },
+  {
+   "name": "Île du Nohic",
+   "lat": 47.66552,
+   "lng": -3.21258,
+   "span_m": 36
+  },
+  {
+   "name": "Nichtarguér",
+   "lat": 47.68565,
+   "lng": -3.18757,
+   "span_m": 41
+  },
+  {
+   "name": "Logodenec",
+   "lat": 47.68804,
+   "lng": -3.202,
+   "span_m": 33
+  },
+  {
+   "name": "Miniavec",
+   "lat": 47.68571,
+   "lng": -3.19577,
+   "span_m": 64
+  },
+  {
+   "name": "Er Vugalé",
+   "lat": 47.69824,
+   "lng": -3.19386,
+   "span_m": 41
+  },
+  {
+   "name": "Le Château",
+   "lat": 47.69828,
+   "lng": -3.41782,
+   "span_m": 63
+  },
+  {
+   "name": "Les Sœurs",
+   "lat": 47.7024,
+   "lng": -3.36415,
+   "span_m": 88
+  },
+  {
+   "name": "Le Grafol",
+   "lat": 47.62503,
+   "lng": -2.76721,
+   "span_m": 31
+  },
+  {
+   "name": "Mouchiouse",
+   "lat": 47.59988,
+   "lng": -2.81651,
+   "span_m": 64
+  },
+  {
+   "name": "L'Île aux Oiseaux",
+   "lat": 47.97559,
+   "lng": -2.16823,
+   "span_m": 28
+  },
+  {
+   "name": "Basse du Flamand",
+   "lat": 48.46447,
+   "lng": -5.12742,
+   "span_m": 25
+  },
+  {
+   "name": "Leur Vaz",
+   "lat": 48.44285,
+   "lng": -5.14963,
+   "span_m": 31
+  },
+  {
+   "name": "Men Tensel",
+   "lat": 48.43737,
+   "lng": -5.0257,
+   "span_m": 19
+  },
+  {
+   "name": "Kerzu Vraz",
+   "lat": 48.47018,
+   "lng": -5.11819,
+   "span_m": 29
+  },
+  {
+   "name": "Men ar Groaz",
+   "lat": 48.45244,
+   "lng": -5.0991,
+   "span_m": 25
+  },
+  {
+   "name": "Men ar Blank",
+   "lat": 48.45229,
+   "lng": -5.10134,
+   "span_m": 16
+  },
+  {
+   "name": "Le Petit Truk",
+   "lat": 48.45158,
+   "lng": -5.10405,
+   "span_m": 47
+  },
+  {
+   "name": "Le Grand Truk",
+   "lat": 48.45029,
+   "lng": -5.10699,
+   "span_m": 52
+  },
+  {
+   "name": "Le Grand Truk",
+   "lat": 48.45087,
+   "lng": -5.10681,
+   "span_m": 93
+  },
+  {
+   "name": "Île Vierge",
+   "lat": 48.20143,
+   "lng": -4.51026,
+   "span_m": 70
+  },
+  {
+   "name": "Ar Forc'h",
+   "lat": 48.24824,
+   "lng": -4.62986,
+   "span_m": 22
+  },
+  {
+   "name": "Ar Forc'h",
+   "lat": 48.24844,
+   "lng": -4.62957,
+   "span_m": 31
+  },
+  {
+   "name": "Rocher du Crapaud",
+   "lat": 48.47015,
+   "lng": -4.75984,
+   "span_m": 33
+  },
+  {
+   "name": "Karreg Toull",
+   "lat": 48.09058,
+   "lng": -4.49249,
+   "span_m": 34
+  },
+  {
+   "name": "Ar Ranvel",
+   "lat": 48.30325,
+   "lng": -4.88079,
+   "span_m": 16
+  },
+  {
+   "name": "Le Pohen",
+   "lat": 48.2749,
+   "lng": -4.63986,
+   "span_m": 10
+  },
+  {
+   "name": "La Chèvre",
+   "lat": 48.22682,
+   "lng": -4.60053,
+   "span_m": 35
+  },
+  {
+   "name": "Tévennec",
+   "lat": 48.07139,
+   "lng": -4.79757,
+   "span_m": 29
+  },
+  {
+   "name": "Tévennec",
+   "lat": 48.0721,
+   "lng": -4.79795,
+   "span_m": 28
+  },
+  {
+   "name": "Tévennec",
+   "lat": 48.07226,
+   "lng": -4.79845,
+   "span_m": 33
+  },
+  {
+   "name": "Tévennec",
+   "lat": 48.07259,
+   "lng": -4.79917,
+   "span_m": 13
+  },
+  {
+   "name": "Tévennec",
+   "lat": 48.07269,
+   "lng": -4.79979,
+   "span_m": 32
+  },
+  {
+   "name": "Île Grise",
+   "lat": 48.31447,
+   "lng": -4.32643,
+   "span_m": 36
+  },
+  {
+   "name": "Île aux Retraités",
+   "lat": 48.41635,
+   "lng": -4.24844,
+   "span_m": 23
+  },
+  {
+   "name": "La Pierre Profonde",
+   "lat": 48.2058,
+   "lng": -4.45206,
+   "span_m": 19
+  },
+  {
+   "name": "Les Verrès",
+   "lat": 48.20954,
+   "lng": -4.43993,
+   "span_m": 66
+  },
+  {
+   "name": "Beg Hamon",
+   "lat": 48.60194,
+   "lng": -4.61632,
+   "span_m": 34
+  },
+  {
+   "name": "Coulouarn",
+   "lat": 48.57547,
+   "lng": -4.6459,
+   "span_m": 56
+  },
+  {
+   "name": "Penven",
+   "lat": 48.59277,
+   "lng": -4.6476,
+   "span_m": 58
+  },
+  {
+   "name": "Boulc'h",
+   "lat": 48.63662,
+   "lng": -4.48076,
+   "span_m": 4
+  },
+  {
+   "name": "Ar Poull Vein",
+   "lat": 48.63841,
+   "lng": -4.48597,
+   "span_m": 4
+  },
+  {
+   "name": "Karreg ar Martolod",
+   "lat": 48.64833,
+   "lng": -4.5344,
+   "span_m": 45
+  },
+  {
+   "name": "Men Vincent",
+   "lat": 48.65106,
+   "lng": -4.53022,
+   "span_m": 33
+  },
+  {
+   "name": "Lazerez",
+   "lat": 48.64948,
+   "lng": -4.55783,
+   "span_m": 12
+  },
+  {
+   "name": "Ar C'Houlm",
+   "lat": 48.62793,
+   "lng": -4.4897,
+   "span_m": 21
+  },
+  {
+   "name": "Trelom",
+   "lat": 48.60462,
+   "lng": -4.62532,
+   "span_m": 53
+  },
+  {
+   "name": "Kervillou Louet",
+   "lat": 48.59181,
+   "lng": -4.62532,
+   "span_m": 45
+  },
+  {
+   "name": "La Malouine",
+   "lat": 48.62648,
+   "lng": -4.60283,
+   "span_m": 67
+  },
+  {
+   "name": "Grand Pot de Beurre",
+   "lat": 48.62027,
+   "lng": -4.60788,
+   "span_m": 12
+  },
+  {
+   "name": "Île Verte",
+   "lat": 48.73144,
+   "lng": -3.98747,
+   "span_m": 65
+  },
+  {
+   "name": "Île Verte",
+   "lat": 48.73102,
+   "lng": -3.98679,
+   "span_m": 36
+  },
+  {
+   "name": "Roc'h Yan",
+   "lat": 48.71882,
+   "lng": -4.00395,
+   "span_m": 26
+  },
+  {
+   "name": "Roc'h Kroum",
+   "lat": 48.71296,
+   "lng": -4.03918,
+   "span_m": 88
+  },
+  {
+   "name": "Enez Treas",
+   "lat": 48.66584,
+   "lng": -4.22427,
+   "span_m": 57
+  },
+  {
+   "name": "Ar Guibel",
+   "lat": 48.65723,
+   "lng": -4.24241,
+   "span_m": 43
+  },
+  {
+   "name": "Ar Guibel",
+   "lat": 48.65769,
+   "lng": -4.24009,
+   "span_m": 49
+  },
+  {
+   "name": "Roche",
+   "lat": 48.66328,
+   "lng": -4.25123,
+   "span_m": 16
+  },
+  {
+   "name": "Roche",
+   "lat": 48.66475,
+   "lng": -4.25097,
+   "span_m": 27
+  },
+  {
+   "name": "Roche",
+   "lat": 48.66367,
+   "lng": -4.25027,
+   "span_m": 21
+  },
+  {
+   "name": "Roche",
+   "lat": 48.66542,
+   "lng": -4.25094,
+   "span_m": 64
+  },
+  {
+   "name": "Roche",
+   "lat": 48.66822,
+   "lng": -4.22279,
+   "span_m": 42
+  },
+  {
+   "name": "Taureau",
+   "lat": 48.67058,
+   "lng": -4.22612,
+   "span_m": 23
+  },
+  {
+   "name": "Roc'h ar C'hi",
+   "lat": 48.68707,
+   "lng": -4.18859,
+   "span_m": 16
+  },
+  {
+   "name": "Ile aux lapins",
+   "lat": 48.68884,
+   "lng": -4.17063,
+   "span_m": 52
+  },
+  {
+   "name": "Men Feizog",
+   "lat": 48.65541,
+   "lng": -4.45966,
+   "span_m": 50
+  },
+  {
+   "name": "Roc'h ar Ploum",
+   "lat": 48.68478,
+   "lng": -4.35936,
+   "span_m": 33
+  },
+  {
+   "name": "Karreg zu",
+   "lat": 48.67326,
+   "lng": -4.37582,
+   "span_m": 42
+  },
+  {
+   "name": "Men Neurit Skouignagoù",
+   "lat": 48.67181,
+   "lng": -4.38253,
+   "span_m": 49
+  },
+  {
+   "name": "Skouignagoù",
+   "lat": 48.67651,
+   "lng": -4.38685,
+   "span_m": 45
+  },
+  {
+   "name": "Karreg Zu",
+   "lat": 48.67182,
+   "lng": -4.37543,
+   "span_m": 21
+  },
+  {
+   "name": "Ilôt",
+   "lat": 48.66696,
+   "lng": -4.1903,
+   "span_m": 40
+  },
+  {
+   "name": "Tilloc",
+   "lat": 48.6453,
+   "lng": -4.45286,
+   "span_m": 22
+  },
+  {
+   "name": "Mean Melen",
+   "lat": 48.64803,
+   "lng": -4.28665,
+   "span_m": 72
+  },
+  {
+   "name": "Roche",
+   "lat": 48.65043,
+   "lng": -4.26955,
+   "span_m": 115
+  },
+  {
+   "name": "Roche",
+   "lat": 48.65191,
+   "lng": -4.27159,
+   "span_m": 29
+  },
+  {
+   "name": "Roc'h Louet",
+   "lat": 48.71573,
+   "lng": -4.04177,
+   "span_m": 66
+  },
+  {
+   "name": "Ar Groaz",
+   "lat": 48.73364,
+   "lng": -4.01458,
+   "span_m": 10
+  },
+  {
+   "name": "Coulouarn",
+   "lat": 48.71416,
+   "lng": -4.06572,
+   "span_m": 53
+  },
+  {
+   "name": "Pointe Melen",
+   "lat": 48.72134,
+   "lng": -4.01887,
+   "span_m": 86
+  },
+  {
+   "name": "Roche des Cormorans",
+   "lat": 48.72843,
+   "lng": -4.01833,
+   "span_m": 17
+  },
+  {
+   "name": "Azkeiz",
+   "lat": 48.73079,
+   "lng": -4.0228,
+   "span_m": 21
+  },
+  {
+   "name": "Melenn Vraz",
+   "lat": 48.72234,
+   "lng": -4.03245,
+   "span_m": 46
+  },
+  {
+   "name": "Vengam",
+   "lat": 48.70877,
+   "lng": -4.07536,
+   "span_m": 46
+  },
+  {
+   "name": "Ar Gourmantell Vraz",
+   "lat": 48.72733,
+   "lng": -4.03244,
+   "span_m": 47
+  },
+  {
+   "name": "Ar Bilou",
+   "lat": 48.70655,
+   "lng": -4.04942,
+   "span_m": 65
+  },
+  {
+   "name": "Roc'h Treas",
+   "lat": 48.69432,
+   "lng": -4.06544,
+   "span_m": 47
+  },
+  {
+   "name": "Ar Ru Lann Vras",
+   "lat": 48.67753,
+   "lng": -3.92882,
+   "span_m": 63
+  },
+  {
+   "name": "Île Blanche",
+   "lat": 48.67501,
+   "lng": -3.94548,
+   "span_m": 42
+  },
+  {
+   "name": "Tint Houarn",
+   "lat": 48.66829,
+   "lng": -3.94251,
+   "span_m": 98
+  },
+  {
+   "name": "Ar Ru Lann Vihan",
+   "lat": 48.67806,
+   "lng": -3.92681,
+   "span_m": 55
+  },
+  {
+   "name": "Île Louet",
+   "lat": 48.67341,
+   "lng": -3.88847,
+   "span_m": 97
+  },
+  {
+   "name": "Le Four",
+   "lat": 48.68887,
+   "lng": -3.93121,
+   "span_m": 39
+  },
+  {
+   "name": "Le Pont du Cerf",
+   "lat": 48.69467,
+   "lng": -3.9127,
+   "span_m": 52
+  },
+  {
+   "name": "La Roche Mignonne",
+   "lat": 48.75677,
+   "lng": -3.57672,
+   "span_m": 50
+  },
+  {
+   "name": "Men Saint-Carantec",
+   "lat": 48.67487,
+   "lng": -3.90315,
+   "span_m": 35
+  },
+  {
+   "name": "Île du Port Blanc",
+   "lat": 48.71046,
+   "lng": -3.83838,
+   "span_m": 105
+  },
+  {
+   "name": "Île Radennec",
+   "lat": 48.77334,
+   "lng": -3.59303,
+   "span_m": 81
+  },
+  {
+   "name": "Île Sonne",
+   "lat": 48.77376,
+   "lng": -3.59005,
+   "span_m": 91
+  },
+  {
+   "name": "Île Ar Froderius",
+   "lat": 48.77379,
+   "lng": -3.58888,
+   "span_m": 84
+  },
+  {
+   "name": "Rocher du Squewel",
+   "lat": 48.83673,
+   "lng": -3.47516,
+   "span_m": 54
+  },
+  {
+   "name": "Le Taureau",
+   "lat": 48.74945,
+   "lng": -3.60674,
+   "span_m": 88
+  },
+  {
+   "name": "La Vieille Chambre",
+   "lat": 48.69509,
+   "lng": -3.8652,
+   "span_m": 15
+  },
+  {
+   "name": "Barre du Cerf",
+   "lat": 48.6917,
+   "lng": -3.90752,
+   "span_m": 45
+  },
+  {
+   "name": "Le Crom",
+   "lat": 48.69647,
+   "lng": -3.90624,
+   "span_m": 33
+  },
+  {
+   "name": "Roche de Mi-Marée",
+   "lat": 48.72559,
+   "lng": -3.92921,
+   "span_m": 37
+  },
+  {
+   "name": "Le Rater",
+   "lat": 48.73629,
+   "lng": -3.87716,
+   "span_m": 46
+  },
+  {
+   "name": "La Vache",
+   "lat": 48.71198,
+   "lng": -3.94094,
+   "span_m": 21
+  },
+  {
+   "name": "Roc'h Losquédic",
+   "lat": 48.84721,
+   "lng": -2.98441,
+   "span_m": 76
+  },
+  {
+   "name": "Île Brug",
+   "lat": 48.83546,
+   "lng": -3.33582,
+   "span_m": 147
+  },
+  {
+   "name": "Roc'h Dreizig",
+   "lat": 48.85529,
+   "lng": -2.98549,
+   "span_m": 55
+  },
+  {
+   "name": "Korn an Diaoul",
+   "lat": 48.85555,
+   "lng": -2.98724,
+   "span_m": 43
+  },
+  {
+   "name": "Roc'h Louet",
+   "lat": 48.84274,
+   "lng": -3.31138,
+   "span_m": 52
+  },
+  {
+   "name": "Île aux Moutons",
+   "lat": 48.83655,
+   "lng": -3.29667,
+   "span_m": 48
+  },
+  {
+   "name": "Île Hadren",
+   "lat": 48.86141,
+   "lng": -3.08431,
+   "span_m": 87
+  },
+  {
+   "name": "Les Héaux",
+   "lat": 48.90846,
+   "lng": -3.08643,
+   "span_m": 110
+  },
+  {
+   "name": "Roc'h Carboucho",
+   "lat": 48.87829,
+   "lng": -3.04048,
+   "span_m": 17
+  },
+  {
+   "name": "Roc'h ar Liorzo",
+   "lat": 48.87549,
+   "lng": -3.05456,
+   "span_m": 27
+  },
+  {
+   "name": "Paresseux",
+   "lat": 48.84815,
+   "lng": -3.31415,
+   "span_m": 47
+  },
+  {
+   "name": "Enezenn Maerl",
+   "lat": 48.83826,
+   "lng": -3.28664,
+   "span_m": 31
+  },
+  {
+   "name": "Île Castel Yard",
+   "lat": 48.83793,
+   "lng": -3.08942,
+   "span_m": 53
+  },
+  {
+   "name": "Roche Flaqueresse",
+   "lat": 48.84437,
+   "lng": -3.32362,
+   "span_m": 47
+  },
+  {
+   "name": "Rochtur",
+   "lat": 48.82258,
+   "lng": -3.45041,
+   "span_m": 93
+  },
+  {
+   "name": "Roc'h Garzon",
+   "lat": 48.82709,
+   "lng": -3.07931,
+   "span_m": 44
+  },
+  {
+   "name": "îlot du Châtelet",
+   "lat": 48.66886,
+   "lng": -2.85159,
+   "span_m": 74
+  },
+  {
+   "name": "Rocher de La Mauve",
+   "lat": 48.70307,
+   "lng": -2.87951,
+   "span_m": 116
+  },
+  {
+   "name": "Rocher de L'Ost-Pic",
+   "lat": 48.77948,
+   "lng": -2.94028,
+   "span_m": 56
+  },
+  {
+   "name": "Le Pommier",
+   "lat": 48.70029,
+   "lng": -2.88813,
+   "span_m": 21
+  },
+  {
+   "name": "Le Taureau",
+   "lat": 48.72431,
+   "lng": -2.91931,
+   "span_m": 11
+  },
+  {
+   "name": "Îlot du Châtelet",
+   "lat": 48.66886,
+   "lng": -2.85159,
+   "span_m": 74
+  },
+  {
+   "name": "Île Dame Jouanne",
+   "lat": 48.63449,
+   "lng": -2.13971,
+   "span_m": 66
+  },
+  {
+   "name": "Île de Fouérousse",
+   "lat": 48.61483,
+   "lng": -2.20338,
+   "span_m": 25
+  },
+  {
+   "name": "La Petite Conchée",
+   "lat": 48.68028,
+   "lng": -2.0584,
+   "span_m": 26
+  },
+  {
+   "name": "Les Haies de Conchée",
+   "lat": 48.68809,
+   "lng": -2.05047,
+   "span_m": 36
+  },
+  {
+   "name": "Les Haies de Conchée",
+   "lat": 48.68769,
+   "lng": -2.04934,
+   "span_m": 20
+  },
+  {
+   "name": "Les Haies de Conchée",
+   "lat": 48.68799,
+   "lng": -2.04697,
+   "span_m": 17
+  },
+  {
+   "name": "Les Haies de Conchée",
+   "lat": 48.68776,
+   "lng": -2.04709,
+   "span_m": 41
+  },
+  {
+   "name": "Les Haies de Conchée",
+   "lat": 48.68758,
+   "lng": -2.04627,
+   "span_m": 12
+  },
+  {
+   "name": "Île Notre-Dame",
+   "lat": 48.58701,
+   "lng": -1.99448,
+   "span_m": 69
+  },
+  {
+   "name": "Rocher de la Varde",
+   "lat": 48.68352,
+   "lng": -1.9919,
+   "span_m": 86
+  },
+  {
+   "name": "Plate à Sablon",
+   "lat": 48.98136,
+   "lng": -2.11394,
+   "span_m": 60
+  },
+  {
+   "name": "Pointue à Sablon",
+   "lat": 48.97702,
+   "lng": -2.12095,
+   "span_m": 79
+  },
+  {
+   "name": "Petit Rocher du Sud Bas",
+   "lat": 48.95503,
+   "lng": -2.0612,
+   "span_m": 44
+  },
+  {
+   "name": "L'Îlet",
+   "lat": 48.60809,
+   "lng": -2.02736,
+   "span_m": 69
+  },
+  {
+   "name": "Figuier",
+   "lat": 48.98783,
+   "lng": -2.1003,
+   "span_m": 17
+  },
+  {
+   "name": "Figuier",
+   "lat": 48.98788,
+   "lng": -2.10069,
+   "span_m": 25
+  },
+  {
+   "name": "Figuier",
+   "lat": 48.98814,
+   "lng": -2.10034,
+   "span_m": 16
+  },
+  {
+   "name": "Grune du Brai",
+   "lat": 48.96178,
+   "lng": -2.11013,
+   "span_m": 53
+  },
+  {
+   "name": "Grune du Brai",
+   "lat": 48.96211,
+   "lng": -2.11054,
+   "span_m": 36
+  },
+  {
+   "name": "Haute Grune",
+   "lat": 48.96322,
+   "lng": -2.16745,
+   "span_m": 36
+  },
+  {
+   "name": "Haute Grune",
+   "lat": 48.96309,
+   "lng": -2.16644,
+   "span_m": 21
+  },
+  {
+   "name": "Les Carniquets - Ouest",
+   "lat": 48.88952,
+   "lng": -1.81104,
+   "span_m": 67
+  },
+  {
+   "name": "Roche Hamon",
+   "lat": 48.88489,
+   "lng": -1.79865,
+   "span_m": 103
+  },
+  {
+   "name": "Le Vieux",
+   "lat": 48.88182,
+   "lng": -1.8426,
+   "span_m": 107
+  },
+  {
+   "name": "Petit Puceau",
+   "lat": 48.8793,
+   "lng": -1.82876,
+   "span_m": 108
+  },
+  {
+   "name": "L'Île à Choux",
+   "lat": 48.87351,
+   "lng": -1.84051,
+   "span_m": 67
+  },
+  {
+   "name": "La Plate Foraine",
+   "lat": 48.88415,
+   "lng": -1.73124,
+   "span_m": 50
+  },
+  {
+   "name": "Les Pérocrets",
+   "lat": 48.88447,
+   "lng": -1.7378,
+   "span_m": 67
+  },
+  {
+   "name": "Tomin",
+   "lat": 48.87864,
+   "lng": -1.73255,
+   "span_m": 17
+  },
+  {
+   "name": "Les Noires",
+   "lat": 48.88093,
+   "lng": -1.75676,
+   "span_m": 42
+  },
+  {
+   "name": "L'Herbier",
+   "lat": 48.88499,
+   "lng": -1.77888,
+   "span_m": 56
+  },
+  {
+   "name": "L'Epargne",
+   "lat": 48.88756,
+   "lng": -1.769,
+   "span_m": 109
+  }
+ ],
+ "zone": "atl100",
+ "rings": 2475,
+ "generated_at": "2026-07-22T21:23:05.537720+00:00"
+}

@@ -9,7 +9,7 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { useFonts } from "expo-font";
 
-const ICON_VECTOR_VERSION = "15.1.1";
+const ICON_VECTOR_VERSION = "15.0.3";
 
 // short internal fontName (what the library queries) -> CDN .ttf file name
 const ICON_FAMILIES: Record<string, string> = {

@@ -1,0 +1,11 @@
+{
+  "product": "MNT_ATL100m_HOMONIM_WGS84_PBMA_ZNEG (crop France-Ouest)",
+  "license": "Licence Ouverte \u2014 Bathym\u00e9trie \u00a9 SHOM (non officiel navigation)",
+  "ncols": 4450,
+  "nrows": 3300,
+  "x0": -5.4505,
+  "y0": 49.0005,
+  "dx": 0.001,
+  "dy": -0.001,
+  "downloaded_at": "2026-07-22T14:59:01.862300+00:00"
+}

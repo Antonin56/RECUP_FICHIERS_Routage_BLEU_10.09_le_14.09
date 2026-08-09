@@ -1,0 +1,189 @@
+=== SignalMar — Diagnostic Logs ===
+Généré le : 2026-08-03T12:29:20.025Z
+Plateforme : android 34
+user_email : antoninlepinay@gmail.com
+user_id : user_0b6070a69154
+backend : https://maritime-routing-v3.preview.emergentagent.com
+snapshot : {"collectedAt":"2026-08-03T12:29:00.083Z","app":{"name":"Expo Go","version":"54.0.8","build":"417","bundleId":"host.exp.exponent"},"device":{"platform":"android","osVersion":34,"brand":"samsung","modelName":"SM-T733"},"network":{"isConnected":true,"isInternetReachable":true,"type":"wifi","details":{"isConnectionExpensive":false,"txLinkSpeed":229,"rxLinkSpeed":229,"linkSpeed":229,"subnet":"255.255.255.0","ipAddress":"192.168.1.17","frequency":2462,"strength":99,"bssid":"c8:7f:2b:ac:52:98","ssid":"Livebox-5290"}},"gps":{"permission":"granted","servicesEnabled":true,"lastFix":{"lat":47.863222,"lng":-2.3182116,"accuracyM":3,"ageS":1,"speedMs":0.012914339080452919,"heading":0},"error":null},"backend":{"url":"https://maritime-routing-v3.preview.emergentagent.com"}}
+ping : null
+Nombre d'entrées : 72 (rétention 24h)
+
+────────────────────────────────────────────────────────────
+2026-08-02 12:42:18.203 [INFO ] [app    ] logger_started
+    ↳ {"platform":"android"}
+2026-08-02 12:42:51.971 [INFO ] [report ] proximity watcher booted
+    ↳ {"myUserId":"user_0b6070a69154","hasUserLoc":true,"reportsCount":0}
+2026-08-02 12:42:52.458 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":489}
+2026-08-02 12:42:52.532 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":561}
+2026-08-02 12:42:52.534 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":497}
+2026-08-02 12:43:16.927 [WARN ] [other  ] Cannot connect to Metro.
+
+Try the following to fix the issue:
+- Ensure that Metro is running and available on the same network
+- Ensure that your device/emulator is connected to your machine and has USB debugging enabled - run 'adb devices' to see a list of connected devices
+- If you're on a physical device connected to the same machine, run 'adb reverse tcp:8081 tcp:8081' to forward requests from your device
+- If your device is on the same Wi-Fi network, set 'Debug server host & port for device' in 'Dev settings' to your machine's IP address and the port of the local dev server - e.g. 10.0.1.1:8081
+
+URL: marine-nav-refactor.preview.emergentagent.com:443
+
+Error: undefined
+2026-08-02 12:44:22.121 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":240}
+2026-08-02 12:44:38.937 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":564}
+2026-08-02 12:45:52.210 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":318}
+2026-08-02 12:47:24.765 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":2863}
+2026-08-02 12:47:58.801 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":207}
+2026-08-02 12:48:07.690 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":210}
+2026-08-02 12:48:39.049 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":250}
+2026-08-02 12:48:52.199 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":287}
+2026-08-02 12:50:22.201 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":280}
+2026-08-02 12:51:15.940 [WARN ] [other  ] support screenshot failed {"status":429}
+2026-08-02 12:51:50.355 [WARN ] [other  ] support screenshot failed {"status":429}
+2026-08-02 12:51:52.236 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":305}
+2026-08-02 12:53:04.644 [WARN ] [other  ] support screenshot failed {"status":429}
+2026-08-02 12:54:49.144 [INFO ] [api    ] listReports OK
+    ↳ {"count":32,"ms":344,"types":["secours","obstacle_nav","animal_marin","pollution","meteo","autre"]}
+2026-08-02 12:54:49.451 [INFO ] [api    ] listReports OK
+    ↳ {"count":31,"ms":365,"types":["obstacle_nav","animal_marin","pollution","meteo","autre"]}
+2026-08-02 12:54:49.723 [INFO ] [api    ] listReports OK
+    ↳ {"count":24,"ms":363,"types":["animal_marin","pollution","meteo","autre"]}
+2026-08-02 12:54:49.981 [INFO ] [api    ] listReports OK
+    ↳ {"count":10,"ms":297,"types":["pollution","meteo","autre"]}
+2026-08-02 12:54:50.171 [INFO ] [api    ] listReports OK
+    ↳ {"count":1,"ms":212,"types":["meteo","autre"]}
+2026-08-02 12:54:51.767 [INFO ] [api    ] listReports OK
+    ↳ {"count":1,"ms":304,"types":["autre"]}
+2026-08-02 12:54:51.985 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":319}
+2026-08-02 12:55:50.938 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":519}
+2026-08-02 13:13:16.612 [INFO ] [app    ] logger_started
+    ↳ {"platform":"android"}
+2026-08-02 13:13:17.807 [INFO ] [report ] proximity watcher booted
+    ↳ {"myUserId":"user_0b6070a69154","hasUserLoc":true,"reportsCount":0}
+2026-08-02 13:13:18.274 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":469}
+2026-08-02 13:13:18.539 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":732}
+2026-08-02 13:13:18.734 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":839}
+2026-08-02 13:13:31.402 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":253}
+2026-08-02 13:14:15.298 [WARN ] [other  ] Cannot connect to Metro.
+
+Try the following to fix the issue:
+- Ensure that Metro is running and available on the same network
+- Ensure that your device/emulator is connected to your machine and has USB debugging enabled - run 'adb devices' to see a list of connected devices
+- If you're on a physical device connected to the same machine, run 'adb reverse tcp:8081 tcp:8081' to forward requests from your device
+- If your device is on the same Wi-Fi network, set 'Debug server host & port for device' in 'Dev settings' to your machine's IP address and the port of the local dev server - e.g. 10.0.1.1:8081
+
+URL: marine-nav-refactor.preview.emergentagent.com:443
+
+Error: undefined
+2026-08-02 13:15:16.552 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":12102}
+2026-08-02 13:16:46.395 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":11953}
+2026-08-02 13:18:38.756 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":294}
+2026-08-02 13:20:07.688 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":254}
+2026-08-02 13:22:21.355 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":485}
+2026-08-02 13:23:52.166 [INFO ] [api    ] listReports OK
+    ↳ {"count":35,"ms":1283}
+2026-08-02 15:56:33.368 [INFO ] [app    ] logger_started
+    ↳ {"platform":"android"}
+2026-08-02 15:56:34.568 [INFO ] [report ] proximity watcher booted
+    ↳ {"myUserId":"user_0b6070a69154","hasUserLoc":true,"reportsCount":0}
+2026-08-02 15:56:35.379 [INFO ] [api    ] listReports OK
+    ↳ {"count":34,"ms":813}
+2026-08-02 15:56:35.396 [INFO ] [api    ] listReports OK
+    ↳ {"count":34,"ms":828}
+2026-08-02 15:56:36.570 [INFO ] [api    ] listReports OK
+    ↳ {"count":34,"ms":1731}
+2026-08-02 15:57:32.147 [WARN ] [other  ] Cannot connect to Metro.
+
+Try the following to fix the issue:
+- Ensure that Metro is running and available on the same network
+- Ensure that your device/emulator is connected to your machine and has USB debugging enabled - run 'adb devices' to see a list of connected devices
+- If you're on a physical device connected to the same machine, run 'adb reverse tcp:8081 tcp:8081' to forward requests from your device
+- If your device is on the same Wi-Fi network, set 'Debug server host & port for device' in 'Dev settings' to your machine's IP address and the port of the local dev server - e.g. 10.0.1.1:8081
+
+URL: marine-nav-refactor.preview.emergentagent.com:443
+
+Error: undefined
+2026-08-02 15:58:14.658 [INFO ] [api    ] listReports OK
+    ↳ {"count":34,"ms":220}
+2026-08-02 15:59:44.685 [INFO ] [api    ] listReports OK
+    ↳ {"count":34,"ms":236}
+2026-08-02 16:01:17.180 [INFO ] [api    ] listReports OK
+    ↳ {"count":34,"ms":2718}
+2026-08-02 16:02:44.758 [INFO ] [api    ] listReports OK
+    ↳ {"count":34,"ms":288}
+2026-08-02 16:04:14.834 [INFO ] [api    ] listReports OK
+    ↳ {"count":34,"ms":350}
+2026-08-02 16:04:45.315 [INFO ] [app    ] diagnostic_uploaded
+    ↳ {"id":"dc1639a41fa8420785f4fc2b3e54862a"}
+2026-08-03 12:15:05.722 [INFO ] [app    ] logger_started
+    ↳ {"platform":"android"}
+2026-08-03 12:15:06.883 [INFO ] [report ] proximity watcher booted
+    ↳ {"myUserId":"user_0b6070a69154","hasUserLoc":true,"reportsCount":0}
+2026-08-03 12:15:07.521 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":639}
+2026-08-03 12:15:07.696 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":812}
+2026-08-03 12:15:07.976 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":996}
+2026-08-03 12:15:08.423 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":1147}
+2026-08-03 12:16:04.486 [WARN ] [other  ] Cannot connect to Metro.
+
+Try the following to fix the issue:
+- Ensure that Metro is running and available on the same network
+- Ensure that your device/emulator is connected to your machine and has USB debugging enabled - run 'adb devices' to see a list of connected devices
+- If you're on a physical device connected to the same machine, run 'adb reverse tcp:8081 tcp:8081' to forward requests from your device
+- If your device is on the same Wi-Fi network, set 'Debug server host & port for device' in 'Dev settings' to your machine's IP address and the port of the local dev server - e.g. 10.0.1.1:8081
+
+URL: marine-nav-refactor.preview.emergentagent.com:443
+
+Error: undefined
+2026-08-03 12:16:10.824 [INFO ] [api    ] route_computed
+    ↳ {"route_id":"R-20260803-121609-4T","engine":"engine_b","km":15.7,"min_depth_m":1.99,"threshold_m":1.5,"draft_m":1,"depth_margin_m":0.5,"lateral_used_m":null,"tide_m":0,"risk":false,"warnings":0}
+2026-08-03 12:16:58.867 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":251}
+2026-08-03 12:18:40.737 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":12070}
+2026-08-03 12:19:58.972 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":318}
+2026-08-03 12:21:29.001 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":337}
+2026-08-03 12:22:58.909 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":239}
+2026-08-03 12:24:28.974 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":290}
+2026-08-03 12:25:59.064 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":371}
+2026-08-03 12:27:29.038 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":337}
+2026-08-03 12:27:31.630 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":333}
+2026-08-03 12:28:25.993 [INFO ] [api    ] support_screenshot_sent
+    ↳ {"id":"S-20260803-122825-W6P","route_id":"R-20260803-121610-37","engine":"engine_b"}
+2026-08-03 12:28:32.492 [INFO ] [api    ] listReports OK
+    ↳ {"count":27,"ms":277}
+2026-08-03 12:29:12.502 [INFO ] [app    ] support_screenshots_uploaded
+    ↳ {"count":1}
+────────────────────────────────────────────────────────────

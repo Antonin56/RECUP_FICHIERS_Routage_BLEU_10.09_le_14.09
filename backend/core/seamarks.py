@@ -1,0 +1,869 @@
+"""SignalMar — Contraintes de balisage IALA zone A (21/07/2026, GO armateur).
+
+Traduit les balises OSM ingérées (scripts/ingest_seamarks.py) en zones
+INTERDITES rasterisées dans le masque navigable du moteur de route :
+
+- LATÉRALES (règle du sens conventionnel, validée par l'armateur) : le sens
+  conventionnel va DU LARGE VERS L'ABRI. « Verte à tribord en entrant » et
+  « verte à bâbord en sortant » désignent LE MÊME côté absolu de la bouée →
+  chaque latérale interdit un DEMI-DISQUE fixe, valable dans les deux sens.
+  Le côté est déterminé par la direction conventionnelle locale D (vers
+  l'abri), calculée comme le gradient d'un champ « distance au large à
+  travers l'eau » (BFS géodésique depuis la bordure océanique de la grille).
+      verte (starboard-hand) : le bateau passe à GAUCHE de D → interdit le
+      côté droit de D ;  rouge (port-hand) : l'inverse.
+- CARDINALES : le danger est du côté opposé au nom (cardinale Nord placée au
+  nord du danger) → demi-disque interdit côté danger.
+- DANGER ISOLÉ : disque interdit centré sur la balise (passage libre du côté
+  le plus court — l'A* choisit).
+- MARQUES SPÉCIALES : petit disque d'écart.
+- Latérale sans côté NI couleur (7 sur 204) : ignorée (jamais « danger »,
+  règle armateur) — à corriger dans OSM ou via table d'exceptions.
+"""
+from __future__ import annotations
+
+import json
+import math
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+from scipy import ndimage
+
+from core.bathy import BathyGrid, get_grid, get_zone_grid
+
+SEAMARKS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "seamarks.json"
+HAZARDS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "hazards.json"
+MOORINGS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "moorings.json"
+FARMS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "marine_farms.json"
+
+# ── 27/07/2026 (consigne armateur, vidéo Drenec) — ZONES DE CULTURE MARINE
+# (parcs à huîtres, bouchots, fermes marines) : JAMAIS traversées, même en
+# eau, même en dernier recours. Chaque polygone est couvert par un semis de
+# disques interdits (pas 70 m, rayon 60 m → interdit l'intérieur + ~50 m de
+# garde autour) ; les fermes ponctuelles (nœud OSM) ont un rayon fixe.
+R_FARM_NODE_M = 100.0
+R_FARM_COVER_M = 60.0
+_FARM_COVER_STEP_M = 70.0
+
+
+def _point_in_poly(lat: float, lng: float, poly: list[list[float]]) -> bool:
+    """Ray casting — poly = [[lat, lng], ...] (anneau, fermé ou non)."""
+    inside = False
+    j = len(poly) - 1
+    for i in range(len(poly)):
+        yi, xi = poly[i][0], poly[i][1]
+        yj, xj = poly[j][0], poly[j][1]
+        if (yi > lat) != (yj > lat) and \
+                lng < (xj - xi) * (lat - yi) / (yj - yi + 1e-12) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _farm_cover(poly: list[list[float]]) -> list[tuple[float, float, float]]:
+    """Semis de disques couvrant l'intérieur + le bord d'un polygone de parc."""
+    lats_p = [p[0] for p in poly]
+    lngs_p = [p[1] for p in poly]
+    lat0, lat1 = min(lats_p), max(lats_p)
+    lng0, lng1 = min(lngs_p), max(lngs_p)
+    mlng = max(1.0, 111_320.0 * math.cos(math.radians((lat0 + lat1) / 2)))
+    step_lat = _FARM_COVER_STEP_M / 110_574.0
+    step_lng = _FARM_COVER_STEP_M / mlng
+    # Sommets (bord) + centroïde (petits parcs plus fins que le pas).
+    out: list[tuple[float, float, float]] = [
+        (p[0], p[1], R_FARM_COVER_M) for p in poly
+    ]
+    out.append((sum(lats_p) / len(lats_p), sum(lngs_p) / len(lngs_p), R_FARM_COVER_M))
+    la = lat0
+    while la <= lat1:
+        lo = lng0
+        while lo <= lng1:
+            if _point_in_poly(la, lo, poly):
+                out.append((la, lo, R_FARM_COVER_M))
+            lo += step_lng
+        la += step_lat
+    return out
+
+# ── 26/07/2026 (demande armateur) — ZONES DE MOUILLAGE interdites ─────────
+# Disque interdit autour de chaque bouée de mouillage (route qui slalomait
+# entre les bouées de Larmor-Baden). Exemption : bouées proches (< 400 m) du
+# départ/de l'arrivée (on mouille, ou on quitte son mouillage). Si AUCUNE
+# route n'existe sans traverser les mouillages, le routeur ré-essaie avec
+# les mouillages OUVERTS + avertissement (contextvar ci-dessous).
+R_MOORING_M = 45.0
+MOORING_EXEMPT_M = 400.0
+import contextvars  # noqa: E402
+MOORINGS_OPEN = contextvars.ContextVar("sm_moorings_open", default=False)
+# 27/07/2026 (analyse vidéo 15h45) — le « dernier recours » est désormais
+# ÉTAGÉ : d'abord mouillages ouverts SEULS (MOORINGS_OPEN), puis seulement
+# si nécessaire les règles de CÔTÉ latéral levées (SIDE_RULES_OPEN). Avant,
+# un seul mode levait tout d'un coup (côtés + écart minimal + mouillages) →
+# routes SUR les balises (Holavre à 11 m, bouée n°6) et hors des chenaux.
+SIDE_RULES_OPEN = contextvars.ContextVar("sm_side_rules_open", default=False)
+
+# 27/07/2026 — ZONES DE MOUILLAGE SURFACIQUES (seamark:type=anchorage,
+# ingest_anchorages.py) : mêmes règles que les bouées de mouillage
+# (exemption départ/arrivée < 400 m, ouvertes en dernier recours).
+ANCHORAGES_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "anchorages.json"
+R_ANCH_NODE_M = 80.0
+
+# Rayons des zones interdites (mètres).
+R_LATERAL_M = 60.0          # demi-disque du mauvais côté d'une latérale
+R_CARDINAL_M = 120.0        # rayon « clearance » toutes directions (redressement)
+# 29/07/2026 (retour test en mer — « route passée au NORD d'une cardinale
+# SUD ») : IALA impose de passer du côté NOMMÉ de la marque. Le demi-disque
+# interdit CÔTÉ DANGER passe à 300 m pour les cardinales dont la direction est
+# connue — à 120 m, l'A* trouvait de l'eau profonde juste derrière la balise
+# et passait du mauvais côté. Les cardinales de direction inconnue gardent le
+# disque plein de 120 m (un disque plein de 300 m fermerait des passes
+# légitimes), et le rayon « clearance » du redressement reste à 120 m (il
+# s'applique de TOUS les côtés, y compris le côté sain).
+R_CARDINAL_WRONG_SIDE_M = 300.0
+R_ISOLATED_M = 80.0         # disque complet danger isolé
+R_SPECIAL_M = 40.0          # écart léger marque spéciale
+# 26/07/2026 (retour armateur, La Vilaine : route à 7 m de la bouée n°8) —
+# ÉCART MINIMAL TOUTES DIRECTIONS autour des latérales/cardinales : même du
+# « bon » côté on ne frôle pas une bouée quand il y a la place. Adaptatif
+# (≤ 25 % de l'écartement du couple) pour ne jamais fermer un chenal étroit.
+R_MARK_STANDOFF_M = 60.0
+# 28/07/2026 (consigne support/armateur) — PLANCHER du standoff : ≤ 25 % de
+# l'écartement du couple autorisait géométriquement le passage « sur la
+# balise » quand le rayon tombait sous la maille (n°6 du chenal de Vannes :
+# couple à 78 m → 19,4 m < maille 20 m → disque SAUTÉ). Le standoff ne
+# descend plus jamais sous ce plancher et n'est plus jamais sauté en maille
+# fine (le disque bloque au moins la cellule de la balise).
+R_MARK_STANDOFF_MIN_M = 15.0
+# 23/07/2026 (règle armateur) — en ZONE PEU PROFONDE (fond < tirant d'eau +
+# marge + 2 m), le balisage latéral est respecté SCRUPULEUSEMENT : le mauvais
+# côté d'une latérale est interdit jusqu'à 200 m là où c'est peu profond. En
+# eaux profondes, l'écart standard suffit (passage validé Teignouse).
+R_LATERAL_STRICT_M = 200.0
+# 22/07/2026 (lot armateur) — DANGERS : roches (couvrantes/découvrantes/à
+# fleur d'eau/submergées), épaves dangereuses ou de profondeur inconnue,
+# obstructions. Disque complet.
+R_HAZARD_M = 60.0
+# Catégories d'épave TOUJOURS bloquées.
+WRECK_DANGEROUS = {"dangerous", "hull_showing", "mast_showing", "distributed_remains"}
+
+# Champ « distance au large » : calculé UNE FOIS sur une grille décimée.
+_SHELTER_STEP = 8           # 20 m × 8 = 160 m par cellule — suffisant
+# 22/07/2026 — distance max de recherche du couple rouge/verte d'une latérale
+# (les paires d'un chenal sont espacées de 40-250 m de part et d'autre).
+_PAIR_MAX_M = 350.0
+# Distance max de recherche de la latérale du même côté (axe du chenal).
+_AXIS_MAX_M = 600.0
+
+
+class SeamarkIndex:
+    def __init__(self, grid: BathyGrid) -> None:
+        data = json.loads(SEAMARKS_PATH.read_text())
+        self.marks: list[dict] = data["marks"]
+        self.fetched_at: str = data.get("fetched_at", "")
+        # 22/07/2026 — dangers (roches/épaves/obstructions, ingest_hazards.py).
+        self.hazards: list[dict] = []
+        if HAZARDS_PATH.exists():
+            self.hazards = json.loads(HAZARDS_PATH.read_text()).get("hazards", [])
+        # 26/07/2026 — bouées de mouillage (ingest_moorings.py).
+        self.moorings: list[dict] = []
+        if MOORINGS_PATH.exists():
+            self.moorings = json.loads(MOORINGS_PATH.read_text()).get("moorings", [])
+        # 27/07/2026 — zones de culture marine (ingest_marine_farms.py) :
+        # semis de disques interdits (lat, lng, rayon_m), np.ndarray (N, 3).
+        self.farm_circles: np.ndarray = np.zeros((0, 3), dtype=np.float64)
+        if FARMS_PATH.exists():
+            circles: list[tuple[float, float, float]] = []
+            for f in json.loads(FARMS_PATH.read_text()).get("farms", []):
+                poly = f.get("poly")
+                if poly and len(poly) >= 3:
+                    circles.extend(_farm_cover(poly))
+                elif f.get("lat") is not None:
+                    circles.append((f["lat"], f["lng"], R_FARM_NODE_M))
+            if circles:
+                self.farm_circles = np.asarray(circles, dtype=np.float64)
+        # 27/07/2026 — zones de mouillage surfaciques (ingest_anchorages.py),
+        # même représentation en semis de disques que les parcs.
+        self.anchorage_circles: np.ndarray = np.zeros((0, 3), dtype=np.float64)
+        if ANCHORAGES_PATH.exists():
+            circles_a: list[tuple[float, float, float]] = []
+            for z in json.loads(ANCHORAGES_PATH.read_text()).get("anchorages", []):
+                poly = z.get("poly")
+                if poly and len(poly) >= 3:
+                    circles_a.extend(_farm_cover(poly))
+                elif z.get("lat") is not None:
+                    circles_a.append((z["lat"], z["lng"], R_ANCH_NODE_M))
+            if circles_a:
+                self.anchorage_circles = np.asarray(circles_a, dtype=np.float64)
+        self._grid = grid
+        self._shelter: Optional[np.ndarray] = None  # champ décimé
+        self._gy: Optional[np.ndarray] = None
+        self._gx: Optional[np.ndarray] = None
+        # 23/07/2026 (extension Atlantique) — INDEX SPATIAL des latérales :
+        # _pair_of/_same_side_axis passaient de O(n) à O(n²) avec ~10 000
+        # balises sur toute la façade. Seaux de 0,02° (~2,2 km ≫ rayons de
+        # recherche 350/600 m) → voisinage 3×3 suffisant.
+        self._lat_buckets: dict[tuple[int, int], list[dict]] = {}
+        for m in self.marks:
+            if m.get("kind") == "lateral":
+                k = (int(m["lat"] * 50), int(m["lng"] * 50))
+                self._lat_buckets.setdefault(k, []).append(m)
+
+    def _laterals_near(self, lat: float, lng: float) -> list[dict]:
+        """Latérales dans le voisinage 3×3 seaux (~±2 km) du point."""
+        kr, kc = int(lat * 50), int(lng * 50)
+        out: list[dict] = []
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                out.extend(self._lat_buckets.get((kr + dr, kc + dc), ()))
+        return out
+
+    @staticmethod
+    def hazard_blocks(h: dict, min_depth: float) -> bool:
+        """Un danger bloque-t-il la route ? Roches : TOUJOURS (règle armateur —
+        couvrantes/découvrantes = à éviter à tout prix ; le MNT 20 m peut rater
+        une tête de roche). Épaves/obstructions : dangereuses, profondeur
+        inconnue, ou profondeur < seuil + 1 m de garde."""
+        kind = h.get("kind")
+        if kind == "rock":
+            return True
+        cat = h.get("category", "")
+        depth = h.get("depth_m")
+        if kind == "wreck" and cat in WRECK_DANGEROUS:
+            return True
+        if cat == "non-dangerous" and depth is None:
+            return False
+        if depth is not None:
+            return float(depth) < min_depth + 1.0
+        return True  # profondeur inconnue → prudence
+
+    # ── Champ « distance au large » (BFS à travers l'eau) ───────────────
+    def _build_shelter(self) -> None:
+        g = self._grid
+        step = _SHELTER_STEP
+        depth = np.asarray(g.grid[::step, ::step], dtype=np.float32)
+        water = np.isfinite(depth) & (depth > 0.0)
+        # Graines = LE LARGE. 23/07/2026 (généralisation Atlantique) : toute
+        # BORDURE de grille en eau FRANCHE (> 5 m) — Manche au nord, océan à
+        # l'ouest/au sud. Le seuil 5 m exclut les rivières/estuaires qui
+        # sortent de l'emprise (Vilaine, Loire amont) dont le semis
+        # contaminerait le champ (bug du 21/07 : sens conventionnels
+        # inversés, entrée du Golfe fermée). Comportement zone pilote
+        # inchangé : ses bordures profondes sont le sud et l'ouest.
+        deep = water & (depth > 5.0)
+        seeds = np.zeros_like(water)
+        seeds[0, :] = deep[0, :]           # bord nord
+        seeds[-1, :] = deep[-1, :]         # bord sud
+        seeds[:, 0] = deep[:, 0]           # bord ouest
+        seeds[:, -1] = deep[:, -1]         # bord est (Manche au nord-est)
+        # BFS géodésique : dilatations successives restreintes à l'eau.
+        dist = np.full(water.shape, np.inf, dtype=np.float32)
+        dist[seeds] = 0.0
+        frontier = seeds.copy()
+        reached = seeds.copy()
+        st = ndimage.generate_binary_structure(2, 2)
+        it = 0
+        max_it = water.shape[0] + water.shape[1]
+        while frontier.any() and it < max_it:
+            it += 1
+            nxt = ndimage.binary_dilation(reached, structure=st) & water & ~reached
+            if not nxt.any():
+                break
+            dist[nxt] = it
+            reached |= nxt
+            frontier = nxt
+        # Terre / cellules non atteintes : PROPAGER la valeur de l'eau la
+        # plus proche (sinon le gradient près des côtes pointe vers la terre
+        # — bug du 21/07 : sens conventionnels faussés aux abords des rochers).
+        if np.isfinite(dist).any():
+            invalid = ~np.isfinite(dist)
+            if invalid.any():
+                _, (ir, ic) = ndimage.distance_transform_edt(invalid, return_indices=True)
+                dist = dist[ir, ic]
+        else:
+            dist = np.zeros_like(dist)
+        smooth = ndimage.gaussian_filter(dist, sigma=4.0)
+        gy, gx = np.gradient(smooth)  # gy: vers le sud (lignes+), gx: vers l'est
+        self._shelter = smooth
+        self._gy, self._gx = gy, gx
+
+    def conventional_dir(self, lat: float, lng: float) -> Optional[tuple[float, float]]:
+        """Direction conventionnelle locale (unitaire, composantes est/nord) —
+        pointe vers l'ABRI (distance au large croissante). None si indéfini."""
+        if self._shelter is None:
+            self._build_shelter()
+        g = self._grid
+        r, c = g.rc(lat, lng)
+        rr = int(np.clip(r // _SHELTER_STEP, 0, self._gy.shape[0] - 1))
+        cc = int(np.clip(c // _SHELTER_STEP, 0, self._gy.shape[1] - 1))
+        de = float(self._gx[rr, cc])          # +est
+        dn = float(-self._gy[rr, cc])         # lignes croissent vers le sud → nord = -gy
+        n = math.hypot(de, dn)
+        if n < 1e-9:
+            return None
+        return de / n, dn / n
+
+    # ── 22/07/2026 (bug armateur « je ne peux faire aucune route ») ──────
+    # Dans un chenal ÉTROIT (chenal de Vannes), le gradient « distance au
+    # large » est bruité (cap mesuré 121° pour un chenal orienté ≈ 25°) : les
+    # demi-disques interdits pivotent et FERMENT le chenal. Or les latérales
+    # vont par COUPLES rouge/verte de part et d'autre du chenal, et la règle
+    # IALA A (« rouge à bâbord, verte à tribord en entrant ») fixe le sens
+    # conventionnel SANS ambiguïté à partir du seul vecteur rouge→verte :
+    # D = ce vecteur tourné de -90° (la verte reste à droite). Bien plus
+    # fiable que le gradient — utilisé en priorité quand un couple existe.
+    def _pair_of(self, m: dict) -> Optional[dict]:
+        """Latérale de catégorie OPPOSÉE la plus proche (≤ _PAIR_MAX_M) —
+        le « couple » rouge/verte qui borde un chenal. None si isolée."""
+        if "_pair" in m:
+            return m["_pair"]
+        cat = m.get("category")
+        other = "port" if cat == "starboard" else "starboard"
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        best: Optional[dict] = None
+        best_d2 = _PAIR_MAX_M ** 2
+        for o in self._laterals_near(m["lat"], m["lng"]):
+            if o is m or o.get("category") != other:
+                continue
+            de_ = (o["lng"] - m["lng"]) * mlng
+            dn_ = (o["lat"] - m["lat"]) * 110_574.0
+            d2 = de_ * de_ + dn_ * dn_
+            if d2 < best_d2:
+                best_d2, best = d2, o
+        m["_pair"] = best
+        return best
+
+    def _mark_dir(self, m: dict) -> Optional[tuple[float, float]]:
+        """Direction conventionnelle pour UNE latérale : couple rouge/verte
+        le plus proche (≤ _PAIR_MAX_M) si disponible, sinon gradient."""
+        if "_dir" in m:
+            return m["_dir"]
+        d: Optional[tuple[float, float]] = None
+        cat = m.get("category")
+        if cat in ("port", "starboard"):
+            o = self._pair_of(m)
+            if o is not None:
+                mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+                de_ = (o["lng"] - m["lng"]) * mlng
+                dn_ = (o["lat"] - m["lat"]) * 110_574.0
+                # w = vecteur ROUGE → VERTE (m→autre si m est rouge, inverse sinon).
+                we, wn = (de_, dn_) if cat == "port" else (-de_, -dn_)
+                # 22/07/2026 — couples EN QUINCONCE (décalés le long du chenal,
+                # ex. entrée du port de Vannes) : w a une grosse composante
+                # le long du chenal et D pivote de 60-90°. L'axe du chenal =
+                # l'alignement des latérales du MÊME côté : on ne garde de w
+                # que sa composante PERPENDICULAIRE à cet axe.
+                axis = self._same_side_axis(m)
+                if axis is not None:
+                    ae, an = axis
+                    dot = we * ae + wn * an
+                    pe, pn = we - dot * ae, wn - dot * an
+                    if math.hypot(pe, pn) >= 15.0:
+                        we, wn = pe, pn
+                n = math.hypot(we, wn)
+                if n > 1e-9:
+                    d = (-wn / n, we / n)   # w tourné de -90° : verte à droite de D
+        if d is None:
+            d = self.conventional_dir(m["lat"], m["lng"])
+        m["_dir"] = d
+        return d
+
+    def _same_side_axis(self, m: dict) -> Optional[tuple[float, float]]:
+        """Axe local du chenal ≈ direction (unitaire, ±180°) vers la latérale
+        du MÊME côté la plus proche (≤ _AXIS_MAX_M). None si isolée."""
+        if "_axis" in m:
+            return m["_axis"]
+        cat = m.get("category")
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        best: Optional[tuple[float, float]] = None
+        best_d2 = _AXIS_MAX_M ** 2
+        for o in self._laterals_near(m["lat"], m["lng"]):
+            if o is m or o.get("category") != cat:
+                continue
+            de_ = (o["lng"] - m["lng"]) * mlng
+            dn_ = (o["lat"] - m["lat"]) * 110_574.0
+            d2 = de_ * de_ + dn_ * dn_
+            if 100.0 <= d2 < best_d2:   # ≥ 10 m : ignore les doublons OSM
+                best_d2, best = d2, (de_, dn_)
+        out = None
+        if best is not None:
+            n = math.hypot(*best)
+            out = (best[0] / n, best[1] / n)
+        m["_axis"] = out
+        return out
+
+    # ── 23/07/2026 — Profondeur du MAUVAIS CÔTÉ d'une latérale (règle
+    # « balisage strict en eaux peu profondes »). On échantillonne le fond du
+    # côté INTERDIT (perpendiculaire au sens conventionnel) : si ce côté est
+    # profond (ex. balise du milieu de la Teignouse, validée terrain), l'écart
+    # standard suffit ; s'il est peu profond, balisage STRICT. Caché/marque.
+    def _wrong_side_depth(self, m: dict) -> Optional[float]:
+        if "_wrong_depth" in m:
+            return m["_wrong_depth"]
+        best: Optional[float] = None
+        g = self._grid
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        d2 = self._mark_dir(m)
+        if d2 is None:
+            samples = ((100, 0), (-100, 0), (0, 100), (0, -100))  # anneau prudent
+        else:
+            de, dn = d2
+            # Perpendiculaire côté interdit : droite du sens conventionnel pour
+            # une verte (starboard), gauche pour une rouge (port).
+            if m.get("category") == "starboard":
+                pe, pn = dn, -de
+            else:
+                pe, pn = -dn, de
+            samples = tuple((pe * r, pn * r) for r in (40.0, 90.0, 150.0))
+        for dxe, dyn in samples:
+            d = g.depth_at(m["lat"] + dyn / 110_574.0, m["lng"] + dxe / mlng)
+            if d is not None and (best is None or d < best):
+                best = d
+        m["_wrong_depth"] = best
+        return best
+
+    def _lateral_strict(self, m: dict, strict_depth: Optional[float]) -> bool:
+        """True si le MAUVAIS CÔTÉ de la latérale est peu profond → strict."""
+        if strict_depth is None:
+            return False
+        zd = self._wrong_side_depth(m)
+        return zd is not None and zd < strict_depth
+
+    # ── Rasterisation des interdits dans une fenêtre du moteur ──────────
+    def rasterize_blocked(
+        self,
+        lats: np.ndarray,
+        lngs: np.ndarray,
+        m_per_deg_lng: float,
+        m_per_deg_lat: float,
+        min_depth: float = 0.0,
+        strict_depth: Optional[float] = None,
+        depth: Optional[np.ndarray] = None,
+        strict_exempt: Optional[tuple] = None,
+    ) -> np.ndarray:
+        """Masque bool (len(lats), len(lngs)) des cellules interdites par le
+        balisage ET les dangers (roches/épaves/obstructions — 22/07/2026).
+        lats décroissantes, lngs croissantes (fenêtre A*)."""
+        ny, nx = len(lats), len(lngs)
+        blocked = np.zeros((ny, nx), dtype=bool)
+        # 22/07/2026 (bug armateur) — les interdits BALISES sont rasterisés à
+        # part : le COULOIR entre chaque couple rouge/verte (= le chenal, eau
+        # saine par définition) est ensuite re-creusé dans ce calque, sans
+        # jamais rouvrir un danger (roche/épave).
+        marks_blocked = np.zeros((ny, nx), dtype=bool)
+        lat_n, lat_s = float(lats[0]), float(lats[-1])
+        lng_w, lng_e = float(lngs[0]), float(lngs[-1])
+        pad = 0.01  # ~1 km : inclure les balises juste hors fenêtre
+        cy = abs(float(lats[1] - lats[0])) * m_per_deg_lat if ny > 1 else 20.0
+        cx = abs(float(lngs[1] - lngs[0])) * m_per_deg_lng if nx > 1 else 20.0
+
+        def _disc(lat: float, lng: float, radius: float) -> Optional[tuple]:
+            """Sous-fenêtre + masque disque autour d'un point. None si hors zone."""
+            ry = max(1, int(math.ceil(radius / cy)))
+            rx = max(1, int(math.ceil(radius / cx)))
+            # 27/07 (perf) — min/max scalaires : np.clip sur scalaire coûtait
+            # ~40 % du rasterize (500 k appels avec les parcs + mouillages).
+            br = min(max(int(np.searchsorted(-lats, -lat)), 0), ny - 1)
+            bc = min(max(int(np.searchsorted(lngs, lng)), 0), nx - 1)
+            r0, r1 = max(0, br - ry), min(ny, br + ry + 1)
+            c0, c1 = max(0, bc - rx), min(nx, bc + rx + 1)
+            if r1 <= r0 or c1 <= c0:
+                return None
+            dy = (lats[r0:r1, None] - lat) * m_per_deg_lat   # +nord (m)
+            dx = (lngs[None, c0:c1] - lng) * m_per_deg_lng   # +est (m)
+            inside = dx * dx + dy * dy <= radius * radius
+            return r0, r1, c0, c1, dy, dx, inside
+
+        # 22/07/2026 — DANGERS d'abord (disques pleins).
+        for h in self.hazards:
+            if not (lat_s - pad <= h["lat"] <= lat_n + pad and lng_w - pad <= h["lng"] <= lng_e + pad):
+                continue
+            if not self.hazard_blocks(h, min_depth):
+                continue
+            d = _disc(h["lat"], h["lng"], R_HAZARD_M)
+            if d is None:
+                continue
+            r0, r1, c0, c1, _dy, _dx, inside = d
+            blocked[r0:r1, c0:c1] |= inside
+
+        # ── 27/07/2026 (consigne armateur, vidéo Drenec) — ZONES DE CULTURE
+        # MARINE : interdites SANS AUCUNE exemption (ni marée, ni dernier
+        # recours, ni proximité départ/arrivée). « Même s'il y a de l'eau
+        # c'est trop dangereux. » En maille très grossière (> 60 m) les
+        # disques scellaient les chenaux bordés de parcs (embouchure de la
+        # Vilaine) : les passes fines/réparations les font respecter, et le
+        # tracé final est audité (avertissement nominatif si traversée).
+        if len(self.farm_circles) and max(cy, cx) <= 60.0:
+            fc = self.farm_circles
+            sel = ((fc[:, 0] >= lat_s - pad) & (fc[:, 0] <= lat_n + pad)
+                   & (fc[:, 1] >= lng_w - pad) & (fc[:, 1] <= lng_e + pad))
+            for fla, flo, fr in fc[sel]:
+                d = _disc(float(fla), float(flo), float(fr))
+                if d is None:
+                    continue
+                r0, r1, c0, c1, _dy, _dx, inside = d
+                blocked[r0:r1, c0:c1] |= inside
+
+        # ── 26/07/2026 (demande armateur, capture Larmor-Baden) — ZONES DE
+        # MOUILLAGE : interdit de router À TRAVERS un champ de bouées.
+        # Exemptions : bouées < 400 m du départ/arrivée (strict_exempt), et
+        # mode « mouillages ouverts » (MOORINGS_OPEN, retry aucune-autre-
+        # route — le routeur ajoute alors un avertissement). Le tirant d'eau
+        # reste contrôlé partout par le masque profondeur.
+        if self.moorings and not MOORINGS_OPEN.get():
+            for mo in self.moorings:
+                if not (lat_s - pad <= mo["lat"] <= lat_n + pad and lng_w - pad <= mo["lng"] <= lng_e + pad):
+                    continue
+                if strict_exempt:
+                    exempt = False
+                    for pt in strict_exempt:
+                        dd = math.hypot((mo["lat"] - pt[0]) * m_per_deg_lat,
+                                        (mo["lng"] - pt[1]) * m_per_deg_lng)
+                        if dd < MOORING_EXEMPT_M:
+                            exempt = True
+                            break
+                    if exempt:
+                        continue
+                d = _disc(mo["lat"], mo["lng"], R_MOORING_M)
+                if d is None:
+                    continue
+                r0, r1, c0, c1, _dy, _dx, inside = d
+                blocked[r0:r1, c0:c1] |= inside
+
+        # ── 27/07/2026 (vidéo 15h45, mouillages de Barrarach/Île d'Arz) —
+        # ZONES DE MOUILLAGE SURFACIQUES : mêmes règles que les bouées
+        # (exemption < 400 m du départ/arrivée, ouvertes en dernier recours).
+        # Appliquées en maille FINE seulement (≤ 35 m) : en maille grossière
+        # les champs qui bordent un chenal étroit le scellaient (rivière
+        # d'Auray) — le raffinement fin fait respecter les zones.
+        if len(self.anchorage_circles) and not MOORINGS_OPEN.get() \
+                and max(cy, cx) <= 35.0:
+            ac = self.anchorage_circles
+            sel = ((ac[:, 0] >= lat_s - pad) & (ac[:, 0] <= lat_n + pad)
+                   & (ac[:, 1] >= lng_w - pad) & (ac[:, 1] <= lng_e + pad))
+            for ala, alo, ar in ac[sel]:
+                if strict_exempt:
+                    exempt = False
+                    for pt in strict_exempt:
+                        dd = math.hypot((float(ala) - pt[0]) * m_per_deg_lat,
+                                        (float(alo) - pt[1]) * m_per_deg_lng)
+                        if dd < MOORING_EXEMPT_M:
+                            exempt = True
+                            break
+                    if exempt:
+                        continue
+                d = _disc(float(ala), float(alo), float(ar))
+                if d is None:
+                    continue
+                r0, r1, c0, c1, _dy, _dx, inside = d
+                blocked[r0:r1, c0:c1] |= inside
+
+        for m in self.marks:
+            if not (lat_s - pad <= m["lat"] <= lat_n + pad and lng_w - pad <= m["lng"] <= lng_e + pad):
+                continue
+            kind = m["kind"]
+            if kind == "safe_water":
+                continue
+            radius = {"lateral": R_LATERAL_M, "cardinal": R_CARDINAL_M,
+                      "isolated_danger": R_ISOLATED_M, "special": R_SPECIAL_M}[kind]
+            # 29/07 (IALA, retour mer) — cardinale de direction CONNUE : le
+            # demi-disque côté danger est élargi à 300 m (voir constante).
+            # Exemption < 500 m du départ/de l'arrivée (même règle que le
+            # balisage latéral strict : on quitte/rejoint son mouillage même
+            # s'il se trouve du « mauvais » côté proche d'une cardinale) —
+            # l'écart historique de 120 m reste appliqué.
+            if kind == "cardinal" and m.get("category") in (
+                    "north", "n", "south", "s", "east", "e", "west", "w"):
+                radius = R_CARDINAL_WRONG_SIDE_M
+                if strict_exempt:
+                    for pt in strict_exempt:
+                        dd = math.hypot((m["lat"] - pt[0]) * m_per_deg_lat,
+                                        (m["lng"] - pt[1]) * m_per_deg_lng)
+                        if dd < 500.0:
+                            radius = R_CARDINAL_M
+                            break
+            # 23/07 (règle armateur) — latérale dont le MAUVAIS CÔTÉ est peu
+            # profond (fond < tirant + marge + 2 m) : le mauvais côté est
+            # interdit jusqu'à 200 m LÀ OÙ C'EST PEU PROFOND (les veines d'eau
+            # profondes restent passables — tolérance validée Teignouse).
+            # Exemption < 500 m du départ/de l'arrivée (manœuvres portuaires).
+            # 22/07/2026 (bug armateur « je ne peux faire aucune route ») —
+            # le STRICT exige une direction FIABLE (couple rouge/verte) : sur
+            # une latérale isolée, le gradient « distance au large » peut être
+            # faux de 90° (chenal de Vannes) et le demi-disque de 200 m FERME
+            # le chenal. Isolée → écart standard 60 m seulement.
+            # Et JAMAIS de strict en maille grossière (> 35 m) : la passe
+            # grossière ne sert qu'à la connectivité, les passes fines et le
+            # contrôle plein-résolution ré-appliquent la sécurité.
+            strict_here = False
+            if (kind == "lateral" and max(cy, cx) <= 35.0
+                    and self._pair_of(m) is not None
+                    and self._lateral_strict(m, strict_depth)):
+                strict_here = depth is not None
+                if strict_here and strict_exempt:
+                    for pt in strict_exempt:
+                        dd = math.hypot((m["lat"] - pt[0]) * m_per_deg_lat,
+                                        (m["lng"] - pt[1]) * m_per_deg_lng)
+                        if dd < 500.0:
+                            strict_here = False
+                            break
+                if strict_here:
+                    radius = R_LATERAL_STRICT_M
+            d = _disc(m["lat"], m["lng"], radius)
+            if d is None:
+                continue
+            r0, r1, c0, c1, dy, dx, inside = d
+
+            if kind in ("isolated_danger", "special"):
+                zone = inside
+            elif kind == "cardinal":
+                cat = m["category"]
+                if cat in ("north", "n"):
+                    zone = inside & (dy < 0)      # danger au SUD de la balise
+                elif cat in ("south", "s"):
+                    zone = inside & (dy > 0)
+                elif cat in ("east", "e"):
+                    zone = inside & (dx < 0)      # danger à l'OUEST
+                elif cat in ("west", "w"):
+                    zone = inside & (dx > 0)
+                else:
+                    zone = inside                  # cardinale inconnue : prudence
+            else:  # lateral
+                # 26/07 (bug armateur, chenal de La Vilaine) — DERNIER
+                # RECOURS : le sens conventionnel peut être FAUX hors des
+                # chenaux calibrés (champ orienté N dans la Vilaine → demi-
+                # disques EN TRAVERS du chenal = no_route à chaque bouée).
+                # Quand aucune autre route n'existe (MOORINGS_OPEN), on lève
+                # l'interdit de CÔTÉ latéral — profondeur, dangers et
+                # cardinales restent appliqués, et le routeur avertit
+                # explicitement l'utilisateur de vérifier le balisage à vue.
+                # 27/07 (vidéo 15h45 : Holavre à 11 m, bouée n°6 SOUS la
+                # route) — la levée du sens conventionnel n'est plus couplée
+                # aux mouillages : elle a son propre étage de dernier recours
+                # (SIDE_RULES_OPEN), tenté seulement si « mouillages ouverts »
+                # ne suffit pas.
+                if SIDE_RULES_OPEN.get():
+                    continue
+                cat = m["category"]
+                if cat not in ("port", "starboard"):
+                    continue  # ni côté ni couleur : ignorée (règle armateur)
+                d2 = self._mark_dir(m)
+                if d2 is None:
+                    continue
+                de, dn = d2  # direction conventionnelle (vers l'abri)
+                # cross > 0 ⇔ point à GAUCHE de D (vu en entrant).
+                cross = de * dy - dn * dx
+                if cat == "starboard":
+                    # verte : bateau à gauche → interdit la DROITE de D.
+                    zone = inside & (cross < 0)
+                else:
+                    # rouge : bateau à droite → interdit la GAUCHE de D.
+                    zone = inside & (cross > 0)
+                if strict_here:
+                    # Écart standard (60 m) inconditionnel + extension stricte
+                    # (jusqu'à 200 m) UNIQUEMENT sur les cellules peu profondes
+                    # du mauvais côté (l'eau profonde reste passable).
+                    inside_std = dx * dx + dy * dy <= R_LATERAL_M * R_LATERAL_M
+                    shallow = depth[r0:r1, c0:c1] < strict_depth
+                    zone = (zone & inside_std) | (zone & shallow)
+            marks_blocked[r0:r1, c0:c1] |= zone
+
+        # ── 22/07/2026 — COULOIR LIBRE entre chaque couple rouge/verte ────
+        # L'eau entre une latérale bâbord et sa tribord appariée EST le
+        # chenal : quelles que soient les erreurs de direction convention-
+        # nelle, ce couloir ne doit JAMAIS être fermé par le balisage
+        # (chenal de Vannes fermé → « Passage impossible » armateur).
+        # Disque au MILIEU du couple, rayon 45 % de l'écartement : couvre le
+        # cœur du chenal sans rouvrir l'écart minimal autour des balises.
+        seen_pairs: set[tuple[int, int]] = set()
+        for m in self.marks:
+            if m.get("kind") != "lateral" or m.get("category") not in ("port", "starboard"):
+                continue
+            if not (lat_s - pad <= m["lat"] <= lat_n + pad and lng_w - pad <= m["lng"] <= lng_e + pad):
+                continue
+            o = self._pair_of(m)
+            if o is None:
+                continue
+            key = (min(id(m), id(o)), max(id(m), id(o)))
+            if key in seen_pairs:
+                continue
+            seen_pairs.add(key)
+            mid_lat = (m["lat"] + o["lat"]) / 2
+            mid_lng = (m["lng"] + o["lng"]) / 2
+            gap = math.hypot((m["lat"] - o["lat"]) * m_per_deg_lat,
+                             (m["lng"] - o["lng"]) * m_per_deg_lng)
+            d = _disc(mid_lat, mid_lng, max(0.45 * gap, cy, cx))
+            if d is None:
+                continue
+            r0, r1, c0, c1, _dy, _dx, inside = d
+            marks_blocked[r0:r1, c0:c1] &= ~inside
+
+        # ── 26/07/2026 (retour armateur, chenal de La Vilaine) — ÉCART
+        # MINIMAL TOUTES DIRECTIONS autour de chaque balise latérale/
+        # cardinale, appliqué APRÈS le couloir libre : le cœur du chenal
+        # reste ouvert mais la route ne se colle plus aux bouées (7 m !).
+        # Garde-fous : rayon ≤ 25 % de l'écartement du couple (chenaux
+        # étroits passables), sauté en maille grossière (sub-cellule) et
+        # < 200 m du départ/arrivée DEMANDÉS.
+        # 27/07 (vidéo 15h45 : Holavre à 11 m) — appliqué AUSSI en dernier
+        # recours : on ne frôle JAMAIS une balise, quel que soit le mode.
+        # (le garde-fou « rayon ≥ maille » ci-dessous suffit : en maille
+        # grossière le disque est sauté, les passes fines l'appliquent).
+        for m in self.marks:
+            if m.get("kind") not in ("lateral", "cardinal"):
+                continue
+            if not (lat_s - pad <= m["lat"] <= lat_n + pad and lng_w - pad <= m["lng"] <= lng_e + pad):
+                continue
+            r_std = R_MARK_STANDOFF_M
+            o = self._pair_of(m) if m["kind"] == "lateral" else None
+            if o is not None:
+                gap = math.hypot((m["lat"] - o["lat"]) * m_per_deg_lat,
+                                 (m["lng"] - o["lng"]) * m_per_deg_lng)
+                # 28/07 (consigne support) — CONTRAINTE DURE : plancher
+                # R_MARK_STANDOFF_MIN_M, le rayon ne se réduit plus à ≤ 25 %
+                # de l'écartement (passage « sur la n°6 » / « à 11 m »).
+                r_std = min(r_std, max(0.25 * gap, R_MARK_STANDOFF_MIN_M))
+            # 28/07 — plus JAMAIS sauté en maille fine parce que le rayon est
+            # sous la maille (le disque bloque au moins la cellule de la
+            # balise). Maille grossière (> 45 m) : passes fines + réparation.
+            if max(cy, cx) > 45.0:
+                continue
+            if strict_exempt:
+                skip = False
+                for pt in strict_exempt:
+                    dd = math.hypot((m["lat"] - pt[0]) * m_per_deg_lat,
+                                    (m["lng"] - pt[1]) * m_per_deg_lng)
+                    if dd < 200.0:
+                        skip = True
+                        break
+                if skip:
+                    continue
+            d = _disc(m["lat"], m["lng"], r_std)
+            if d is None:
+                continue
+            r0, r1, c0, c1, _dy, _dx, inside = d
+            marks_blocked[r0:r1, c0:c1] |= inside
+
+        return blocked | marks_blocked
+
+    # ── 27/07/2026 (consigne armateur : « obligatoire de suivre les
+    # chenaux ») — PORTES DE CHENAL pour l'attraction A* : chaque couple de
+    # latérales rouge/verte est une porte ; l'eau autour d'une porte mais
+    # HORS du couloir coûte plus cher → la route passe PAR les portes.
+    def gates(
+        self, lat_s: float, lat_n: float, lng_w: float, lng_e: float,
+    ) -> list[tuple[float, float, float, float, float]]:
+        """[(mid_lat, mid_lng, écartement_m, u_est, u_nord)] des couples dans
+        la bbox — u = vecteur unitaire TRANSVERSE au chenal, écartement = la
+        LARGEUR PERPENDICULAIRE du chenal.
+
+        28/07/2026 (bug vidéo 15h45, chenal de Vannes) — couples EN QUINCONCE
+        (No7/No8 décalés le long du chenal) : le vecteur brut du couple
+        pointe surtout LE LONG du chenal → l'« attraction de porte » 27/07
+        pénalisait le chenal LUI-MÊME et laissait la vasière voisine
+        gratuite (route à 280 m à l'est des bouées). Comme _mark_dir, on ne
+        garde du vecteur du couple que sa composante PERPENDICULAIRE à
+        l'axe du chenal (alignement des latérales du même côté)."""
+        out: list[tuple[float, float, float, float, float]] = []
+        seen: set[tuple[int, int]] = set()
+        for m in self.marks:
+            if m.get("kind") != "lateral" or m.get("category") not in ("port", "starboard"):
+                continue
+            if not (lat_s <= m["lat"] <= lat_n and lng_w <= m["lng"] <= lng_e):
+                continue
+            o = self._pair_of(m)
+            if o is None:
+                continue
+            key = (min(id(m), id(o)), max(id(m), id(o)))
+            if key in seen:
+                continue
+            seen.add(key)
+            mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+            ux = (o["lng"] - m["lng"]) * mlng
+            uy = (o["lat"] - m["lat"]) * 110_574.0
+            axis = self._same_side_axis(m) or self._same_side_axis(o)
+            raw = math.hypot(ux, uy)
+            if axis is not None:
+                ae, an = axis
+                dot = ux * ae + uy * an
+                pe, pn = ux - dot * ae, uy - dot * an
+                perp = math.hypot(pe, pn)
+                # Couple en QUINCONCE PUR (décalé surtout le long du chenal,
+                # composante transverse < 60 %) : le milieu du couple n'est
+                # PAS le milieu du chenal → pas une porte fiable, ignoré
+                # (les règles de côté + l'écart minimal restent appliqués).
+                if perp < 0.6 * raw:
+                    continue
+                if perp >= 20.0:
+                    ux, uy = pe, pn
+            gap = math.hypot(ux, uy)
+            if gap <= 20.0:
+                continue  # couple dégénéré (doublon OSM / quinconce pur)
+            out.append(((m["lat"] + o["lat"]) / 2, (m["lng"] + o["lng"]) / 2,
+                        gap, ux / gap, uy / gap))
+        return out
+
+    # ── 27/07/2026 — AUDIT DE PASSAGE : écart minimal attendu par balise
+    # (même logique que le rasterize) pour vérifier le tracé FINAL et
+    # avertir nominativement si la route frôle une balise malgré tout.
+    def standoff_circles(
+        self, lat_s: float, lat_n: float, lng_w: float, lng_e: float,
+    ) -> list[tuple[float, float, float, str]]:
+        out: list[tuple[float, float, float, str]] = []
+        for m in self.marks:
+            if m.get("kind") not in ("lateral", "cardinal"):
+                continue
+            if not (lat_s <= m["lat"] <= lat_n and lng_w <= m["lng"] <= lng_e):
+                continue
+            r_std = R_MARK_STANDOFF_M
+            o = self._pair_of(m) if m["kind"] == "lateral" else None
+            if o is not None:
+                gap = math.hypot((m["lat"] - o["lat"]) * 110_574.0,
+                                 (m["lng"] - o["lng"]) * 111_320.0 * math.cos(math.radians(m["lat"])))
+                # 28/07 — même plancher que le masque (contrainte dure).
+                r_std = min(r_std, max(0.25 * gap, R_MARK_STANDOFF_MIN_M))
+            out.append((m["lat"], m["lng"], r_std,
+                        m.get("name") or f"balise {m.get('category', '')}".strip()))
+        return out
+
+    # ── 22/07/2026 — Points à ÉCART MINIMAL pour le redressement global ──
+    def clearance_points(
+        self, lat_s: float, lat_n: float, lng_w: float, lng_e: float, min_depth: float,
+    ) -> list[tuple[float, float, float]]:
+        """(lat, lng, rayon_m) de TOUT ce que le tracé redressé doit éviter :
+        balises (rayon plein, conservateur — le redressement ne coupe jamais
+        près d'une balise, quel que soit le côté) + dangers bloquants."""
+        pts: list[tuple[float, float, float]] = []
+        radius_by_kind = {"lateral": R_LATERAL_M, "cardinal": R_CARDINAL_M,
+                          "isolated_danger": R_ISOLATED_M, "special": R_SPECIAL_M}
+        for m in self.marks:
+            if m["kind"] == "safe_water":
+                continue
+            if lat_s <= m["lat"] <= lat_n and lng_w <= m["lng"] <= lng_e:
+                pts.append((m["lat"], m["lng"], radius_by_kind[m["kind"]]))
+        for h in self.hazards:
+            if lat_s <= h["lat"] <= lat_n and lng_w <= h["lng"] <= lng_e:
+                if self.hazard_blocks(h, min_depth):
+                    pts.append((h["lat"], h["lng"], R_HAZARD_M))
+        # 27/07 — zones de culture marine : le redressement/arrondi ne doit
+        # jamais couper un parc (mêmes disques que le masque navigable).
+        if len(self.farm_circles):
+            fc = self.farm_circles
+            sel = ((fc[:, 0] >= lat_s) & (fc[:, 0] <= lat_n)
+                   & (fc[:, 1] >= lng_w) & (fc[:, 1] <= lng_e))
+            pts.extend((float(a), float(b), float(r)) for a, b, r in fc[sel])
+        return pts
+
+
+_index: Optional[SeamarkIndex] = None
+
+
+def get_seamarks() -> Optional[SeamarkIndex]:
+    global _index
+    if _index is None and SEAMARKS_PATH.exists():
+        # 23/07/2026 (généralisation Atlantique) — le champ « distance au
+        # large » est calé sur la grille de ZONE la plus ÉTENDUE (atl100,
+        # graines = bordures en eau franche). Repli zone pilote puis mosaïque.
+        grid = get_zone_grid("atl100") or get_zone_grid("morbihan") or get_grid()
+        if grid is not None:
+            _index = SeamarkIndex(grid)
+    return _index

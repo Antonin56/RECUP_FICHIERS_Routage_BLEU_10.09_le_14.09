@@ -1,0 +1,11 @@
+{
+  "product": "MNT_COTIER_MORBIHAN_TANDEM_20m_WGS84_PBMA_ZNEG",
+  "license": "Licence Ouverte \u2014 Bathym\u00e9trie \u00a9 SHOM (non officiel navigation)",
+  "ncols": 4834,
+  "nrows": 2626,
+  "x0": -3.3334300062,
+  "y0": 47.7250999938,
+  "dx": 0.0002,
+  "dy": -0.0002,
+  "downloaded_at": "2026-07-20T12:27:31.597230+00:00"
+}

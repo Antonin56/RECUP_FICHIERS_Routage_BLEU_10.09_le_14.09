@@ -1,0 +1,90 @@
+# SignalMar — RÈGLES DE NAVIGATION du Moteur C (« signalmar.v3 »).
+#
+# Ce fichier est la source de vérité LISIBLE des consignes armateur du
+# 03/08/2026. Il ne s'applique QU'AU MOTEUR C : les moteurs A
+# (« signalmar.v1 ») et B (« signalmar.v2 ») sont GELÉS et ne lisent jamais
+# ce fichier.
+#
+# Chaque valeur peut être surchargée moteur par moteur via le champ `params`
+# du document `engines` en base (même nom de clé, cf. DEFAULT_PARAMS).
+# Exposé en lecture par GET /api/routing/rules.
+
+version: 1
+applies_to: signalmar.v3
+
+# ── RÈGLE 1 — BALISAGE (PRIORITÉ ABSOLUE) ────────────────────────────────
+balisage:
+  priority: 1
+  summary: >-
+    Le calcul se fait TOUJOURS dans le sens conventionnel (de la mer vers la
+    terre). La géométrie d'une route est donc identique dans les deux sens de
+    parcours. Bouées ROUGES laissées à BÂBORD (gauche), bouées VERTES à
+    TRIBORD (droite) — le sens conventionnel étant celui du calcul.
+  rules:
+    # Le sens conventionnel n'est PLUS estimé par gradient : il EST le sens
+    # de calcul (mer → terre). Le point le plus « au large » devient le
+    # départ du calcul, puis le tracé est retourné si l'utilisateur a demandé
+    # le trajet terre → mer.
+    force_conventional_direction: true
+    # Rayon d'influence : une latérale à plus de cette distance du tracé ne
+    # contraint pas le côté de passage (eau libre, hors chenal).
+    lateral_influence_m: 200.0
+    # 03/08 (retour armateur — cardinale sud « Drenec ») : une CARDINALE doit
+    # être passée du côté qu'elle désigne (Sud → on passe au sud). Le danger
+    # est du côté opposé, d'où un rayon d'influence plus large que pour une
+    # latérale et un écart visé plus grand.
+    cardinal_influence_m: 300.0
+    cardinal_target_m: 90.0
+    # Écart visé quand le tracé doit changer de côté d'une balise.
+    side_target_m: 60.0
+    # Longueur de PONTAGE : le contournement ne remplace que la portion de
+    # tracé située à ± cette distance de la balise (03/08 — insérer le point
+    # de contournement entre deux waypoints espacés de plusieurs kilomètres
+    # déroutait tout le tronçon et le contrôle de couloir le rejetait).
+    side_bridge_m: 150.0
+    # Rallonge maximale acceptée pour repasser du bon côté d'une balise.
+    side_max_detour_m: 900.0
+    # Nombre maximal de balises corrigées (garde-fou de performance).
+    side_max_marks: 12
+    # Une balise à moins de cette distance du départ/arrivée DEMANDÉS est
+    # exemptée (on quitte / on rejoint son mouillage).
+    side_exempt_m: 200.0
+
+# ── RÈGLE 2 — PROFONDEUR ─────────────────────────────────────────────────
+profondeur:
+  priority: 2
+  summary: >-
+    Chemin le plus court DANS LA ZONE LA PLUS PROFONDE. La profondeur prime
+    sur la distance dès que le fond est faible.
+  rules:
+    # Poids du surcoût « manque de fond » dans l'A* : le coût d'une cellule
+    # vaut longueur × (1 + poids × manque), où manque ∈ [0, 1] vaut 0 dès
+    # depth_reference_m de fond et 1 sur le seuil de navigabilité.
+    depth_priority_weight: 2.5
+    # Fond au-delà duquel plus aucun surcoût n'est appliqué (eau franche).
+    depth_reference_m: 15.0
+
+# ── RÈGLE 3 — MARGE LATÉRALE ─────────────────────────────────────────────
+marge_laterale:
+  priority: 3
+  summary: >-
+    50 m partout par défaut. Réduite jusqu'à 20 m si nécessaire pour
+    respecter le balisage (priorité 1) puis la profondeur (priorité 2). En
+    dessous de 20 m inévitables, le tronçon est tracé en ROUGE avec
+    avertissement.
+  rules:
+    margin_default_m: 50.0
+    margin_reduced_m: 20.0
+    # Sous ce seuil, le tronçon est marqué compromis (tracé rouge).
+    margin_red_m: 20.0
+
+# ── RÈGLE 4 — JAMAIS D'ÉCHEC ─────────────────────────────────────────────
+jamais_d_echec:
+  priority: 1
+  summary: >-
+    Une route ne renvoie JAMAIS « Passage impossible ». Si aucun passage
+    n'offre la hauteur d'eau requise, le tracé est quand même rendu et les
+    tronçons insuffisants sont dessinés en ROUGE (« zone peu profonde ou
+    découverte »).
+  rules:
+    never_fail: true
