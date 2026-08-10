@@ -101,3 +101,62 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+backend:
+  - task: "Moteur D (signalmar.v4) — sens conventionnel des latérales ISOLÉES + jamais de levée des côtés fiables"
+    implemented: true
+    working: "NA"
+    file: "backend/core/seamarks.py, backend/core/routing_engines/algos/signalmar_v4/__init__.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Bug armateur 10/08 : route Moteur D Golfe→Vilaine (mode « eau peu
+          profonde ») laissait No1 (9,8 m), No11, Jument du MAUVAIS côté.
+          Cause : _run_shallow/_last_resort (routers/routing.py) arment
+          SIDE_RULES_OPEN qui levait TOUTES les zones de côté latérales dans
+          rasterize_blocked. Correctif : sous ISOLATED_SIDE_BATHY (armé
+          uniquement par signalmar.v4/Moteur D), les latérales à direction
+          FIABLE (couple/override/asymétrie bathy) ne sont JAMAIS levées.
+          Moteurs A/B/C strictement inchangés (contextvar + caches séparés).
+          Vérifié localement : même route → wrong_side_marks vide, distance
+          51,1 km. Tests pytest 9/9 (iter133) + régressions B/C 24/24.
+
+test_plan:
+  current_focus:
+    - "Moteur D (signalmar.v4) — sens conventionnel des latérales ISOLÉES + jamais de levée des côtés fiables"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: >
+      Tester UNIQUEMENT le backend (routing). Auth : OTP phone 0760071445 /
+      code 123456 (dev bypass) ou password 123454321 ; header
+      X-RateLimit-Bypass: qa-bypass-signalmar-2026 pour éviter le rate-limit.
+      Les calculs de route peuvent prendre 1 à 3 min (timeout large requis).
+
+  - task: "Moteur D — résidu Illur en marge AUTO (10 m) : passe 3 (redressement) recoupait le mauvais côté"
+    implemented: true
+    working: "NA"
+    file: "backend/core/seamarks.py (clearance_points)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Résidu identifié par le testing agent (iteration_1.json) : en marge
+          AUTO (10 m), _straighten/_repair (_corridor_safe, passe 3) ne
+          contrôlent que fond + portes + cercles d'écart 60 m → le tracé
+          était retendu au SUD d'Illur à 91 m. Fix : sous ISOLATED_SIDE_BATHY
+          (Moteur D seulement), clearance_points couvre le demi-disque danger
+          (200 m) des latérales ISOLÉES à côté fiable par un semis de disques
+          d'écart (3 anneaux × 5 azimuts, r=45 m). Vérifié localement :
+          Illur NORD dans les 2 sens à marge 10 (121 m / 81 m), Vilaine eau
+          peu profonde toujours sans wrong_side. Suites 19/19 + 35/35.
+          Aussi corrigé : backend/.env ligne collée SMS_PROVIDER/RATE_LIMIT.

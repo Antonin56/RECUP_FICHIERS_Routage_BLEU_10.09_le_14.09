@@ -34,6 +34,11 @@ from core.bathy import BathyGrid, get_grid, get_zone_grid
 
 SEAMARKS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "seamarks.json"
 HAZARDS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "hazards.json"
+# 10/08/2026 — table d'EXCEPTIONS manuelles du côté de passage (validées
+# terrain) : {"overrides": [{"id": <id OSM>, "pass_bearing_deg": <0-360>}]}
+# — le cap (depuis la balise) du côté où la route DOIT passer. Prioritaire
+# sur tous les signaux automatiques.
+SIDE_OVERRIDES_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "side_overrides.json"
 MOORINGS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "moorings.json"
 FARMS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "marine_farms.json"
 
@@ -101,6 +106,11 @@ MOORINGS_OPEN = contextvars.ContextVar("sm_moorings_open", default=False)
 # un seul mode levait tout d'un coup (côtés + écart minimal + mouillages) →
 # routes SUR les balises (Holavre à 11 m, bouée n°6) et hors des chenaux.
 SIDE_RULES_OPEN = contextvars.ContextVar("sm_side_rules_open", default=False)
+# 10/08/2026 (consigne armateur, Moteur D UNIQUEMENT) — MODE « côté des
+# latérales ISOLÉES par asymétrie bathymétrique ». Activé exclusivement par
+# l'algo signalmar.v4 (Moteur D) le temps d'un calcul : les Moteurs A, B et
+# C restent STRICTEMENT inchangés (caches séparés, cf. _mark_dir).
+ISOLATED_SIDE_BATHY = contextvars.ContextVar("sm_isolated_side_bathy", default=False)
 
 # 27/07/2026 — ZONES DE MOUILLAGE SURFACIQUES (seamark:type=anchorage,
 # ingest_anchorages.py) : mêmes règles que les bouées de mouillage
@@ -153,6 +163,23 @@ _SHELTER_STEP = 8           # 20 m × 8 = 160 m par cellule — suffisant
 _PAIR_MAX_M = 350.0
 # Distance max de recherche de la latérale du même côté (axe du chenal).
 _AXIS_MAX_M = 600.0
+# ── 10/08/2026 (consigne armateur : « priorité absolue au sens conventionnel,
+# les moteurs ne passent jamais du bon côté d'une latérale ISOLÉE ») ────────
+# Le côté de passage d'une latérale est INVARIANT au sens de parcours : une
+# verte dont le chenal est à l'ouest se passe à l'OUEST dans les deux sens
+# (« à tribord en entrant » = « à bâbord en sortant » = le même côté absolu).
+# Pour une latérale SANS couple, ce côté est déterminé par l'ASYMÉTRIE
+# BATHYMÉTRIQUE : une latérale marque une limite chenal/danger, l'eau
+# navigable (profonde) est d'un côté, le danger (peu profond/découvrant) de
+# l'autre. Signal bien plus fiable que le gradient « distance au large »
+# (faux de 90° dans les chenaux étroits — bug chenal de Vannes, Vilaine).
+# Rayons d'échantillonnage du fond de part et d'autre de la balise (m).
+_NAV_SIDE_RADII = (30.0, 60.0, 100.0, 150.0, 200.0)
+# Écart minimal de score (fond moyen écrêté, m) pour trancher le côté.
+_NAV_SIDE_MIN_GAP_M = 1.5
+# Le côté DANGER doit être réellement peu profond (score < seuil) : évite de
+# « trancher » une asymétrie fortuite en eau franche.
+_NAV_SIDE_DANGER_MAX_M = 6.0
 
 
 class SeamarkIndex:
@@ -198,6 +225,12 @@ class SeamarkIndex:
         self._shelter: Optional[np.ndarray] = None  # champ décimé
         self._gy: Optional[np.ndarray] = None
         self._gx: Optional[np.ndarray] = None
+        # 10/08/2026 — exceptions manuelles du côté de passage (id → cap °).
+        self._side_overrides: dict = {}
+        if SIDE_OVERRIDES_PATH.exists():
+            for ov in json.loads(SIDE_OVERRIDES_PATH.read_text()).get("overrides", []):
+                if ov.get("id") is not None and ov.get("pass_bearing_deg") is not None:
+                    self._side_overrides[ov["id"]] = float(ov["pass_bearing_deg"])
         # 23/07/2026 (extension Atlantique) — INDEX SPATIAL des latérales :
         # _pair_of/_same_side_axis passaient de O(n) à O(n²) avec ~10 000
         # balises sur toute la façade. Seaux de 0,02° (~2,2 km ≫ rayons de
@@ -333,39 +366,141 @@ class SeamarkIndex:
         return best
 
     def _mark_dir(self, m: dict) -> Optional[tuple[float, float]]:
-        """Direction conventionnelle pour UNE latérale : couple rouge/verte
-        le plus proche (≤ _PAIR_MAX_M) si disponible, sinon gradient."""
+        """Direction conventionnelle pour UNE latérale.
+
+        Chaîne HISTORIQUE (Moteurs A/B/C, inchangée) : couple rouge/verte
+        le plus proche (≤ _PAIR_MAX_M) si disponible, sinon gradient.
+
+        10/08/2026 — sous ISOLATED_SIDE_BATHY (Moteur D uniquement), une
+        latérale ISOLÉE tente d'abord l'ASYMÉTRIE BATHYMÉTRIQUE (l'eau
+        profonde = le chenal) avant le gradient. Cache séparé (_dir_v4) :
+        les moteurs gelés ne voient JAMAIS la valeur du mode D."""
+        if ISOLATED_SIDE_BATHY.get():
+            if "_dir_v4" in m:
+                return m["_dir_v4"]
+            d = self.mark_dir_confident(m)
+            if d is None:
+                d = self.conventional_dir(m["lat"], m["lng"])
+            m["_dir_v4"] = d
+            return d
         if "_dir" in m:
             return m["_dir"]
-        d: Optional[tuple[float, float]] = None
-        cat = m.get("category")
-        if cat in ("port", "starboard"):
-            o = self._pair_of(m)
-            if o is not None:
-                mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
-                de_ = (o["lng"] - m["lng"]) * mlng
-                dn_ = (o["lat"] - m["lat"]) * 110_574.0
-                # w = vecteur ROUGE → VERTE (m→autre si m est rouge, inverse sinon).
-                we, wn = (de_, dn_) if cat == "port" else (-de_, -dn_)
-                # 22/07/2026 — couples EN QUINCONCE (décalés le long du chenal,
-                # ex. entrée du port de Vannes) : w a une grosse composante
-                # le long du chenal et D pivote de 60-90°. L'axe du chenal =
-                # l'alignement des latérales du MÊME côté : on ne garde de w
-                # que sa composante PERPENDICULAIRE à cet axe.
-                axis = self._same_side_axis(m)
-                if axis is not None:
-                    ae, an = axis
-                    dot = we * ae + wn * an
-                    pe, pn = we - dot * ae, wn - dot * an
-                    if math.hypot(pe, pn) >= 15.0:
-                        we, wn = pe, pn
-                n = math.hypot(we, wn)
-                if n > 1e-9:
-                    d = (-wn / n, we / n)   # w tourné de -90° : verte à droite de D
+        d = self._pair_dir(m)
         if d is None:
             d = self.conventional_dir(m["lat"], m["lng"])
         m["_dir"] = d
         return d
+
+    def mark_dir_confident(self, m: dict) -> Optional[tuple[float, float]]:
+        """Direction conventionnelle FIABLE seulement (couple rouge/verte,
+        override manuel ou asymétrie bathymétrique nette) — None si aucun
+        signal sûr (l'appelant choisit alors son propre repli). Utilisé par
+        le Moteur D pour ne jamais trancher un côté sur un signal bruité."""
+        if m.get("category") not in ("port", "starboard"):
+            return None
+        if "_dir_conf" in m:
+            return m["_dir_conf"]
+        d = self._pair_dir(m)
+        if d is None:
+            w = self.navigable_side(m)
+            if w is not None:
+                we, wn = w
+                # Verte : la route passe à BÂBORD de D → bâbord(D) = w
+                # ⇒ D = w tourné de −90°. Rouge : tribord(D) = w ⇒ +90°.
+                d = (wn, -we) if m["category"] == "starboard" else (-wn, we)
+        m["_dir_conf"] = d
+        return d
+
+    def _pair_dir(self, m: dict) -> Optional[tuple[float, float]]:
+        """Direction conventionnelle depuis le COUPLE rouge/verte (None si la
+        latérale est isolée). Cf. note du 22/07 en tête de _pair_of."""
+        cat = m.get("category")
+        if cat not in ("port", "starboard"):
+            return None
+        o = self._pair_of(m)
+        if o is None:
+            return None
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        de_ = (o["lng"] - m["lng"]) * mlng
+        dn_ = (o["lat"] - m["lat"]) * 110_574.0
+        # w = vecteur ROUGE → VERTE (m→autre si m est rouge, inverse sinon).
+        we, wn = (de_, dn_) if cat == "port" else (-de_, -dn_)
+        # 22/07/2026 — couples EN QUINCONCE (décalés le long du chenal,
+        # ex. entrée du port de Vannes) : w a une grosse composante
+        # le long du chenal et D pivote de 60-90°. L'axe du chenal =
+        # l'alignement des latérales du MÊME côté : on ne garde de w
+        # que sa composante PERPENDICULAIRE à cet axe.
+        axis = self._same_side_axis(m)
+        if axis is not None:
+            ae, an = axis
+            dot = we * ae + wn * an
+            pe, pn = we - dot * ae, wn - dot * an
+            if math.hypot(pe, pn) >= 15.0:
+                we, wn = pe, pn
+        n = math.hypot(we, wn)
+        if n < 1e-9:
+            return None
+        return (-wn / n, we / n)   # w tourné de -90° : verte à droite de D
+
+    # ── 10/08/2026 — CÔTÉ NAVIGABLE d'une latérale ISOLÉE (bathymétrie) ──
+    def _side_score(self, m: dict, ue: float, un: float) -> float:
+        """Score de navigabilité du côté (ue, un) vu depuis la balise :
+        moyenne des fonds écrêtés à [−2, 8] m (terre/hors grille = −2) sur
+        3 azimuts (±25°) × rayons _NAV_SIDE_RADII — grille la plus FINE."""
+        grid = get_grid() or self._grid
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        vals: list[float] = []
+        for ang in (-25.0, 0.0, 25.0):
+            ca, sa = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+            de, dn = ue * ca - un * sa, ue * sa + un * ca
+            for r in _NAV_SIDE_RADII:
+                d = grid.depth_at(m["lat"] + dn * r / 110_574.0,
+                                  m["lng"] + de * r / mlng)
+                vals.append(-2.0 if d is None else min(max(float(d), -2.0), 8.0))
+        return sum(vals) / len(vals)
+
+    def navigable_side(self, m: dict) -> Optional[tuple[float, float]]:
+        """Côté NAVIGABLE d'une latérale (vecteur unitaire est/nord depuis la
+        balise, pointant vers l'eau où la route DOIT passer) — invariant au
+        sens de parcours. None si l'asymétrie bathymétrique est ambiguë.
+
+        1. override manuel (side_overrides.json, validé terrain) ;
+        2. axe du chenal connu → comparaison des deux côtés perpendiculaires ;
+        3. sinon balayage de 12 azimuts : le secteur le moins profond est le
+           DANGER, la route passe à l'opposé (si l'écart est net)."""
+        if m.get("category") not in ("port", "starboard"):
+            return None
+        if "_navside" in m:
+            return m["_navside"]
+        out: Optional[tuple[float, float]] = None
+        ov = self._side_overrides.get(m.get("id"))
+        if ov is not None:
+            rad = math.radians(ov)
+            out = (math.sin(rad), math.cos(rad))
+        else:
+            axis = self._same_side_axis(m)
+            if axis is not None:
+                ae, an = axis
+                cands = [(-an, ae), (an, -ae)]
+                s0, s1 = (self._side_score(m, *cands[0]),
+                          self._side_score(m, *cands[1]))
+                deep, shallow = (0, 1) if s0 >= s1 else (1, 0)
+                scores = (s0, s1)
+                if (scores[deep] - scores[shallow] >= _NAV_SIDE_MIN_GAP_M
+                        and scores[shallow] < _NAV_SIDE_DANGER_MAX_M):
+                    out = cands[deep]
+            else:
+                cands = [(math.sin(math.radians(b)), math.cos(math.radians(b)))
+                         for b in range(0, 360, 30)]
+                scores = [self._side_score(m, ue, un) for ue, un in cands]
+                i_min = min(range(len(scores)), key=scores.__getitem__)
+                w = (-cands[i_min][0], -cands[i_min][1])
+                s_opp = self._side_score(m, *w)
+                if (s_opp - scores[i_min] >= _NAV_SIDE_MIN_GAP_M
+                        and scores[i_min] < _NAV_SIDE_DANGER_MAX_M):
+                    out = w
+        m["_navside"] = out
+        return out
 
     def _same_side_axis(self, m: dict) -> Optional[tuple[float, float]]:
         """Axe local du chenal ≈ direction (unitaire, ±180°) vers la latérale
@@ -397,8 +532,10 @@ class SeamarkIndex:
     # profond (ex. balise du milieu de la Teignouse, validée terrain), l'écart
     # standard suffit ; s'il est peu profond, balisage STRICT. Caché/marque.
     def _wrong_side_depth(self, m: dict) -> Optional[float]:
-        if "_wrong_depth" in m:
-            return m["_wrong_depth"]
+        # 10/08 — cache séparé sous le mode D : la direction peut différer.
+        ck = "_wrong_depth_v4" if ISOLATED_SIDE_BATHY.get() else "_wrong_depth"
+        if ck in m:
+            return m[ck]
         best: Optional[float] = None
         g = self._grid
         mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
@@ -418,7 +555,7 @@ class SeamarkIndex:
             d = g.depth_at(m["lat"] + dyn / 110_574.0, m["lng"] + dxe / mlng)
             if d is not None and (best is None or d < best):
                 best = d
-        m["_wrong_depth"] = best
+        m[ck] = best
         return best
 
     def _lateral_strict(self, m: dict, strict_depth: Optional[float]) -> bool:
@@ -591,23 +728,36 @@ class SeamarkIndex:
             # une latérale isolée, le gradient « distance au large » peut être
             # faux de 90° (chenal de Vannes) et le demi-disque de 200 m FERME
             # le chenal. Isolée → écart standard 60 m seulement.
+            # 10/08 (Moteur D uniquement) — une isolée dont l'asymétrie
+            # bathymétrique est NETTE (navigable_side) a une direction fiable :
+            # le strict s'applique aussi à elle sous ISOLATED_SIDE_BATHY.
             # Et JAMAIS de strict en maille grossière (> 35 m) : la passe
             # grossière ne sert qu'à la connectivité, les passes fines et le
             # contrôle plein-résolution ré-appliquent la sécurité.
             strict_here = False
-            if (kind == "lateral" and max(cy, cx) <= 35.0
-                    and self._pair_of(m) is not None
-                    and self._lateral_strict(m, strict_depth)):
-                strict_here = depth is not None
-                if strict_here and strict_exempt:
-                    for pt in strict_exempt:
-                        dd = math.hypot((m["lat"] - pt[0]) * m_per_deg_lat,
-                                        (m["lng"] - pt[1]) * m_per_deg_lng)
-                        if dd < 500.0:
-                            strict_here = False
-                            break
-                if strict_here:
-                    radius = R_LATERAL_STRICT_M
+            # 10/08 (Moteur D) — latérale ISOLÉE à côté CONFIANT (asymétrie
+            # bathymétrique nette) : demi-disque interdit PLEIN sur 200 m,
+            # SANS filtre de profondeur — une « langue » d'eau profonde entre
+            # la bouée et le danger qu'elle signale n'est PAS un passage
+            # (mesuré : Illur, passage à 79 m au sud dans 9 m d'eau, entre la
+            # verte et le haut-fond). Les couples gardent le filtre (chenaux).
+            strict_full = False
+            if kind == "lateral" and max(cy, cx) <= 35.0:
+                paired = self._pair_of(m) is not None
+                conf_iso = (not paired and ISOLATED_SIDE_BATHY.get()
+                            and self.navigable_side(m) is not None)
+                if (paired or conf_iso) and self._lateral_strict(m, strict_depth):
+                    strict_here = depth is not None
+                    if strict_here and strict_exempt:
+                        for pt in strict_exempt:
+                            dd = math.hypot((m["lat"] - pt[0]) * m_per_deg_lat,
+                                            (m["lng"] - pt[1]) * m_per_deg_lng)
+                            if dd < 500.0:
+                                strict_here = False
+                                break
+                    if strict_here:
+                        radius = R_LATERAL_STRICT_M
+                        strict_full = conf_iso
             d = _disc(m["lat"], m["lng"], radius)
             if d is None:
                 continue
@@ -642,7 +792,20 @@ class SeamarkIndex:
                 # (SIDE_RULES_OPEN), tenté seulement si « mouillages ouverts »
                 # ne suffit pas.
                 if SIDE_RULES_OPEN.get():
-                    continue
+                    # 10/08 (Moteur D, consigne armateur « respect ABSOLU du
+                    # balisage ») — le dernier recours / mode eau peu profonde
+                    # levait TOUS les côtés latéraux (SIDE_RULES_OPEN) parce
+                    # que le sens conventionnel estimé par gradient était
+                    # parfois FAUX (Vilaine) et fermait des chenaux. Sous le
+                    # mode D, les latérales à direction FIABLE (couple,
+                    # override terrain, asymétrie bathymétrique) ne sont
+                    # JAMAIS levées : c'est précisément dans les estuaires
+                    # découvrants que le balisage compte le plus (mesuré le
+                    # 10/08 : No1 laissée du mauvais côté à 9,8 m en Vilaine).
+                    # Les latérales AMBIGUËS (gradient) restent levées.
+                    if not (ISOLATED_SIDE_BATHY.get()
+                            and self.mark_dir_confident(m) is not None):
+                        continue
                 cat = m["category"]
                 if cat not in ("port", "starboard"):
                     continue  # ni côté ni couleur : ignorée (règle armateur)
@@ -662,9 +825,11 @@ class SeamarkIndex:
                     # Écart standard (60 m) inconditionnel + extension stricte
                     # (jusqu'à 200 m) UNIQUEMENT sur les cellules peu profondes
                     # du mauvais côté (l'eau profonde reste passable).
-                    inside_std = dx * dx + dy * dy <= R_LATERAL_M * R_LATERAL_M
-                    shallow = depth[r0:r1, c0:c1] < strict_depth
-                    zone = (zone & inside_std) | (zone & shallow)
+                    # 10/08 (Moteur D) — isolée confiante : demi-disque PLEIN.
+                    if not strict_full:
+                        inside_std = dx * dx + dy * dy <= R_LATERAL_M * R_LATERAL_M
+                        shallow = depth[r0:r1, c0:c1] < strict_depth
+                        zone = (zone & inside_std) | (zone & shallow)
             marks_blocked[r0:r1, c0:c1] |= zone
 
         # ── 22/07/2026 — COULOIR LIBRE entre chaque couple rouge/verte ────
@@ -840,6 +1005,30 @@ class SeamarkIndex:
                 continue
             if lat_s <= m["lat"] <= lat_n and lng_w <= m["lng"] <= lng_e:
                 pts.append((m["lat"], m["lng"], radius_by_kind[m["kind"]]))
+                # 10/08 (Moteur D UNIQUEMENT) — CONTRAINTE DE CÔTÉ pour les
+                # contrôles pleine résolution : le redressement/la réparation
+                # (_corridor_safe) ne connaissent que des cercles d'écart, si
+                # bien que la passe 3 RETENDAIT le tracé du MAUVAIS côté dès
+                # 60 m d'écart et de l'eau (mesuré 10/08 : Illur recoupée à
+                # 91 m au sud en marge AUTO 10 m). Le demi-disque danger
+                # (200 m) de chaque latérale ISOLÉE à côté FIABLE est couvert
+                # par un semis de disques d'écart (rayon 45 m, 3 anneaux ×
+                # 5 azimuts autour de la direction du danger) — même
+                # mécanisme que les parcs marins. Moteurs gelés : inchangés.
+                if (ISOLATED_SIDE_BATHY.get() and m["kind"] == "lateral"
+                        and self._pair_of(m) is None):
+                    w = self.navigable_side(m)
+                    if w is not None:
+                        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+                        dde, ddn = -w[0], -w[1]     # direction du DANGER
+                        for dist in (60.0, 120.0, 180.0):
+                            for ang in (0.0, 35.0, -35.0, 70.0, -70.0):
+                                ca = math.cos(math.radians(ang))
+                                sa = math.sin(math.radians(ang))
+                                ue = dde * ca - ddn * sa
+                                un = dde * sa + ddn * ca
+                                pts.append((m["lat"] + un * dist / 110_574.0,
+                                            m["lng"] + ue * dist / mlng, 45.0))
         for h in self.hazards:
             if lat_s <= h["lat"] <= lat_n and lng_w <= h["lng"] <= lng_e:
                 if self.hazard_blocks(h, min_depth):

@@ -1,0 +1,30 @@
+{
+  "summary": "Iter 133 — Résidu Illur (marge AUTO 10 m) CORRIGÉ et VÉRIFIÉ. Le fix clearance_points sous ISOLATED_SIDE_BATHY (seamarks.py:1018-1031, semis 3 anneaux × 5 azimuts de disques 45 m couvrant le demi-disque danger de chaque latérale isolée à côté fiable) fait passer la route Illur AU NORD dans les DEUX sens, y compris via l'appel HTTP par défaut (sans lateral_margin_m). Bug principal Vilaine reste OK. Non-régression Moteur B OK. TOUS LES TESTS DEMANDÉS PASSENT : 19/19 (test_iter133_sens_conventionnel_isolees.py 9/9 + test_iter133_engine_d_integration.py 10/10). Vérification supplémentaire HTTP en sens inverse (start=Ilur E, end=Port-Navalo) : route passe au NORD (lat=47.5832 vs Illur 47.5827, dist=128 m), wrong_side_marks vide.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter133_sens_conventionnel_isolees.py (9/9 PASS)",
+    "/app/backend/tests/test_iter133_engine_d_integration.py (10/10 PASS)",
+    "/app/test_reports/pytest/iter133_integration.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix bien scopé : le semis n'est activé QUE si ISOLATED_SIDE_BATHY est armé (Moteur D) ET si la latérale est ISOLÉE (pas de couple) ET si navigable_side renvoie un signal net. Moteurs A/B/C strictement inchangés — vérifié par test_hors_mode_d_mark_dir_reste_le_gradient_historique.",
+    "backend/.env ligne 6 : `SMS_PROVIDER=\"mock\"RATE_LIMIT_BYPASS_TOKEN=\"qa-bypass-signalmar-2026\"` reste sur une seule ligne (python-dotenv ne parse pas la 2e variable depuis le fichier). Fonctionne au runtime via os.environ mais reste un latent bug à corriger — issue non introduite par cette itération."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "N/A"},
+  "seed_data_creation": "Aucune. OTP dev bypass (0760071445 / 123456) + JWT réutilisé dans la fixture module-scope.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Auth : header X-RateLimit-Bypass: qa-bypass-signalmar-2026 obligatoire (bypass throttle OTP + rate-limits). Compute long (Vilaine 2-3 min) : POST /api/routes/compute/async + poll GET /api/routes/job/{job_id} (budget 300 s). Résidu Illur (marge AUTO 10 m) fixé via clearance_points sous ISOLATED_SIDE_BATHY dans seamarks.py — Moteurs A/B/C inchangés. Ne pas re-tester ce qui est déjà validé.",
+  "rca_of_issue": "Résidu Illur (route au SUD à 91 m en marge AUTO 10 m) : la passe 3 du cœur v4 (_straighten/_repair via _corridor_safe) retendait le tracé du mauvais côté car elle ne contrôle que fond+portes+cercles 60 m des balises (aucune notion de côté). Fix : sous ISOLATED_SIDE_BATHY, clearance_points ajoute un semis de disques d'écart (rayon 45 m, 3 anneaux × 5 azimuts) couvrant le demi-disque danger (~200 m) de chaque latérale ISOLÉE à côté FIABLE — même mécanisme que les parcs marins. Vérifié : Illur aller ET retour passent au NORD (128 m dans le sens retour HTTP), wrong_side_marks vide."
+}

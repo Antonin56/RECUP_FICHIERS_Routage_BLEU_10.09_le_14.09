@@ -2860,3 +2860,84 @@ d'enregistrement d'écran, de captures d'écran, et cet outil doivent tous les 3
   backend en pleine session**.
 - e2e web : `/diagnostic` affiche bien le résumé de réception ; `/map` charge
   sans erreur ; repli « contexte seul » vérifié de bout en bout.
+
+## Itération 133 — 10/08/2026 : Sens conventionnel des latérales ISOLÉES (MOTEUR D)
+
+### Consigne armateur
+- Priorité absolue : appliquer STRICTEMENT le sens conventionnel au routage.
+  Les moteurs ne passaient jamais du bon côté d'une latérale SEULE (une rouge
+  ou une verte isolée).
+- **Moteur B PROTÉGÉ et FIGÉ** (base de travail). Ne toucher qu'au Moteur D
+  (créé par l'armateur en base le 10.08 : « Moteur D base B 10.08.26 »).
+
+### Analyse (répondue à l'armateur, validée)
+- Le sens conventionnel n'est pas calculable « sans faille » avec la bathy
+  gratuite seule (convention réglementaire, encodée officiellement dans les
+  ENC S-57 payantes du SHOM via M_NSYS/ORIENT).
+- MAIS le côté de passage d'une latérale est INVARIANT au sens de parcours
+  (« verte à tribord en entrant » = « verte à bâbord en sortant » = même côté
+  absolu) → le problème se réduit à : de quel côté GÉOGRAPHIQUE de la bouée
+  est l'eau navigable ? Déterminable par l'asymétrie bathymétrique.
+
+### Implémentation
+- `core/seamarks.py` :
+  - `navigable_side(m)` : côté navigable d'une latérale isolée par asymétrie
+    bathymétrique (axe du chenal → 2 côtés perpendiculaires, sinon 12 azimuts ;
+    grille la plus fine ; gardes : écart ≥ 1,5 m ET côté danger < 6 m de score).
+  - `mark_dir_confident(m)` : D fiable seulement (couple → override manuel
+    `data/bathy/side_overrides.json` → bathy). `_pair_dir` extrait de
+    `_mark_dir` (refactor neutre).
+  - contextvar `ISOLATED_SIDE_BATHY` (défaut False) : armé UNIQUEMENT par
+    l'algo v4. Caches séparés (`_dir_v4`, `_wrong_depth_v4`) → A/B/C
+    STRICTEMENT inchangés (verrouillé par test).
+  - rasterize : sous le mode D, une isolée confiante reçoit un demi-disque
+    interdit PLEIN de 200 m côté danger (sans filtre de profondeur — la
+    « langue » d'eau profonde entre la bouée et le danger n'est pas un
+    passage ; mesuré : Illur à 79 m au sud). Couples : filtre conservé.
+- `core/routing_engines/algos/signalmar_v4/` : **SignalmarV4 (Moteur D)** =
+  SignalmarV2 à l'identique + mode ISOLATED_SIDE_BATHY + audit nominatif
+  `wrong_side_marks`/avertissements (auto + manuel, jamais bloquant).
+- `engine_d` (Mongo) rebranché de `signalmar.v2` → `signalmar.v4`.
+- Moteur C : side.py avait été modifié puis ANNULÉ (git checkout) suite à la
+  consigne « ne toucher qu'au Moteur D ».
+- `RATE_LIMIT_BYPASS_TOKEN` ajouté à backend/.env (les tests QA en avaient
+  besoin ; absent depuis l'import du repo).
+
+### Validation (cas de référence : verte isolée « Illur », Golfe du Morbihan)
+- Danger 1-2 m au SUD, chenal 11-13 m au NORD → `navigable_side` = NORD ✓.
+- Moteur D : Port-Navalo ↔ Ilur E passe au NORD dans les 2 sens ✓ (B figé
+  passe toujours au sud à 86 m — comportement historique conservé).
+- 222/524 latérales isolées obtiennent un côté confiant ; les ambiguës (eau
+  profonde des 2 côtés, ex. NE Teignouse) gardent le repli historique.
+- Tests : test_iter133 8/8 ; régressions iter126 (B), iter129/iter130 (C) OK.
+- Échecs préexistants NON liés : test_iter104 endpoint (user admin épinglé
+  absent de la base), OTP throttle sur runs répétés.
+
+## Itération 133 b — 10/08/2026 : bug « grosses anomalies » route Moteur D (Vilaine)
+
+### Bug utilisateur + question
+Route Moteur D Golfe → Vilaine avec balises du mauvais côté. L'armateur
+soupçonnait « une fonction qui impose le respect des données de fond en
+prenant le dessus sur le balisage ». Confirmé — DEUX mécanismes :
+1. `_run_shallow` / `_last_resort` (routers/routing.py) : quand rien ne passe
+   au ZH, relance avec SIDE_RULES_OPEN=True → rasterize levait TOUTES les
+   zones de côté latérales (No1 laissée à 9,8 m du mauvais côté).
+2. Passe 3 du cœur (`_straighten`/`_repair_segments` via `_corridor_safe`) :
+   ne contrôle que fond + portes + cercles d'écart 60 m → retendait le tracé
+   du mauvais côté (Illur recoupée à 91 m au sud en marge AUTO 10 m).
+
+### Correctifs (Moteur D uniquement, sous ISOLATED_SIDE_BATHY)
+- seamarks.rasterize_blocked : les latérales à direction FIABLE ne sont
+  JAMAIS levées par SIDE_RULES_OPEN (les ambiguës restent levées — raison
+  d'être historique du mode).
+- seamarks.clearance_points : le demi-disque danger (200 m) des isolées
+  fiables est couvert par un semis de disques d'écart (3 anneaux × 5 azimuts,
+  r 45 m) → la passe 3 ne recoupe plus le mauvais côté. Aucun changement de
+  signature dans le cœur gelé.
+- backend/.env : ligne fusionnée SMS_PROVIDER/RATE_LIMIT_BYPASS_TOKEN séparée.
+
+### Vérifié (testing agent, /app/test_reports/iteration_2.json)
+- Illur marge AUTO : NORD dans les 2 sens (81-128 m), wrong_side vide.
+- Vilaine eau peu profonde : 200, shallow_route=true, wrong_side vide.
+- Moteur B figé : inchangé (pas d'audit, comportement historique).
+- Suites 19/19 (iter133 + intégration testing agent) + régressions 35/35.
