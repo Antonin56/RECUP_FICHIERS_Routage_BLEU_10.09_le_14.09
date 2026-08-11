@@ -2941,3 +2941,46 @@ prenant le dessus sur le balisage ». Confirmé — DEUX mécanismes :
 - Vilaine eau peu profonde : 200, shallow_route=true, wrong_side vide.
 - Moteur B figé : inchangé (pas d'audit, comportement historique).
 - Suites 19/19 (iter133 + intégration testing agent) + régressions 35/35.
+
+## Itération 135 — 11/08/2026 soir : retours armateur sur le MOTEUR E (captures)
+
+### Bugs remontés (route Port-Navalo → Crouesty, moteur E)
+1. « Grand Mouton pas respectée » : verte isolée frôlée à 72 m côté EST alors
+   que le chenal profond (24 m) est à l'OUEST.
+2. « Balise bâbord No2 pas respectée » : passage à 127 m du mauvais côté.
+3. « Embardée à l'entrée du port » : dents de scie ±40 m sur le tronçon final.
+4. (Découvert en régression) : Logoden recoupée à 71 m au NORD (chenal de
+   Vannes) — la réparation gardait l'original fautif.
+
+### Corrections (universelles, mode E / SIDE_ABSOLUTE uniquement, moteurs A-D figés)
+- `seamarks.navigable_side` + `_far_channel_side` : repli CHAMP LOINTAIN pour
+  les isolées posées SUR leur danger (échantillons 30-60 m noyés par la roche) :
+  s'il y a un danger < 5 m à ≤ 60 m ET qu'un côté à 100-200 m (écrêtage 20 m)
+  domine son opposé de ≥ 4 m → côté chenal confiant. Cache séparé `_navside_v5`.
+- `seamarks.rasterize_blocked` : le plafond de densité d'un COUPLE ne
+  s'applique plus au rayon 0,8 × écartement (le demi-disque d'un vrai couple
+  réciproque pointe vers l'extérieur du chenal, il ne peut pas le sceller) ;
+  la densité (mesurée HORS partenaire via `_nearest_other_lateral_m`) ne
+  plafonne plus que l'extension peu-profonde. Exemption départ/arrivée réduite
+  de 500 m à 200 m (alignée sur l'audit) — corrige « 8 » recoupée à marée haute.
+- `seamarks.clearance_points` : semis de côté des couples aligné (0,8 × gap
+  sans plafond densité). `standoff_circles` : écart recommandé ADAPTATIF à la
+  densité en mode E (0,35 × voisine, plancher 25 m) → plus d'avertissement
+  « 46 m / recommandé 60 m » dans un chenal de port.
+- `signalmar_v1/core._repair_segments` (gated SIDE_ABSOLUTE) : nouvelle
+  pénalité `_wrong_side_penalty_m` (mêmes règles que l'audit v4) — quand aucun
+  candidat n'est parfait, on retient celui qui RÉDUIT le mauvais côté sans
+  passer sous le seuil de profondeur (départage par `_clearance_worst_ratio`).
+  → Logoden passée au SUD.
+- `signalmar_v5._buoyed_channel_chain` : lissage — dans une fenêtre de 50 m le
+  long de l'axe, seule la balise la plus proche de l'axe produit un waypoint
+  → plus d'embardée. Version moteur E : 5.1.0.
+
+### Vérifié
+- Route armateur (marées 0 / 2,5 / 5 m) : wrong_side vide, Grand Mouton passée
+  à l'OUEST (94-166 m), No2 > 155 m, tronçon final lisse. E2E API
+  /api/routes/compute engine_e : 1 seul warning légitime (fin découvrante).
+- Tests : test_iter135_retours_moteur_e.py 5/5 ; iter134 5/5 ; iter133 (D)
+  10/10 + 8/8 ; iter126 (B), iter129/130 (C), iter124 : OK.
+- Base forkée : user de test `user_0b6070a69154` re-seedé (les tests
+  d'intégration HTTP en dépendent).

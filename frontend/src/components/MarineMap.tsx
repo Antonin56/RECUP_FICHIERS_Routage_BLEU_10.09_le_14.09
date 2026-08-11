@@ -100,6 +100,9 @@ type Props = {
   onRouteTap?: () => void;
   /** 22/07/2026 — waypoints de la route MANUELLE en cours de création. */
   manualPoints?: { lat: number; lng: number }[] | null;
+  /** 11/08 (règle armateur) — édition : SEUL ce waypoint est déplaçable
+   *  (les autres deviennent de simples repères). null = tous déplaçables. */
+  draftEditIndex?: number | null;
   /** 22/07/2026 — drag & drop d'un point de la route manuelle (dragend). */
   onDraftMove?: (index: number, lat: number, lng: number) => void;
   /** 22/07/2026 — point de blocage (route impossible) + tronçon atteignable. */
@@ -167,7 +170,7 @@ type Props = {
 };
 
 export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
-  { center, zoom = 11, userLocation, userHeading, userSpeed, showBoat = true, coneHalfAngleDeg = null, coneDistanceKm = null, radarPingRadiusM = null, courseUp = false, reports, crosshair = false, focusId = null, onMarkerPress, onMapMoved, onMapLongPress, mapUnit = "km", onRulerTap, bathymetry = false, bathymetryOpacity = 0.7, route = null, onRouteTap, manualPoints = null, onDraftMove, blocked = null, onSeamarkTap, routeProgress = null, targetBearingDeg = null, showHeadingLine = false, anchor = null, measure = false, onMeasureSnap, onMapTap, waterPoint = null, onWaterClose, mapTapInfo = null, onMapTapClose, onMapTapSupport, routeCompare = null, netQuiet = false },
+  { center, zoom = 11, userLocation, userHeading, userSpeed, showBoat = true, coneHalfAngleDeg = null, coneDistanceKm = null, radarPingRadiusM = null, courseUp = false, reports, crosshair = false, focusId = null, onMarkerPress, onMapMoved, onMapLongPress, mapUnit = "km", onRulerTap, bathymetry = false, bathymetryOpacity = 0.7, route = null, onRouteTap, manualPoints = null, draftEditIndex = null, onDraftMove, blocked = null, onSeamarkTap, routeProgress = null, targetBearingDeg = null, showHeadingLine = false, anchor = null, measure = false, onMeasureSnap, onMapTap, waterPoint = null, onWaterClose, mapTapInfo = null, onMapTapClose, onMapTapSupport, routeCompare = null, netQuiet = false },
   ref,
 ) {
   const webRef = useRef<WebView | null>(null);
@@ -397,8 +400,8 @@ export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
   }, [mapTapInfo]);
   // 22/07/2026 — route MANUELLE en création (tracé provisoire numéroté).
   useEffect(() => {
-    sendJs(`window.__setDraftRoute && window.__setDraftRoute(${JSON.stringify(manualPoints ?? null)})`);
-  }, [manualPoints]);
+    sendJs(`window.__setDraftRoute && window.__setDraftRoute(${JSON.stringify(manualPoints ?? null)}, ${JSON.stringify(draftEditIndex ?? null)})`);
+  }, [manualPoints, draftEditIndex]);
   // 22/07/2026 — point de blocage (route impossible) + tronçon atteignable.
   useEffect(() => {
     sendJs(`window.__setBlocked && window.__setBlocked(${JSON.stringify(blocked ?? null)})`);
@@ -517,7 +520,7 @@ export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
         // 22/07/2026 — balises cliquables (fetch par bbox depuis la WebView)
         // + ré-émission du tracé manuel / point de blocage éventuels.
         sendJs(`window.__setSeamarkTaps && window.__setSeamarkTaps(${JSON.stringify(API_BASE)})`);
-        if (manualPoints?.length) sendJs(`window.__setDraftRoute && window.__setDraftRoute(${JSON.stringify(manualPoints)})`);
+        if (manualPoints?.length) sendJs(`window.__setDraftRoute && window.__setDraftRoute(${JSON.stringify(manualPoints)}, ${JSON.stringify(draftEditIndex ?? null)})`);
         if (blocked) sendJs(`window.__setBlocked && window.__setBlocked(${JSON.stringify(blocked)})`);
         if (userLocation) {
           sendJs(`window.__prefetchAroundUser && window.__prefetchAroundUser(${userLocation.lat},${userLocation.lng})`);

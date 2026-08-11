@@ -128,6 +128,20 @@ function nearestSegOnRoute(
   }
   return best;
 }
+// 11/08 (règle armateur) — ÉDITION : seul le waypoint LE PLUS PROCHE de la
+// zone touchée devient éditable (les autres restent de simples repères).
+function nearestWpIdx(
+  lat: number, lng: number, wps: { lat: number; lng: number }[],
+): number {
+  const mLat = 111320;
+  const mLng = 111320 * Math.cos((lat * Math.PI) / 180);
+  let best = 0, bestD = Infinity;
+  for (let i = 0; i < wps.length; i++) {
+    const d = Math.hypot((wps[i].lng - lng) * mLng, (wps[i].lat - lat) * mLat);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
 // Rayon d'AFFICHAGE des signalements (fixe, interne). L'ancien bouton
 // « 200 km » en haut de la carte a été supprimé (10/07/2026) : il créait
 // une confusion avec la Zone de veille. Tous les signalements dans ce
@@ -655,7 +669,17 @@ export default function MapScreen() {
   // long SUR le tracé → waypoint draggable inséré ; tap À CÔTÉ → validation
   // backend (même mécanique d'alerte que la route auto dangereuse).
   const [editPoints, setEditPoints] = useState<{ lat: number; lng: number }[] | null>(null);
+  // 11/08 (règle armateur) — UN SEUL waypoint éditable : le plus proche de
+  // la zone touchée. Une fois déplacé → « Recalculer la route » (calcul
+  // complet re-contrôlé par le moteur). Ajustement fin, carte lisible.
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  const [editMoved, setEditMoved] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
+  const closeEdit = useCallback(() => {
+    setEditPoints(null);
+    setEditIdx(null);
+    setEditMoved(false);
+  }, []);
   const commitEdit = useCallback(async () => {
     const pts = editPoints;
     if (!pts || pts.length < 2 || editBusy) return;
@@ -669,11 +693,13 @@ export default function MapScreen() {
         // 27/07 — l'édition d'une route est contrôlée à la marée ACTUELLE
         // (H+30 min) comme la route auto qu'elle modifie.
         use_tide: true,
+        // 11/08 — recalcul par LE MOTEUR de la route affichée (test A/B).
+        ...(route?.engine_id ? { engine_id: route.engine_id } : {}),
       });
       setRoute({ ...r, mode: "manual", risk: r.risk || !!r.compromised_legs?.length });
       setRouteCardMode("full");
       setRiskAccepted(false);
-      setEditPoints(null);
+      closeEdit();
       mapRef.current?.suspendFollow(true);
       if (r.low_margin) {
         // Même mécanique que la route auto dangereuse (pas de recalcul
@@ -691,7 +717,7 @@ export default function MapScreen() {
     } finally {
       setEditBusy(false);
     }
-  }, [editPoints, editBusy]);
+  }, [editPoints, editBusy, route?.engine_id, closeEdit]);
   const loadSavedRoute = useCallback(async (sr: SavedRoute) => {
     setRouteBusy(true);
     try {
@@ -2133,33 +2159,31 @@ export default function MapScreen() {
             setManualPoints((prev) => (prev ? [...prev, { lat, lng }] : [{ lat, lng }]));
             return;
           }
-          // 26/07 (demande armateur) — ÉDITION DE ROUTE : en édition, un
-          // appui long près du tracé provisoire AJOUTE un waypoint.
+          // 11/08 (règle armateur) — en édition, un appui long près du
+          // tracé SÉLECTIONNE le waypoint le plus proche (un seul éditable).
           if (editPoints != null) {
             const near = nearestSegOnRoute(lat, lng, editPoints);
             if (near.distM < 150) {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              setEditPoints((prev) => {
-                if (!prev) return prev;
-                const next = [...prev];
-                next.splice(near.segIdx + 1, 0, { lat, lng });
-                return next;
-              });
+              setEditIdx(nearestWpIdx(lat, lng, editPoints));
             }
             return;
           }
           // 26/07 — appui long SUR une route affichée (auto ou « Naviguer
-          // ici ») → ENTRE en édition : waypoint inséré + points draggables.
+          // ici ») → ENTRE en édition. 11/08 (règle armateur) : seul le
+          // waypoint LE PLUS PROCHE de la zone touchée devient éditable.
           if (route && !navFollow && route.waypoints.length >= 2) {
             const near = nearestSegOnRoute(lat, lng, route.waypoints);
             if (near.distM < 80) {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
               mapRef.current?.suspendFollow(true);
               const wps = route.waypoints.map((w) => ({ lat: w.lat, lng: w.lng }));
-              wps.splice(near.segIdx + 1, 0, { lat, lng });
+              const idx = nearestWpIdx(lat, lng, wps);
               setEditPoints(wps);
+              setEditIdx(idx);
+              setEditMoved(false);
               setRouteCardMode("hidden");
-              showToast("info", "Waypoint ajouté — déplacez les points, puis touchez À CÔTÉ de la route pour valider.");
+              showToast("info", `Waypoint ${idx + 1} sélectionné — déplacez-le, puis « Recalculer la route ».`);
               return;
             }
           }
@@ -2186,16 +2210,22 @@ export default function MapScreen() {
           if (!editPoints) setRouteMenuOpen(true);
         }}
         manualPoints={manualPoints ?? editPoints}
+        draftEditIndex={editPoints != null ? editIdx : null}
         onDraftMove={(index, lat, lng) => {
           // 22/07 — drag & drop d'un point (création manuelle OU édition).
+          // 11/08 — en édition, seul le waypoint sélectionné est déplaçable ;
+          // son déplacement active « Recalculer la route ».
           const apply = (prev: { lat: number; lng: number }[] | null) => {
             if (!prev || index < 0 || index >= prev.length) return prev;
             const next = [...prev];
             next[index] = { lat, lng };
             return next;
           };
-          if (editPoints != null) setEditPoints(apply);
-          else setManualPoints(apply);
+          if (editPoints != null) {
+            if (editIdx != null && index !== editIdx) return;
+            setEditPoints(apply);
+            setEditMoved(true);
+          } else setManualPoints(apply);
         }}
         blocked={blocked}
         onSeamarkTap={(m) => setSeamarkInfo(m)}
@@ -2212,11 +2242,9 @@ export default function MapScreen() {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         }}
         onMapTap={(lat, lng) => {
-          // 26/07 — ÉDITION DE ROUTE : un tap À CÔTÉ du tracé = validation.
-          if (editPoints) {
-            void commitEdit();
-            return;
-          }
+          // 11/08 (règle armateur) — en édition : le tap à côté ne valide
+          // plus (validation UNIQUEMENT via « Recalculer la route »).
+          if (editPoints) return;
           // 24/07 — clic court sur l'eau → hauteur d'eau au point. Actif
           // uniquement si le mode goutte d'eau est enclenché ; ignoré
           // pendant la construction d'une route manuelle (clics = étapes).
@@ -3804,36 +3832,40 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* 26/07 — barre d'ÉDITION de route (waypoint inséré par appui long). */}
+      {/* 26/07 — barre d'ÉDITION de route. 11/08 (règle armateur) : un seul
+          waypoint éditable (le plus proche du toucher), recalcul complet
+          après déplacement. */}
       {editPoints != null && (
         <View style={[styles.pickBar, { paddingBottom: insets.bottom + 12 }]} testID="route-edit-bar">
           <View style={styles.pickTitleRow}>
             <Ionicons name="move" size={20} color="#2EC4B6" />
             <Text style={styles.pickTitle}>
-              Modification de la route — déplacez les points. Tap à CÔTÉ du tracé (ou Valider) pour enregistrer, appui long sur le tracé pour ajouter un waypoint.
+              {editIdx != null
+                ? `Waypoint ${editIdx + 1} sélectionné — déplacez-le pour un ajustement fin (appui long ailleurs sur le tracé pour changer de waypoint).`
+                : "Appui long sur le tracé pour sélectionner le waypoint à ajuster."}
             </Text>
           </View>
           <View style={styles.pickActions}>
             <TouchableOpacity
               style={styles.pickCancel}
-              onPress={() => setEditPoints(null)}
+              onPress={closeEdit}
               testID="route-edit-cancel"
             >
               <Ionicons name="close" size={20} color={theme.text} />
               <Text style={styles.pickCancelText}>Annuler</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.pickContinue, editBusy && { opacity: 0.5 }]}
+              style={[styles.pickContinue, (editBusy || !editMoved) && { opacity: 0.5 }]}
               onPress={() => void commitEdit()}
-              disabled={editBusy}
+              disabled={editBusy || !editMoved}
               testID="route-edit-save"
             >
               {editBusy ? (
                 <ActivityIndicator color={theme.bg} />
               ) : (
                 <>
-                  <Ionicons name="checkmark" size={20} color={theme.bg} />
-                  <Text style={styles.pickContinueText}>Valider</Text>
+                  <Ionicons name="refresh" size={20} color={theme.bg} />
+                  <Text style={styles.pickContinueText}>Recalculer la route</Text>
                 </>
               )}
             </TouchableOpacity>

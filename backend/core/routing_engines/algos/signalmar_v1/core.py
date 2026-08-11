@@ -24,7 +24,9 @@ from scipy import ndimage
 
 from core.bathy import BathyGrid, M_PER_DEG_LAT, get_grid, m_per_deg_lng
 from core.nav_rules import DEPTH_PRIORITY
-from core.seamarks import MOORING_EXEMPT_M, MOORINGS_OPEN, R_MOORING_M, get_seamarks
+from core.seamarks import (
+    MOORING_EXEMPT_M, MOORINGS_OPEN, R_MOORING_M, SIDE_ABSOLUTE, get_seamarks,
+)
 
 # Bornes serveur (mêmes que le profil bateau côté app).
 DRAFT_MIN, DRAFT_MAX = 0.2, 4.0
@@ -861,6 +863,90 @@ def _centerline_min(grid: BathyGrid, pts: list[tuple[float, float]]) -> float:
     return worst
 
 
+def _clearance_worst_ratio(
+    pts: list[tuple[float, float]], clearance: Optional[np.ndarray],
+) -> float:
+    """Pire ratio écart/consigne du tracé face aux cercles d'écart (1.0 =
+    toutes les consignes respectées). 11/08 soir (Moteur E) : départage les
+    candidats de réparation à pénalité de côté égale — cf. _repair_segments."""
+    if clearance is None or not len(clearance) or len(pts) < 2:
+        return 1.0
+    mlng = m_per_deg_lng(pts[0][0])
+    P = np.asarray(pts, dtype=np.float64)
+    ax = (P[:-1, 1][None, :] - clearance[:, 1][:, None]) * mlng
+    ay = (P[:-1, 0][None, :] - clearance[:, 0][:, None]) * M_PER_DEG_LAT
+    bx = (P[1:, 1][None, :] - clearance[:, 1][:, None]) * mlng
+    by = (P[1:, 0][None, :] - clearance[:, 0][:, None]) * M_PER_DEG_LAT
+    dx, dy = bx - ax, by - ay
+    L2 = dx * dx + dy * dy
+    with np.errstate(invalid="ignore", divide="ignore"):
+        t = np.clip(-(ax * dx + ay * dy) / np.where(L2 > 0, L2, 1.0), 0.0, 1.0)
+    d = np.hypot(ax + t * dx, ay + t * dy).min(axis=1)
+    return float(np.minimum(d / np.maximum(clearance[:, 2], 1.0), 1.0).min())
+
+
+def _wrong_side_penalty_m(
+    pts: list[tuple[float, float]],
+    exempt: Optional[tuple] = None,
+) -> float:
+    """11/08 soir (Moteur E — bug Logoden) : PÉNALITÉ « mauvais côté » d'un
+    tracé = somme des profondeurs de violation (influence − distance) sur
+    les latérales à direction FIABLE, mêmes règles que l'audit du Moteur D
+    (influence 200 m, plafonnée à 0,8 × l'écartement du couple, exemption
+    200 m autour du départ/de l'arrivée). 0.0 = aucun mauvais côté. Sert à
+    comparer un candidat de réparation IMPARFAIT à l'original : mieux vaut
+    frôler un cercle d'écart du BON côté que passer du MAUVAIS côté."""
+    sm = get_seamarks()
+    if sm is None or len(pts) < 2:
+        return 0.0
+    la = [p[0] for p in pts]
+    lo = [p[1] for p in pts]
+    mlng = m_per_deg_lng((min(la) + max(la)) / 2)
+    P = np.asarray(pts, dtype=np.float64)
+    tot = 0.0
+    for m in sm.marks:
+        if m.get("kind") != "lateral" or m.get("category") not in ("port", "starboard"):
+            continue
+        if not (min(la) - 0.01 <= m["lat"] <= max(la) + 0.01
+                and min(lo) - 0.01 <= m["lng"] <= max(lo) + 0.01):
+            continue
+        if exempt and any(
+            math.hypot((m["lat"] - q[0]) * M_PER_DEG_LAT,
+                       (m["lng"] - q[1]) * mlng) < 200.0
+            for q in exempt
+        ):
+            continue
+        d_dir = sm.mark_dir_confident(m)
+        if d_dir is None:
+            continue
+        de, dn = d_dir
+        u = (dn, -de) if m["category"] == "port" else (-dn, de)
+        influence = 200.0
+        pair = sm._pair_of(m)
+        if pair is not None:
+            gap = math.hypot((pair["lat"] - m["lat"]) * M_PER_DEG_LAT,
+                             (pair["lng"] - m["lng"]) * mlng)
+            influence = min(influence, max(0.8 * gap, 40.0))
+        ax = (P[:-1, 1] - m["lng"]) * mlng
+        ay = (P[:-1, 0] - m["lat"]) * M_PER_DEG_LAT
+        bx = (P[1:, 1] - m["lng"]) * mlng
+        by = (P[1:, 0] - m["lat"]) * M_PER_DEG_LAT
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy
+        with np.errstate(invalid="ignore", divide="ignore"):
+            t = np.clip(-(ax * dx + ay * dy) / np.where(L2 > 0, L2, 1.0), 0.0, 1.0)
+        px, py = ax + t * dx, ay + t * dy
+        dists = np.hypot(px, py)
+        k = int(np.argmin(dists))
+        d = float(dists[k])
+        if d > influence:
+            continue
+        if px[k] * u[0] + py[k] * u[1] > 0.0:
+            continue  # bon côté
+        tot += influence - d
+    return tot
+
+
 def _repair_segments(
     grid: BathyGrid, pts: list[tuple[float, float]],
     min_depth: float, lateral_margin_m: float, clearance: Optional[np.ndarray],
@@ -903,6 +989,20 @@ def _repair_segments(
         fixed = False
         best_cand: Optional[list[tuple[float, float]]] = None
         best_min = _centerline_min(grid, [a] + pts[i + 1:j + 1])  # à battre : l'original
+        # 11/08 soir (Moteur E — bug Logoden) : quand AUCUN candidat n'est
+        # parfait, l'original était conservé même s'il passait du MAUVAIS
+        # côté du balisage (route à 71 m au NORD de Logoden alors qu'un
+        # tracé au SUD, du bon côté, existait à un frôlement d'écart près).
+        # Sous SIDE_ABSOLUTE, on retient le candidat qui RÉDUIT la pénalité
+        # de mauvais côté sans passer sous le seuil de profondeur (départage
+        # par le respect des écarts). Moteurs gelés (A/B/C/D) : inchangés.
+        orig_min = best_min
+        side_mode = SIDE_ABSOLUTE.get()
+        orig_pen = (_wrong_side_penalty_m([a] + pts[i + 1:j + 1], strict_exempt)
+                    if side_mode else 0.0)
+        best_pen = orig_pen
+        best_pen_ratio = -1.0
+        best_pen_cand: Optional[list[tuple[float, float]]] = None
         # px dimensionné pour STEP 1 sur la grille de base 100 m (fenêtre
         # poolée = snap/chemin sur des cellules « max » qui peuvent être des
         # roches en pleine résolution → candidats jamais validables, Raz de
@@ -950,8 +1050,24 @@ def _repair_segments(
             cand_min = _centerline_min(grid, cand)
             if cand_min > best_min:  # pas parfait mais PLUS PROFOND que l'original
                 best_min, best_cand = cand_min, cand
+            if (side_mode and orig_pen > 1.0
+                    and cand_min >= min(orig_min, min_depth)):
+                pen = _wrong_side_penalty_m(cand, strict_exempt)
+                if pen < orig_pen - 1.0:
+                    ratio = _clearance_worst_ratio(cand, clearance)
+                    if (pen < best_pen - 1.0
+                            or (pen < orig_pen - 1.0 and abs(pen - best_pen) <= 1.0
+                                and ratio > best_pen_ratio)):
+                        best_pen, best_pen_ratio = pen, ratio
+                        best_pen_cand = cand
         if not fixed:
-            if best_cand is not None:
+            if best_pen_cand is not None:
+                # Moteur E : le candidat passe du BON côté du balisage
+                # (pénalité de côté réduite) — retenu malgré un écart imparfait.
+                if i == 0:
+                    out[0] = best_pen_cand[0]
+                out.extend(best_pen_cand[1:])
+            elif best_cand is not None:
                 if i == 0:
                     out[0] = best_cand[0]
                 out.extend(best_cand[1:])

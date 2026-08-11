@@ -160,3 +160,28 @@ agent_communication:
           Illur NORD dans les 2 sens à marge 10 (121 m / 81 m), Vilaine eau
           peu profonde toujours sans wrong_side. Suites 19/19 + 35/35.
           Aussi corrigé : backend/.env ligne collée SMS_PROVIDER/RATE_LIMIT.
+
+  - task: "Moteur E (signalmar.v5) — côté absolu, couples réciproques, plafond densité, arrivée jamais tronquée (Crouesty) + édition waypoint unique (frontend)"
+    implemented: true
+    working: "NA"
+    file: "backend/core/seamarks.py, backend/core/routing_engines/algos/signalmar_v5/__init__.py, frontend/app/(tabs)/map.tsx, frontend/src/components/marine-map/js/route.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Consignes armateur 11/08 : Moteur D FIGÉ ; nouveau Moteur E
+          (engine_e → signalmar.v5). Corrigés : (1) couple écarté chenal de
+          Vannes (rouge recoupée à 139 m) — demi-disque PLEIN ≤ 0,8×gap ;
+          (2) arrivée Crouesty refusée (944 m) — couples RÉCIPROQUES (faux
+          couples des coudes supprimés), plafond de DENSITÉ des rayons,
+          complétion d'arrivée (A* marée puis SUIVI DU CHENAL BALISÉ,
+          tronçons rouges + risk). AUCUNE exception de terrain (overrides
+          supprimés). Frontend : édition de route = seul le waypoint le plus
+          proche du toucher est déplaçable (les autres = repères), bouton
+          « Recalculer la route » après déplacement (manualRoute avec le
+          moteur de la route affichée). Tests locaux : itér.133 19/19 (D
+          figé conforme), Crouesty end_snapped=None + rouges, Grand Mouton
+          bon côté, Illur nord 2 sens.

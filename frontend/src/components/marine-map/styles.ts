@@ -253,6 +253,11 @@ export const MAP_CSS = `  html,body{margin:0;padding:0;height:100%;width:100%;ba
     border-radius:50%;background:#2EC4B6;color:#0B132B;border:2px solid #fff;
     font:800 13px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
     box-shadow:0 1px 3px rgba(0,0,0,.4);}
+  /* 11/08/2026 (règle armateur) — ÉDITION : waypoint sélectionné mis en
+     évidence, les autres réduits à de simples repères non interactifs. */
+  .sm-wp-edit{background:#FFB703;box-shadow:0 0 0 4px rgba(255,183,3,.35),0 1px 3px rgba(0,0,0,.4);}
+  .sm-wp-dot{width:12px;height:12px;border-radius:50%;background:#2EC4B6;opacity:.65;
+    border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.35);}
   /* 23/07/2026 — ALARME DE MOUILLAGE : icône ancre au centre du cercle de
      garde. Clignote en rouge quand le bateau dérive hors du rayon. */
   @keyframes smAnchorBlink{0%,100%{opacity:1}50%{opacity:.35}}

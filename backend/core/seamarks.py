@@ -34,11 +34,6 @@ from core.bathy import BathyGrid, get_grid, get_zone_grid
 
 SEAMARKS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "seamarks.json"
 HAZARDS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "hazards.json"
-# 10/08/2026 — table d'EXCEPTIONS manuelles du côté de passage (validées
-# terrain) : {"overrides": [{"id": <id OSM>, "pass_bearing_deg": <0-360>}]}
-# — le cap (depuis la balise) du côté où la route DOIT passer. Prioritaire
-# sur tous les signaux automatiques.
-SIDE_OVERRIDES_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "side_overrides.json"
 MOORINGS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "moorings.json"
 FARMS_PATH = Path(__file__).resolve().parent.parent / "data" / "bathy" / "marine_farms.json"
 
@@ -111,6 +106,13 @@ SIDE_RULES_OPEN = contextvars.ContextVar("sm_side_rules_open", default=False)
 # l'algo signalmar.v4 (Moteur D) le temps d'un calcul : les Moteurs A, B et
 # C restent STRICTEMENT inchangés (caches séparés, cf. _mark_dir).
 ISOLATED_SIDE_BATHY = contextvars.ContextVar("sm_isolated_side_bathy", default=False)
+# 11/08/2026 (consigne armateur, Moteur E UNIQUEMENT — signalmar.v5) — CÔTÉ
+# ABSOLU : « il y a encore des ratées de balises » (couple très écarté du
+# chenal de Vannes, rouge recoupée à 139 m dans 4 m d'eau). Sous ce mode,
+# le demi-disque interdit du mauvais côté est PLEIN (sans condition de
+# fond) pour les isolées confiantes ET pour les couples (rayon ≤ 0,8 ×
+# l'écartement, plafond 200 m). Moteurs A/B/C/D STRICTEMENT inchangés.
+SIDE_ABSOLUTE = contextvars.ContextVar("sm_side_absolute", default=False)
 
 # 27/07/2026 — ZONES DE MOUILLAGE SURFACIQUES (seamark:type=anchorage,
 # ingest_anchorages.py) : mêmes règles que les bouées de mouillage
@@ -225,12 +227,6 @@ class SeamarkIndex:
         self._shelter: Optional[np.ndarray] = None  # champ décimé
         self._gy: Optional[np.ndarray] = None
         self._gx: Optional[np.ndarray] = None
-        # 10/08/2026 — exceptions manuelles du côté de passage (id → cap °).
-        self._side_overrides: dict = {}
-        if SIDE_OVERRIDES_PATH.exists():
-            for ov in json.loads(SIDE_OVERRIDES_PATH.read_text()).get("overrides", []):
-                if ov.get("id") is not None and ov.get("pass_bearing_deg") is not None:
-                    self._side_overrides[ov["id"]] = float(ov["pass_bearing_deg"])
         # 23/07/2026 (extension Atlantique) — INDEX SPATIAL des latérales :
         # _pair_of/_same_side_axis passaient de O(n) à O(n²) avec ~10 000
         # balises sur toute la façade. Seaux de 0,02° (~2,2 km ≫ rayons de
@@ -346,9 +342,28 @@ class SeamarkIndex:
     # fiable que le gradient — utilisé en priorité quand un couple existe.
     def _pair_of(self, m: dict) -> Optional[dict]:
         """Latérale de catégorie OPPOSÉE la plus proche (≤ _PAIR_MAX_M) —
-        le « couple » rouge/verte qui borde un chenal. None si isolée."""
-        if "_pair" in m:
-            return m["_pair"]
+        le « couple » rouge/verte qui borde un chenal. None si isolée.
+
+        11/08/2026 (Moteur E — SIDE_ABSOLUTE, cache séparé) : un vrai couple
+        est RÉCIPROQUE — chacune est l'opposée la plus proche de l'autre.
+        Sans ce test, les chenaux denses en COUDE créaient des FAUX couples
+        le long de l'axe (Crouesty : la verte du coude « appariée » à la
+        rouge n°8 à 290 m EN AMONT, alors que n°8 forme sa porte avec No5 à
+        92 m → fausses portes + faux côtés qui SCELLAIENT l'entrée).
+        Critère purement géométrique, valable partout, sans exception."""
+        v5 = SIDE_ABSOLUTE.get()
+        ck = "_pair_v5" if v5 else "_pair"
+        if ck in m:
+            return m[ck]
+        best = self._nearest_opposite(m)
+        if v5 and best is not None and self._nearest_opposite(best) is not m:
+            best = None
+        m[ck] = best
+        return best
+
+    def _nearest_opposite(self, m: dict) -> Optional[dict]:
+        if "_nopp" in m:
+            return m["_nopp"]
         cat = m.get("category")
         other = "port" if cat == "starboard" else "starboard"
         mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
@@ -362,7 +377,53 @@ class SeamarkIndex:
             d2 = de_ * de_ + dn_ * dn_
             if d2 < best_d2:
                 best_d2, best = d2, o
-        m["_pair"] = best
+        m["_nopp"] = best
+        return best
+
+    def _nearest_lateral_m(self, m: dict) -> float:
+        """Distance (m) à la latérale la plus proche (toutes catégories,
+        ≤ _PAIR_MAX_M) — inf si vraiment seule. Sert de PLAFOND DE DENSITÉ
+        (11/08, Moteur E) : dans un chenal dense (balises tous les 60-120 m,
+        ex. Crouesty), les zones de mauvais côté à l'échelle 200 m se
+        recouvrent mutuellement et SCELLENT le chenal — le rayon est plafonné
+        à 0,6 × cette distance. Règle d'échelle universelle, sans exception
+        de terrain."""
+        if "_nld" in m:
+            return m["_nld"]
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        best = float("inf")
+        for o in self._laterals_near(m["lat"], m["lng"]):
+            if o is m:
+                continue
+            de_ = (o["lng"] - m["lng"]) * mlng
+            dn_ = (o["lat"] - m["lat"]) * 110_574.0
+            d = math.hypot(de_, dn_)
+            if d < best:
+                best = d
+        m["_nld"] = best
+        return best
+
+    def _nearest_other_lateral_m(self, m: dict) -> float:
+        """Distance (m) à la latérale la plus proche HORS partenaire de
+        couple (11/08 soir, Moteur E — bug armateur « No2 pas respectée ») :
+        le plafond de densité 0,6 × voisine utilisait le PARTENAIRE lui-même
+        (No1 à 199 m) et écrasait le rayon 0,8 × écartement (159 m) → route
+        acceptée à 127 m du MAUVAIS côté. La densité pertinente pour un
+        couple = les AUTRES balises du chenal. inf si aucune."""
+        if "_nld_x5" in m:
+            return m["_nld_x5"]
+        pair = self._pair_of(m)
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        best = float("inf")
+        for o in self._laterals_near(m["lat"], m["lng"]):
+            if o is m or o is pair:
+                continue
+            de_ = (o["lng"] - m["lng"]) * mlng
+            dn_ = (o["lat"] - m["lat"]) * 110_574.0
+            d = math.hypot(de_, dn_)
+            if d < best:
+                best = d
+        m["_nld_x5"] = best
         return best
 
     def _mark_dir(self, m: dict) -> Optional[tuple[float, float]]:
@@ -375,13 +436,14 @@ class SeamarkIndex:
         latérale ISOLÉE tente d'abord l'ASYMÉTRIE BATHYMÉTRIQUE (l'eau
         profonde = le chenal) avant le gradient. Cache séparé (_dir_v4) :
         les moteurs gelés ne voient JAMAIS la valeur du mode D."""
-        if ISOLATED_SIDE_BATHY.get():
-            if "_dir_v4" in m:
-                return m["_dir_v4"]
+        if ISOLATED_SIDE_BATHY.get() or SIDE_ABSOLUTE.get():
+            ck = "_dir_v5" if SIDE_ABSOLUTE.get() else "_dir_v4"
+            if ck in m:
+                return m[ck]
             d = self.mark_dir_confident(m)
             if d is None:
                 d = self.conventional_dir(m["lat"], m["lng"])
-            m["_dir_v4"] = d
+            m[ck] = d
             return d
         if "_dir" in m:
             return m["_dir"]
@@ -392,14 +454,15 @@ class SeamarkIndex:
         return d
 
     def mark_dir_confident(self, m: dict) -> Optional[tuple[float, float]]:
-        """Direction conventionnelle FIABLE seulement (couple rouge/verte,
-        override manuel ou asymétrie bathymétrique nette) — None si aucun
-        signal sûr (l'appelant choisit alors son propre repli). Utilisé par
-        le Moteur D pour ne jamais trancher un côté sur un signal bruité."""
+        """Direction conventionnelle FIABLE seulement (couple rouge/verte ou
+        asymétrie bathymétrique nette) — None si aucun signal sûr
+        (l'appelant choisit alors son propre repli). Utilisé par les
+        Moteurs D/E pour ne jamais trancher un côté sur un signal bruité."""
         if m.get("category") not in ("port", "starboard"):
             return None
-        if "_dir_conf" in m:
-            return m["_dir_conf"]
+        ck = "_dir_conf_v5" if SIDE_ABSOLUTE.get() else "_dir_conf"
+        if ck in m:
+            return m[ck]
         d = self._pair_dir(m)
         if d is None:
             w = self.navigable_side(m)
@@ -408,7 +471,7 @@ class SeamarkIndex:
                 # Verte : la route passe à BÂBORD de D → bâbord(D) = w
                 # ⇒ D = w tourné de −90°. Rouge : tribord(D) = w ⇒ +90°.
                 d = (wn, -we) if m["category"] == "starboard" else (-wn, we)
-        m["_dir_conf"] = d
+        m[ck] = d
         return d
 
     def _pair_dir(self, m: dict) -> Optional[tuple[float, float]]:
@@ -463,44 +526,106 @@ class SeamarkIndex:
         """Côté NAVIGABLE d'une latérale (vecteur unitaire est/nord depuis la
         balise, pointant vers l'eau où la route DOIT passer) — invariant au
         sens de parcours. None si l'asymétrie bathymétrique est ambiguë.
+        AUCUNE exception de terrain (11/08, consigne armateur : les règles
+        doivent fonctionner partout en Europe) :
 
-        1. override manuel (side_overrides.json, validé terrain) ;
-        2. axe du chenal connu → comparaison des deux côtés perpendiculaires ;
-        3. sinon balayage de 12 azimuts : le secteur le moins profond est le
+        1. axe du chenal connu → comparaison des deux côtés perpendiculaires ;
+        2. sinon balayage de 12 azimuts : le secteur le moins profond est le
            DANGER, la route passe à l'opposé (si l'écart est net)."""
         if m.get("category") not in ("port", "starboard"):
             return None
-        if "_navside" in m:
-            return m["_navside"]
+        # 11/08 soir (Moteur E) — cache séparé : le mode E ajoute un repli
+        # « chenal lointain » (_far_channel_side) que le Moteur D figé ne
+        # doit jamais voir.
+        ck = "_navside_v5" if SIDE_ABSOLUTE.get() else "_navside"
+        if ck in m:
+            return m[ck]
         out: Optional[tuple[float, float]] = None
-        ov = self._side_overrides.get(m.get("id"))
-        if ov is not None:
-            rad = math.radians(ov)
-            out = (math.sin(rad), math.cos(rad))
+        axis = self._same_side_axis(m)
+        if axis is not None:
+            ae, an = axis
+            cands = [(-an, ae), (an, -ae)]
+            s0, s1 = (self._side_score(m, *cands[0]),
+                      self._side_score(m, *cands[1]))
+            deep, shallow = (0, 1) if s0 >= s1 else (1, 0)
+            scores = (s0, s1)
+            if (scores[deep] - scores[shallow] >= _NAV_SIDE_MIN_GAP_M
+                    and scores[shallow] < _NAV_SIDE_DANGER_MAX_M):
+                out = cands[deep]
         else:
-            axis = self._same_side_axis(m)
-            if axis is not None:
-                ae, an = axis
-                cands = [(-an, ae), (an, -ae)]
-                s0, s1 = (self._side_score(m, *cands[0]),
-                          self._side_score(m, *cands[1]))
-                deep, shallow = (0, 1) if s0 >= s1 else (1, 0)
-                scores = (s0, s1)
-                if (scores[deep] - scores[shallow] >= _NAV_SIDE_MIN_GAP_M
-                        and scores[shallow] < _NAV_SIDE_DANGER_MAX_M):
-                    out = cands[deep]
-            else:
-                cands = [(math.sin(math.radians(b)), math.cos(math.radians(b)))
-                         for b in range(0, 360, 30)]
-                scores = [self._side_score(m, ue, un) for ue, un in cands]
-                i_min = min(range(len(scores)), key=scores.__getitem__)
-                w = (-cands[i_min][0], -cands[i_min][1])
-                s_opp = self._side_score(m, *w)
-                if (s_opp - scores[i_min] >= _NAV_SIDE_MIN_GAP_M
-                        and scores[i_min] < _NAV_SIDE_DANGER_MAX_M):
-                    out = w
-        m["_navside"] = out
+            cands = [(math.sin(math.radians(b)), math.cos(math.radians(b)))
+                     for b in range(0, 360, 30)]
+            scores = [self._side_score(m, ue, un) for ue, un in cands]
+            i_min = min(range(len(scores)), key=scores.__getitem__)
+            w = (-cands[i_min][0], -cands[i_min][1])
+            s_opp = self._side_score(m, *w)
+            if (s_opp - scores[i_min] >= _NAV_SIDE_MIN_GAP_M
+                    and scores[i_min] < _NAV_SIDE_DANGER_MAX_M):
+                out = w
+        if out is None and SIDE_ABSOLUTE.get():
+            out = self._far_channel_side(m)
+        m[ck] = out
         return out
+
+    # ── 11/08 soir (Moteur E — bug armateur « Grand Mouton pas respectée »)
+    # Une latérale posée SUR son danger (roche au pied de la bouée) noie
+    # l'asymétrie proche : les échantillons à 30-60 m touchent la roche de
+    # TOUS les côtés (Grand Mouton : 2,4 m à l'ouest à 30 m alors que le
+    # chenal de Port-Navalo, 24 m, est à 150 m ouest) → navigable_side
+    # ambigu → aucun blocage de côté. Repli CHAMP LOINTAIN, universel :
+    # 1. il existe un vrai danger AU PIED de la bouée (fond < 5 m à ≤ 60 m) ;
+    # 2. le côté le plus profond à 100-200 m (écrêtage 20 m : on cherche un
+    #    CHENAL, pas une fosse) domine son opposé d'au moins 4 m.
+    # → le chenal est de ce côté, la route passe là. Moteur E uniquement.
+    _FAR_RADII = (100.0, 150.0, 200.0)
+
+    def _far_score(self, m: dict, ue: float, un: float) -> float:
+        """Score « chenal lointain » du côté (ue, un) : moyenne des fonds
+        écrêtés à [−2, 20] m sur 3 azimuts (±25°) × rayons 100-200 m."""
+        grid = get_grid() or self._grid
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        vals: list[float] = []
+        for ang in (-25.0, 0.0, 25.0):
+            ca, sa = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+            de, dn = ue * ca - un * sa, ue * sa + un * ca
+            for r in self._FAR_RADII:
+                d = grid.depth_at(m["lat"] + dn * r / 110_574.0,
+                                  m["lng"] + de * r / mlng)
+                vals.append(-2.0 if d is None else min(max(float(d), -2.0), 20.0))
+        return sum(vals) / len(vals)
+
+    def _far_channel_side(self, m: dict) -> Optional[tuple[float, float]]:
+        grid = get_grid() or self._grid
+        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+        # 1. danger au pied de la bouée ? (fond mini < 5 m dans un rayon 60 m)
+        near_min: Optional[float] = None
+        for r in (0.0, 30.0, 60.0):
+            for b in range(0, 360, 45):
+                if r == 0.0 and b:
+                    continue
+                ue, un = math.sin(math.radians(b)), math.cos(math.radians(b))
+                d = grid.depth_at(m["lat"] + un * r / 110_574.0,
+                                  m["lng"] + ue * r / mlng)
+                if d is not None and (near_min is None or float(d) < near_min):
+                    near_min = float(d)
+        if near_min is None or near_min >= 5.0:
+            return None
+        # 2. côté au chenal le plus net (axe du chenal si connu, sinon 12
+        #    azimuts) — écart minimal 4 m avec le côté opposé.
+        axis = self._same_side_axis(m)
+        if axis is not None:
+            ae, an = axis
+            cands = [(-an, ae), (an, -ae)]
+        else:
+            cands = [(math.sin(math.radians(b)), math.cos(math.radians(b)))
+                     for b in range(0, 360, 30)]
+        scores = [self._far_score(m, ue, un) for ue, un in cands]
+        i_max = max(range(len(scores)), key=scores.__getitem__)
+        we, wn = cands[i_max]
+        s_opp = self._far_score(m, -we, -wn)
+        if scores[i_max] - s_opp < 4.0:
+            return None
+        return (we, wn)
 
     def _same_side_axis(self, m: dict) -> Optional[tuple[float, float]]:
         """Axe local du chenal ≈ direction (unitaire, ±180°) vers la latérale
@@ -532,8 +657,14 @@ class SeamarkIndex:
     # profond (ex. balise du milieu de la Teignouse, validée terrain), l'écart
     # standard suffit ; s'il est peu profond, balisage STRICT. Caché/marque.
     def _wrong_side_depth(self, m: dict) -> Optional[float]:
-        # 10/08 — cache séparé sous le mode D : la direction peut différer.
-        ck = "_wrong_depth_v4" if ISOLATED_SIDE_BATHY.get() else "_wrong_depth"
+        # 10/08 — caches séparés par mode : la direction (donc le mauvais
+        # côté) diffère entre moteurs gelés, Moteur D et Moteur E.
+        if SIDE_ABSOLUTE.get():
+            ck = "_wrong_depth_v5"
+        elif ISOLATED_SIDE_BATHY.get():
+            ck = "_wrong_depth_v4"
+        else:
+            ck = "_wrong_depth"
         if ck in m:
             return m[ck]
         best: Optional[float] = None
@@ -702,6 +833,15 @@ class SeamarkIndex:
                 continue
             radius = {"lateral": R_LATERAL_M, "cardinal": R_CARDINAL_M,
                       "isolated_danger": R_ISOLATED_M, "special": R_SPECIAL_M}[kind]
+            # 11/08 (Moteur E) — ÉCART ADAPTATIF à la densité : dans un
+            # chenal étroit balisé tous les 50-100 m (Crouesty), des disques
+            # fixes de 60 m se recouvrent d'un bord à l'autre et SCELLENT le
+            # chenal. L'écart passe à 0,35 × la latérale voisine la plus
+            # proche (plancher 25 m — on longe une bouée à 25 m dans un
+            # chenal de port). Balisage isolé / eaux ouvertes : 60 m inchangé.
+            if kind == "lateral" and SIDE_ABSOLUTE.get():
+                radius = min(radius,
+                             max(0.35 * self._nearest_lateral_m(m), 25.0))
             # 29/07 (IALA, retour mer) — cardinale de direction CONNUE : le
             # demi-disque côté danger est élargi à 300 m (voir constante).
             # Exemption < 500 m du départ/de l'arrivée (même règle que le
@@ -735,29 +875,76 @@ class SeamarkIndex:
             # grossière ne sert qu'à la connectivité, les passes fines et le
             # contrôle plein-résolution ré-appliquent la sécurité.
             strict_here = False
-            # 10/08 (Moteur D) — latérale ISOLÉE à côté CONFIANT (asymétrie
-            # bathymétrique nette) : demi-disque interdit PLEIN sur 200 m,
-            # SANS filtre de profondeur — une « langue » d'eau profonde entre
-            # la bouée et le danger qu'elle signale n'est PAS un passage
-            # (mesuré : Illur, passage à 79 m au sud dans 9 m d'eau, entre la
-            # verte et le haut-fond). Les couples gardent le filtre (chenaux).
             strict_full = False
+            side_abs_r = 0.0
             if kind == "lateral" and max(cy, cx) <= 35.0:
-                paired = self._pair_of(m) is not None
-                conf_iso = (not paired and ISOLATED_SIDE_BATHY.get()
+                pair_m = self._pair_of(m)
+                conf_iso = (pair_m is None and ISOLATED_SIDE_BATHY.get()
                             and self.navigable_side(m) is not None)
-                if (paired or conf_iso) and self._lateral_strict(m, strict_depth):
-                    strict_here = depth is not None
-                    if strict_here and strict_exempt:
-                        for pt in strict_exempt:
-                            dd = math.hypot((m["lat"] - pt[0]) * m_per_deg_lat,
-                                            (m["lng"] - pt[1]) * m_per_deg_lng)
-                            if dd < 500.0:
-                                strict_here = False
-                                break
-                    if strict_here:
-                        radius = R_LATERAL_STRICT_M
-                        strict_full = conf_iso
+                exempt500 = False
+                if strict_exempt and (pair_m is not None or conf_iso):
+                    # 11/08 soir (Moteur E) — exemption réduite à 200 m (au
+                    # lieu de 500 m), ALIGNÉE sur l'audit (_EXEMPT_M) : la
+                    # zone 200-500 m autour du départ/de l'arrivée laissait
+                    # passer du mauvais côté de « 8 » (432 m de l'arrivée
+                    # Crouesty, à marée haute) tout en étant flaguée par
+                    # l'audit. On rejoint toujours son mouillage (< 200 m).
+                    ex_r = 200.0 if SIDE_ABSOLUTE.get() else 500.0
+                    for pt in strict_exempt:
+                        dd = math.hypot((m["lat"] - pt[0]) * m_per_deg_lat,
+                                        (m["lng"] - pt[1]) * m_per_deg_lng)
+                        if dd < ex_r:
+                            exempt500 = True
+                            break
+                # 11/08 (Moteur E — CÔTÉ ABSOLU) : demi-disque PLEIN (sans
+                # condition de fond). Isolée confiante : 200 m. COUPLE :
+                # plafonné à 0,8 × l'écartement (rouge du chenal de Vannes
+                # recoupée à 139 m dans 4 m d'eau). Le tout PLAFONNÉ PAR LA
+                # DENSITÉ du balisage (0,6 × la latérale voisine la plus
+                # proche) : dans un chenal dense en COUDE (Crouesty), des
+                # zones à l'échelle 200 m se recouvrent mutuellement et
+                # SCELLERAIENT l'entrée du port.
+                dens_cap = 0.0
+                if SIDE_ABSOLUTE.get() and not exempt500:
+                    if conf_iso:
+                        dens_cap = max(0.6 * self._nearest_lateral_m(m),
+                                       float(R_LATERAL_M))
+                        side_abs_r = min(R_LATERAL_STRICT_M, dens_cap)
+                    elif pair_m is not None:
+                        # 11/08 soir (bug armateur « No2 pas respectée »,
+                        # puis « 8 » recoupée à 61 m à marée haute) — le
+                        # plafond de densité écrasait le rayon 0,8 ×
+                        # écartement du couple (No1 à 199 m → 119 m ; la
+                        # perche voisine de « 8 » → 60 m) alors que le
+                        # demi-disque d'un VRAI couple (réciproque) pointe
+                        # toujours vers l'EXTÉRIEUR du chenal et que le
+                        # couloir libre re-creuse la porte : il ne peut pas
+                        # sceller le chenal. La densité (mesurée HORS
+                        # partenaire) ne plafonne plus que l'extension
+                        # peu-profonde ci-dessous.
+                        dens_cap = max(
+                            0.6 * self._nearest_other_lateral_m(m),
+                            float(R_LATERAL_M))
+                        gap_p = math.hypot(
+                            (pair_m["lat"] - m["lat"]) * m_per_deg_lat,
+                            (pair_m["lng"] - m["lng"]) * m_per_deg_lng)
+                        side_abs_r = min(R_LATERAL_STRICT_M,
+                                         max(0.8 * gap_p, R_LATERAL_M))
+                if ((pair_m is not None or conf_iso)
+                        and self._lateral_strict(m, strict_depth)):
+                    strict_here = depth is not None and not exempt500
+                if strict_here or side_abs_r > 0.0:
+                    strict_r = R_LATERAL_STRICT_M
+                    if dens_cap > 0.0:
+                        # mode E : l'extension peu-profonde est plafonnée par
+                        # la densité elle aussi (même géométrie, même risque).
+                        strict_r = min(strict_r, dens_cap)
+                    radius = max(radius,
+                                 strict_r if strict_here else side_abs_r)
+                    # 10/08 (Moteur D) — isolée confiante : plein sur 200 m
+                    # (une « langue » d'eau profonde entre la bouée et le
+                    # danger qu'elle signale n'est PAS un passage — Illur).
+                    strict_full = conf_iso and not SIDE_ABSOLUTE.get()
             d = _disc(m["lat"], m["lng"], radius)
             if d is None:
                 continue
@@ -821,15 +1008,23 @@ class SeamarkIndex:
                 else:
                     # rouge : bateau à droite → interdit la GAUCHE de D.
                     zone = inside & (cross > 0)
-                if strict_here:
+                if strict_here or side_abs_r > 0.0:
                     # Écart standard (60 m) inconditionnel + extension stricte
                     # (jusqu'à 200 m) UNIQUEMENT sur les cellules peu profondes
                     # du mauvais côté (l'eau profonde reste passable).
                     # 10/08 (Moteur D) — isolée confiante : demi-disque PLEIN.
+                    # 11/08 (Moteur E) — couple : PLEIN jusqu'à 0,8 × gap en
+                    # plus de l'extension peu-profonde historique.
                     if not strict_full:
                         inside_std = dx * dx + dy * dy <= R_LATERAL_M * R_LATERAL_M
-                        shallow = depth[r0:r1, c0:c1] < strict_depth
-                        zone = (zone & inside_std) | (zone & shallow)
+                        keep = zone & inside_std
+                        if strict_here:
+                            shallow = depth[r0:r1, c0:c1] < strict_depth
+                            keep |= zone & shallow
+                        if side_abs_r > 0.0:
+                            keep |= zone & (dx * dx + dy * dy
+                                            <= side_abs_r * side_abs_r)
+                        zone = keep
             marks_blocked[r0:r1, c0:c1] |= zone
 
         # ── 22/07/2026 — COULOIR LIBRE entre chaque couple rouge/verte ────
@@ -980,6 +1175,14 @@ class SeamarkIndex:
             if not (lat_s <= m["lat"] <= lat_n and lng_w <= m["lng"] <= lng_e):
                 continue
             r_std = R_MARK_STANDOFF_M
+            # 11/08 soir (Moteur E) — même écart ADAPTATIF à la densité que
+            # le masque : dans un chenal de port balisé tous les 50-100 m,
+            # passer à 40-50 m d'une perche est NORMAL — l'audit n'avertit
+            # plus « écart recommandé 60 m » quand le moteur a précisément
+            # visé l'écart adapté (0,35 × la latérale voisine, plancher 25 m).
+            if m["kind"] == "lateral" and SIDE_ABSOLUTE.get():
+                r_std = min(r_std,
+                            max(0.35 * self._nearest_lateral_m(m), 25.0))
             o = self._pair_of(m) if m["kind"] == "lateral" else None
             if o is not None:
                 gap = math.hypot((m["lat"] - o["lat"]) * 110_574.0,
@@ -1004,7 +1207,13 @@ class SeamarkIndex:
             if m["kind"] == "safe_water":
                 continue
             if lat_s <= m["lat"] <= lat_n and lng_w <= m["lng"] <= lng_e:
-                pts.append((m["lat"], m["lng"], radius_by_kind[m["kind"]]))
+                r_std = radius_by_kind[m["kind"]]
+                # 11/08 (Moteur E) — écart adaptatif à la densité (cf.
+                # rasterize) : mêmes rayons pour les contrôles de la passe 3.
+                if m["kind"] == "lateral" and SIDE_ABSOLUTE.get():
+                    r_std = min(r_std,
+                                max(0.35 * self._nearest_lateral_m(m), 25.0))
+                pts.append((m["lat"], m["lng"], r_std))
                 # 10/08 (Moteur D UNIQUEMENT) — CONTRAINTE DE CÔTÉ pour les
                 # contrôles pleine résolution : le redressement/la réparation
                 # (_corridor_safe) ne connaissent que des cercles d'écart, si
@@ -1019,9 +1228,15 @@ class SeamarkIndex:
                         and self._pair_of(m) is None):
                     w = self.navigable_side(m)
                     if w is not None:
+                        # 11/08 (mode E) : anneaux plafonnés par la densité.
+                        r_lim = float("inf")
+                        if SIDE_ABSOLUTE.get():
+                            r_lim = max(0.6 * self._nearest_lateral_m(m), 60.0)
                         mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
                         dde, ddn = -w[0], -w[1]     # direction du DANGER
                         for dist in (60.0, 120.0, 180.0):
+                            if dist > r_lim - 20.0:
+                                break
                             for ang in (0.0, 35.0, -35.0, 70.0, -70.0):
                                 ca = math.cos(math.radians(ang))
                                 sa = math.sin(math.radians(ang))
@@ -1029,6 +1244,38 @@ class SeamarkIndex:
                                 un = dde * sa + ddn * ca
                                 pts.append((m["lat"] + un * dist / 110_574.0,
                                             m["lng"] + ue * dist / mlng, 45.0))
+                # 11/08 (Moteur E — CÔTÉ ABSOLU) : même semis pour les
+                # COUPLES (le redressement recoupait la rouge du chenal de
+                # Vannes à 139 m hors de la porte). Direction du danger =
+                # l'OPPOSÉ du couple ; anneaux plafonnés à 0,8 × écartement.
+                elif SIDE_ABSOLUTE.get() and m["kind"] == "lateral":
+                    pair = self._pair_of(m)
+                    d_dir = self._pair_dir(m)
+                    if pair is not None and d_dir is not None:
+                        mlng = 111_320.0 * math.cos(math.radians(m["lat"]))
+                        gap = math.hypot(
+                            (m["lng"] - pair["lng"]) * mlng,
+                            (m["lat"] - pair["lat"]) * 110_574.0)
+                        de_, dn_ = d_dir
+                        # côté passage : tribord(D) rouge / bâbord(D) verte ;
+                        # danger = l'opposé (projection quinconce incluse).
+                        ue_p, un_p = ((dn_, -de_) if m["category"] == "port"
+                                      else (-dn_, de_))
+                        dde, ddn = -ue_p, -un_p
+                        # 11/08 soir — aligné sur le masque : 0,8 × écartement
+                        # du couple, sans plafond de densité (cf. rasterize).
+                        r_abs = min(200.0, max(0.8 * gap, 60.0))
+                        for dist in (60.0, 120.0, 180.0):
+                            if dist > r_abs - 20.0:
+                                break
+                            for ang in (0.0, 35.0, -35.0, 70.0, -70.0):
+                                ca = math.cos(math.radians(ang))
+                                sa = math.sin(math.radians(ang))
+                                ue = dde * ca - ddn * sa
+                                un = dde * sa + ddn * ca
+                                pts.append(
+                                    (m["lat"] + un * dist / 110_574.0,
+                                     m["lng"] + ue * dist / mlng, 45.0))
         for h in self.hazards:
             if lat_s <= h["lat"] <= lat_n and lng_w <= h["lng"] <= lng_e:
                 if self.hazard_blocks(h, min_depth):

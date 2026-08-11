@@ -300,7 +300,7 @@ export const JS_ROUTE = `  // ── N1 (20/07/2026) — ROUTE SÛRE calculée p
   // ── 22/07/2026 — ROUTE MANUELLE en cours de création : polyline teal
   // pointillée + waypoints numérotés. window.__setDraftRoute(points|null).
   var _draftLayer = L.layerGroup().addTo(map);
-  window.__setDraftRoute = function(points){
+  window.__setDraftRoute = function(points, editIdx){
     try {
       _draftLayer.clearLayers();
       if (!points || !points.length) return;
@@ -310,13 +310,24 @@ export const JS_ROUTE = `  // ── N1 (20/07/2026) — ROUTE SÛRE calculée p
         L.polyline(pts, { color: '#FFFFFF', weight: 6, opacity: 0.7, interactive: false }).addTo(_draftLayer);
         L.polyline(pts, { color: '#2EC4B6', weight: 3, opacity: 0.95, dashArray: '8 6', interactive: false }).addTo(_draftLayer);
       }
+      var hasEdit = (typeof editIdx === 'number');
       for (var k = 0; k < pts.length; k++){
-        // 22/07/2026 (demande armateur) — points DÉPLAÇABLES (drag & drop) :
-        // dragend → RN met à jour l'étape correspondante.
+        // 22/07/2026 (demande armateur) — points DÉPLAÇABLES (drag & drop).
+        // 11/08 (règle armateur) — en ÉDITION, SEUL le waypoint sélectionné
+        // (editIdx) est déplaçable et numéroté ; les autres deviennent de
+        // simples repères (lisibilité + ajustement fin).
         (function(idx){
+          if (hasEdit && idx !== editIdx){
+            L.marker(pts[idx], {
+              interactive: false,
+              icon: L.divIcon({ className: '', html: '<div class="sm-wp-dot"></div>', iconSize: [12, 12], iconAnchor: [6, 6] }),
+            }).addTo(_draftLayer);
+            return;
+          }
+          var cls = hasEdit ? 'sm-wp-num sm-wp-edit' : 'sm-wp-num';
           var mk = L.marker(pts[idx], {
             draggable: true,
-            icon: L.divIcon({ className: '', html: '<div class="sm-wp-num">' + (idx + 1) + '</div>', iconSize: [26, 26], iconAnchor: [13, 13] }),
+            icon: L.divIcon({ className: '', html: '<div class="' + cls + '">' + (idx + 1) + '</div>', iconSize: [26, 26], iconAnchor: [13, 13] }),
           });
           mk.on('dragend', function(){
             var ll = mk.getLatLng();
