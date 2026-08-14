@@ -1,0 +1,43 @@
+{
+  "summary": "iter137 SignalMar — Moteur F cardinale/chenal + mark-report feature fully validated. All 5 requested test suites pass 100%: iter137 (chenal court Arradon) 16/16, iter136 unit part of same run, iter135+iter133 regressions 14/14, and new E2E API (login → compute/async engine_f → poll → mark-report → mark-reports GET) 5/5. Frontend flow validated end-to-end via web preview (mobile viewport 390×844): phone/OTP login → profile 'Mes routes' → tap saved route (QA-iter137) → RouteCard renders on map → 'Signaler un balisage non respecté' button tapped → modal opens with pre-filled 'Route R-...' hint → filled mark 'N°12' + comment 'QA UI iter137' → Envoyer → modal auto-closes and report BR-20260814-172513-PD created server-side with joined engine_id=engine_f and route_id. distance_m=22739 m (<23100), route passes through chenal court (multiple waypoints in armateur box lat[47.604,47.6094] lng[-2.841,-2.831]), wrong_side_marks empty, no '⚠ La route passe à ~' warning.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "web-only deprecation warnings", "issue": "React Native Web logs deprecation warnings on console: `shadow*` → use `boxShadow`, `textShadow*` → use `textShadow`, `props.pointerEvents` → use `style.pointerEvents`. Non-blocking noise; safe to schedule a sweep. Reference: seen throughout tabs/map.tsx and shared style components."},
+      {"component": "Animated JS fallback (web only)", "issue": "Console warning 'Animated: useNativeDriver is not supported because the native animated module is missing' when routing UI transitions — expected on RN Web, no action needed for native builds."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter137_cardinale_chenal.py",
+    "/app/backend/tests/test_iter136_moteur_f_trinite_truie.py",
+    "/app/backend/tests/test_iter135_retours_moteur_e.py",
+    "/app/backend/tests/test_iter133_sens_conventionnel_isolees.py",
+    "/app/backend/tests/test_iter137_e2e_api_signalment.py",
+    "/app/test_reports/pytest/iter137.xml",
+    "/app/test_reports/pytest/iter137_reg.xml",
+    "/app/test_reports/pytest/iter137_e2e.xml"
+  ],
+  "action_items": [
+    "(Optional, low priority) Migrate deprecated RN Web style props (shadow* → boxShadow, textShadow* → textShadow, props.pointerEvents → style.pointerEvents) to silence console warnings."
+  ],
+  "critical_code_review_comments": [
+    "routers/routing.py is now 1175 lines — still functional but growing; consider splitting compute / manual / saved / inspect / mark-report into sub-routers.",
+    "mark-report list endpoint joins engine_id and route document server-side — good. Ensure indexing on saved-routes.report_id and mark_reports.user_id if volume grows.",
+    "In-memory _JOBS dict remains single-process (documented previously); mark-report + compute both rely on it."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter137_e2e_api_signalment.py (new — E2E API pytest for iter137 chenal + mark-report)"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 iter137+iter136 targeted, 14/14 iter135+iter133 regressions, 5/5 iter137 E2E API)",
+    "frontend": "100% for tested flow (login → saved route → RouteCard → mark-report modal → send → server-persisted BR-…)"
+  },
+  "seed_data_creation": "1 seeded saved_route 'QA-iter137' (id=4d85f1be90e44e87865f927fda2b2b23) for user antoninlepinay@gmail.com via POST /api/routes/saved to reach the RouteCard in the UI without long-press map interaction. Route computed with engine_f Arradon → La Trinité, distance=22.7 km, 74 waypoints. Two mark-reports created during testing (BR-20260814-172207-TD via API, BR-20260814-172513-PD via UI).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter137 fully green (backend + frontend). E2E API test file /app/backend/tests/test_iter137_e2e_api_signalment.py is reusable: reads BASE_URL from EXPO_PUBLIC_BACKEND_URL / EXPO_BACKEND_URL and includes X-RateLimit-Bypass on every request; async job polls up to 300 s. UI flow for the mark-report button relies on a pre-existing saved route (limit 20 per user); seed via POST /api/routes/saved if none exists. Saved route 'QA-iter137' can be reused. Frontend login uses phone 0760071445 + OTP 123456 (mock SMS).",
+  "rca_of_issue": "N/A — verification run confirms both armateur fixes (chenal court + purge des warnings de frôlement obsolètes après fusion) and the new 'Signaler un balisage non respecté' feature end-to-end. Server persists reports with engine_id / route_id joined; UI opens the modal, sends payload, closes modal on success, and shows toast (toast disappears before ~4 s DOM read but modal-close + server-side BR-id creation confirm success)."
+}

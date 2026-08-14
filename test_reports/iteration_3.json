@@ -1,0 +1,38 @@
+{
+  "summary": "Backend-only validation of SignalMar iter136 — Moteur F (signalmar.v6) corrections + gel Moteur E. All requested pytest suites pass 100%. iter136 unit suite 10/10, E2E API async (login + compute/async + poll + engines list) 3/3, regressions iter135+134+133 19/19. Real async call confirmed engine_f produces route Arradon→La Trinité with no wrong_side_marks, no end_snapped, last waypoint = end demanded, no ⚠ MAUVAIS CÔTÉ warning, engine.algo=signalmar.v6 (6.1.0). Moteur E still exposes 'Truie d'Arradon' in wrong_side_marks (proof of freeze) with distance_m ≈ 22.6 km. GET /api/routing/engines lists both engine_f (signalmar.v6) and engine_e as active.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter136_moteur_f_trinite_truie.py",
+    "/app/backend/tests/test_iter136_e2e_api_engine_f.py",
+    "/app/test_reports/pytest/iter136.xml",
+    "/app/test_reports/pytest/iter136_e2e.xml",
+    "/app/test_reports/pytest/iter135_134_133.xml",
+    "/app/test_reports/pytest/iter136_full.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routers/routing.py is 1116 lines — consider splitting compute/manual/saved/inspect sub-routers for maintainability (not blocking).",
+    "In-memory _JOBS dict for async jobs is single-process (fine for current supervisor setup; document if horizontal scaling is planned)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter136_e2e_api_engine_f.py (new — E2E API pytest via public URL)"
+  ],
+  "success_rate": {
+    "backend": "100% (32/32 across iter136 unit+E2E and regressions iter135/134/133)",
+    "frontend": "not tested (backend-only per request)"
+  },
+  "seed_data_creation": "None — used seeded QA account antoninlepinay@gmail.com.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter136 backend fully validated. E2E test file /app/backend/tests/test_iter136_e2e_api_engine_f.py is reusable — reads BASE_URL from EXPO_BACKEND_URL / EXPO_PUBLIC_BACKEND_URL and sends X-RateLimit-Bypass on every request. Real async engine_f Arradon→La Trinité produces route in ~8s (compute_s=8.13, 72 waypoints, distance≈22640 m, min depth 0.9 m with warning). Preexisting failures in test_iter130_engine_c_bugfix_review.py were skipped per main agent's instruction.",
+  "rca_of_issue": "N/A — verification run, no bugs surfaced. All armateur bug fixes in Moteur F verified: (a) Truie d'Arradon now on correct side ≥60 m, no wrong_side_marks, no MAUVAIS CÔTÉ warning; (b) La Trinité chenal marks N°4/N°6/N°8/N°10/Dalh/N°12 all ≥40 m; (c) arrival exact (<5 m of demanded endpoint, no end_snapped); (d) no Z-trajectory (no hairpins >100°); (e) min_depth not degraded vs Moteur E; (f) Moteur E still shows 165 m wrong-side Truie (freeze proof); (g) Illur north passage preserved both directions."
+}

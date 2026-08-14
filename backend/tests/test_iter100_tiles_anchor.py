@@ -15,7 +15,7 @@ import requests
 
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://maritime-routing-v3.preview.emergentagent.com"
+    BASE_URL = "https://engine-e-crouesty.preview.emergentagent.com"
 
 QA_HEADER = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 PHONE = "0766071445"

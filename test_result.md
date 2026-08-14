@@ -185,3 +185,62 @@ agent_communication:
           moteur de la route affichée). Tests locaux : itér.133 19/19 (D
           figé conforme), Crouesty end_snapped=None + rouges, Grand Mouton
           bon côté, Illur nord 2 sens.
+
+  - task: "Iter136 — Moteur F (signalmar.v6) : Truie d'Arradon bon côté, chenal La Trinité respecté (N°4/N°8/N°12), plus de Z, arrivée atteinte ; Moteur E FIGÉ"
+    implemented: true
+    working: true
+    file: "backend/core/routing_engines/algos/signalmar_v6/__init__.py, backend/core/routing_engines/algos/signalmar_v6/sidefix.py, backend/core/seamarks.py (SIDE_ABSOLUTE_V6), backend/tests/test_iter136_moteur_f_trinite_truie.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Consignes armateur 13/08 : Moteur E FIGÉ (copie → Moteur F,
+          engine_f/signalmar.v6). Bugs (route R-20260813-144317-MX, Arradon →
+          La Trinité, marge 30, seuil 1,5, marée 0) : Truie d'Arradon mauvais
+          côté 165 m malgré warning ; N°4 frôlée 0,7 m ; N°8 mauvais côté
+          129 m ; Z ; arrivée manquée de 98 m sans flag. Fix v6 UNIQUEMENT :
+          sidefix (réparation géométrique mauvais côtés par re-calcul local +
+          insertion bon côté, frôlements deux-seuils, lissage épingles>100°),
+          complétion disciplinée par le balisage (extension A* rejetée si
+          violation → chaîne du chenal, reliquat géométrique, recul d'ancre).
+          Local : iter136 10/10, iter135 5/5, iter134 5/5, iter133+129+126
+          57 verts. E2E async API engine_f OK. Moteur E strictement identique
+          à la route MX stockée (gel prouvé).
+      - working: true
+        agent: "testing"
+        comment: >
+          iteration_3.json — 32/32 verts : iter136 10/10, E2E API async
+          engine_f 3/3 (wrong_side vide, arrivée exacte, algo signalmar.v6
+          6.1.0), gel Moteur E prouvé (Truie toujours flaguée, 22,6 km),
+          régressions iter133/134/135 19/19. Aucun bug détecté.
+
+  - task: "Iter137 — Moteur F : plafond cardinale (chenal Truie/Druic emprunté, routes convergentes) + purge warnings obsolètes + bouton « Signaler un balisage non respecté » (RouteCard + API mark-report)"
+    implemented: true
+    working: true
+    file: "backend/core/seamarks.py (cap cardinal SIDE_ABSOLUTE_V6), backend/core/routing_engines/algos/signalmar_v6/__init__.py, backend/routers/routing.py (mark-report), frontend/src/components/RouteCard.tsx, frontend/src/api/client.ts, backend/tests/test_iter137_cardinale_chenal.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Bugs armateur 14/08 : B5 détour 1 km par le nord (cardinale N à
+          114 m de la Truie scellait le chenal en maille 100 m), CT
+          divergente. Fix : rayon mauvais-côté cardinal plafonné à 0,9 ×
+          latérale la plus proche (gated SIDE_ABSOLUTE_V6) ; purge+ré-audit
+          des warnings de frôlement après fusion. Feature : bouton flag sur
+          RouteCard → POST /api/routes/mark-report (snapshot auto) + GET
+          /api/routes/mark-reports. Local : iter137 6/6, iter136 10/10,
+          régressions 60 verts, curl mark-report OK (BR-…).
+      - working: true
+        agent: "testing"
+        comment: >
+          iteration_4.json — backend 35/35 (iter137 6/6 + iter136 10/10 +
+          régressions 14/14 + e2e API signalement 5/5 : B5 22 739 m via le
+          chenal court, wrong_side vide, mark-report BR-… OK) ; frontend :
+          bouton RouteCard → modal → envoi vérifié en préview web (toast +
+          doc en base avec engine_id/route_id joints). Aucun bug.

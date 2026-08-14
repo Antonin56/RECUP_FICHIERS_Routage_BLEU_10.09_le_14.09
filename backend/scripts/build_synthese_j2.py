@@ -451,7 +451,7 @@ def build_story():
              "· session du 8 juillet 2026. Contraste WCAG AA (fix v2 : "
              "template content forcé + fond blanc explicite sur toutes les "
              "pages de contenu).<br/>URL : <font face=\"Courier\">"
-             "https://maritime-routing-v3.preview.emergentagent.com/api/docs/synthese-2026-07-08.pdf"
+             "https://engine-e-crouesty.preview.emergentagent.com/api/docs/synthese-2026-07-08.pdf"
              "</font>", S, tone="info")
     return S
 

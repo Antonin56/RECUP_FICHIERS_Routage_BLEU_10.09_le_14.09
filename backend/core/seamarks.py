@@ -113,6 +113,12 @@ ISOLATED_SIDE_BATHY = contextvars.ContextVar("sm_isolated_side_bathy", default=F
 # fond) pour les isolées confiantes ET pour les couples (rayon ≤ 0,8 ×
 # l'écartement, plafond 200 m). Moteurs A/B/C/D STRICTEMENT inchangés.
 SIDE_ABSOLUTE = contextvars.ContextVar("sm_side_absolute", default=False)
+# 13/08/2026 (consigne armateur, Moteur F UNIQUEMENT — signalmar.v6) — le
+# Moteur E est FIGÉ à cette date. Le Moteur F démarre comme copie EXACTE du
+# Moteur E ; toutes les corrections futures (balises de chenal à l'arrivée,
+# « la Truie » au départ d'Arradon…) devront être gardées par CE contextvar
+# afin de ne JAMAIS modifier le comportement des Moteurs A/B/C/D/E.
+SIDE_ABSOLUTE_V6 = contextvars.ContextVar("sm_side_absolute_v6", default=False)
 
 # 27/07/2026 — ZONES DE MOUILLAGE SURFACIQUES (seamark:type=anchorage,
 # ingest_anchorages.py) : mêmes règles que les bouées de mouillage
@@ -851,6 +857,20 @@ class SeamarkIndex:
             if kind == "cardinal" and m.get("category") in (
                     "north", "n", "south", "s", "east", "e", "west", "w"):
                 radius = R_CARDINAL_WRONG_SIDE_M
+                # 14/08/2026 (Moteur F UNIQUEMENT — bug armateur : cardinale
+                # « privilégiée » N de la Truie d'Arradon) — le demi-disque
+                # danger (300 m) d'une cardinale ne doit JAMAIS sceller un
+                # chenal balisé : quand une LATÉRALE est proche, c'est ELLE
+                # qui fait autorité sur la limite du chenal (la cardinale et
+                # la latérale marquent le même danger, le chenal est au-delà
+                # de la latérale). Rayon plafonné à 0,9 × la latérale la plus
+                # proche (plancher 120 m historique). Mesuré : la cardinale N
+                # (114 m de la Truie) fermait l'entrée du chenal Truie ↔
+                # Le Druic en maille grossière → détour de 1 km par le nord.
+                if SIDE_ABSOLUTE_V6.get():
+                    radius = min(radius,
+                                 max(0.9 * self._nearest_lateral_m(m),
+                                     float(R_CARDINAL_M)))
                 if strict_exempt:
                     for pt in strict_exempt:
                         dd = math.hypot((m["lat"] - pt[0]) * m_per_deg_lat,

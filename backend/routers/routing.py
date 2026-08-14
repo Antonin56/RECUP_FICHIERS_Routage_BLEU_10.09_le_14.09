@@ -1114,3 +1114,61 @@ async def inspect_route(route_id: str, user: dict = Depends(current_user)):
     if not doc:
         raise HTTPException(404, "Route introuvable (expirée > 30 j ou ID incorrect).")
     return doc
+
+
+# ── 14/08/2026 — SIGNALEMENT « BALISAGE NON RESPECTÉ » (demande armateur) ──
+# Bouton sur la RouteCard : envoie automatiquement l'ID de route + la balise
+# concernée (saisie libre) + un instantané des avertissements/balises du
+# mauvais côté déjà détectés. Collection ``mark_reports`` — consultée par le
+# support (moi) pour corriger les moteurs sans allers-retours de captures.
+class MarkReportIn(BaseModel):
+    route_id: str = Field(min_length=4, max_length=40)
+    mark_name: Optional[str] = Field(default=None, max_length=120)
+    comment: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.post("/mark-report")
+async def create_mark_report(body: MarkReportIn, user: dict = Depends(current_user)):
+    rid = body.route_id.strip()
+    doc = await srv.db.computed_routes.find_one(
+        {"route_id": rid},
+        {"_id": 0, "route_id": 1, "engine_id": 1, "engine_name": 1,
+         "algo_id": 1, "request": 1,
+         "result.wrong_side_marks": 1, "result.warnings": 1,
+         "result.distance_m": 1, "result.min_depth_m": 1},
+    )
+    res = (doc or {}).get("result") or {}
+    report_id = "BR-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") \
+        + "-" + secrets.choice(_ID_SUFFIX_ALPHABET) \
+        + secrets.choice(_ID_SUFFIX_ALPHABET)
+    await srv.db.mark_reports.insert_one({
+        "report_id": report_id,
+        "user_id": user.get("user_id"),
+        "user_phone": user.get("phone"),
+        "route_id": rid,
+        "route_found": doc is not None,
+        "engine_id": (doc or {}).get("engine_id"),
+        "engine_name": (doc or {}).get("engine_name"),
+        "algo_id": (doc or {}).get("algo_id"),
+        "mark_name": (body.mark_name or "").strip() or None,
+        "comment": (body.comment or "").strip() or None,
+        "auto_wrong_side_marks": res.get("wrong_side_marks") or [],
+        "auto_warnings": [
+            w for w in (res.get("warnings") or [])
+            if "CÔTÉ" in w or "balise" in w or "balisage" in w
+        ][:6],
+        "request": (doc or {}).get("request"),
+        "distance_m": res.get("distance_m"),
+        "min_depth_m": res.get("min_depth_m"),
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"ok": True, "report_id": report_id, "route_found": doc is not None}
+
+
+@router.get("/mark-reports")
+async def list_mark_reports(user: dict = Depends(current_user)):
+    """Liste des signalements — les siens, ou TOUS pour le compte admin."""
+    q = {} if is_signalmar_admin(user) else {"user_id": user.get("user_id")}
+    docs = await srv.db.mark_reports.find(q, {"_id": 0}).sort(
+        "created_at", -1).to_list(100)
+    return {"reports": docs}

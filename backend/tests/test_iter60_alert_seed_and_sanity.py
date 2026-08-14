@@ -10,7 +10,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_BACKEND_URL", "https://maritime-routing-v3.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_BACKEND_URL", "https://engine-e-crouesty.preview.emergentagent.com").rstrip("/")
 BYPASS = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 PHONE = "0760071445"
 OTP = "123456"

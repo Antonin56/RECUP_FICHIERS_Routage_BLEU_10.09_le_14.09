@@ -12,6 +12,7 @@ from core.routing_engines.algos.signalmar_v2 import SignalmarV2
 from core.routing_engines.algos.signalmar_v3 import SignalmarV3
 from core.routing_engines.algos.signalmar_v4 import SignalmarV4
 from core.routing_engines.algos.signalmar_v5 import SignalmarV5
+from core.routing_engines.algos.signalmar_v6 import SignalmarV6
 
 #: Clé stable → instance singleton de l'algo (les algos SignalMar sont
 #: stateless au niveau instance — la vraie « state » est le module ``core``
@@ -22,6 +23,7 @@ ALGO_REGISTRY: dict[str, BaseAlgo] = {
     SignalmarV3.id: SignalmarV3(),
     SignalmarV4.id: SignalmarV4(),
     SignalmarV5.id: SignalmarV5(),
+    SignalmarV6.id: SignalmarV6(),
 }
 
 

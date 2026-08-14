@@ -9,11 +9,14 @@
  */
 import { useMemo, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, StyleSheet,
+  Text, TextInput, TouchableOpacity, View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Line, Path, Polyline } from "react-native-svg";
 
-import type { ComputedRoute } from "@/src/api/client";
+import { api, type ComputedRoute } from "@/src/api/client";
 import { TideMiniGraph } from "@/src/components/TideMiniGraph";
 import { radii, spacing, theme } from "@/src/lib/theme";
 import { showToast } from "@/src/components/Toast";
@@ -61,6 +64,31 @@ export function RouteCard(props: {
   // Largeur MESURÉE du conteneur : react-native-svg web interprète mal
   // width="100%" (la carte gonflait à la largeur du viewBox — bug iter94).
   const [chartW, setChartW] = useState(0);
+  // 14/08/2026 (demande armateur) — signalement « balisage non respecté ».
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportMark, setReportMark] = useState("");
+  const [reportComment, setReportComment] = useState("");
+  const [reportSending, setReportSending] = useState(false);
+
+  const sendMarkReport = async () => {
+    if (!route.route_id || reportSending) return;
+    setReportSending(true);
+    try {
+      const r = await api.reportMarkIssue({
+        route_id: route.route_id,
+        mark_name: reportMark.trim() || undefined,
+        comment: reportComment.trim() || undefined,
+      });
+      showToast("success", `Signalement envoyé (${r.report_id})`);
+      setReportOpen(false);
+      setReportMark("");
+      setReportComment("");
+    } catch {
+      showToast("error", "Envoi impossible — réessayez.");
+    } finally {
+      setReportSending(false);
+    }
+  };
 
   const chart = useMemo(() => {
     const pts = route.depth_profile.filter((p) => p.depth_m != null);
@@ -395,6 +423,71 @@ export function RouteCard(props: {
           <Ionicons name="chevron-forward" size={15} color={theme.textMute} />
         </TouchableOpacity>
       ) : null}
+      {/* 14/08/2026 (demande armateur) — SIGNALER UN BALISAGE NON RESPECTÉ :
+          envoie automatiquement l'ID de route + la balise concernée au
+          support (les balises mauvais côté déjà détectées sont jointes). */}
+      {route.route_id ? (
+        <TouchableOpacity
+          style={styles.reportBtn}
+          onPress={() => setReportOpen(true)}
+          activeOpacity={0.85}
+          testID="route-mark-report-open"
+        >
+          <Ionicons name="flag-outline" size={15} color="#F4A261" />
+          <Text style={styles.reportTxt}>Signaler un balisage non respecté</Text>
+          <Ionicons name="chevron-forward" size={15} color={theme.textMute} />
+        </TouchableOpacity>
+      ) : null}
+      <Modal visible={reportOpen} transparent animationType="fade"
+        onRequestClose={() => setReportOpen(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.reportOverlay}
+        >
+          <View style={styles.reportBox} testID="route-mark-report-modal">
+            <View style={styles.reportHead}>
+              <Ionicons name="flag" size={16} color="#F4A261" />
+              <Text style={styles.reportTitle}>Balisage non respecté</Text>
+              <TouchableOpacity onPress={() => setReportOpen(false)} hitSlop={10}
+                testID="route-mark-report-close">
+                <Ionicons name="close" size={20} color={theme.textMute} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.reportHint}>
+              {`Route ${route.route_id} — l'ID, le moteur et les balises déjà détectées seront joints automatiquement.`}
+            </Text>
+            <TextInput
+              style={styles.reportInput}
+              placeholder="Balise concernée (ex. N°12, Truie d'Arradon)"
+              placeholderTextColor={theme.textMute}
+              value={reportMark}
+              onChangeText={setReportMark}
+              testID="route-mark-report-mark"
+            />
+            <TextInput
+              style={[styles.reportInput, styles.reportInputMulti]}
+              placeholder="Commentaire (facultatif)"
+              placeholderTextColor={theme.textMute}
+              value={reportComment}
+              onChangeText={setReportComment}
+              multiline
+              testID="route-mark-report-comment"
+            />
+            <TouchableOpacity
+              style={[styles.reportSend, reportSending ? { opacity: 0.6 } : null]}
+              onPress={sendMarkReport}
+              disabled={reportSending}
+              activeOpacity={0.85}
+              testID="route-mark-report-send"
+            >
+              {reportSending
+                ? <ActivityIndicator size="small" color="#0B132B" />
+                : <Ionicons name="send" size={15} color="#0B132B" />}
+              <Text style={styles.reportSendTxt}>Envoyer le signalement</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
       <Text style={styles.disclaimer}>
         {route.tide
           ? "Profondeurs SHOM + marée Open-Meteo (approchée, non officielle) — vérifiez la marée sur zone."
@@ -427,6 +520,37 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(72,202,228,0.08)", marginTop: 8,
   },
   compareTxt: { flex: 1, color: "#48CAE4", fontSize: 12.5, fontWeight: "800" },
+  // 14/08 — signalement balisage non respecté (bouton + modal).
+  reportBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    minHeight: 44, paddingHorizontal: 12, borderRadius: radii.md,
+    borderWidth: 1, borderColor: "rgba(244,162,97,0.35)",
+    backgroundColor: "rgba(244,162,97,0.08)",
+  },
+  reportTxt: { flex: 1, color: "#F4A261", fontSize: 12.5, fontWeight: "800" },
+  reportOverlay: {
+    flex: 1, backgroundColor: "rgba(4,10,22,0.72)",
+    justifyContent: "center", padding: spacing.lg,
+  },
+  reportBox: {
+    backgroundColor: "rgba(11,19,43,0.98)", borderRadius: radii.md,
+    borderWidth: 1, borderColor: theme.border, padding: spacing.md, gap: 10,
+  },
+  reportHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  reportTitle: { flex: 1, color: theme.text, fontSize: 14, fontWeight: "900" },
+  reportHint: { color: theme.textDim, fontSize: 11, lineHeight: 15 },
+  reportInput: {
+    borderWidth: 1, borderColor: theme.border, borderRadius: radii.sm,
+    color: theme.text, paddingHorizontal: 10, paddingVertical: 10,
+    fontSize: 13, minHeight: 44, backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  reportInputMulti: { minHeight: 64, textAlignVertical: "top" },
+  reportSend: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, backgroundColor: "#F4A261", borderRadius: radii.md,
+    paddingVertical: 11, minHeight: 44,
+  },
+  reportSendTxt: { color: "#0B132B", fontWeight: "900", fontSize: 13.5 },
   idChip: {
     flexDirection: "row", alignItems: "center", gap: 5,
     alignSelf: "flex-start", paddingVertical: 3, paddingHorizontal: 8,

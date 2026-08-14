@@ -645,6 +645,11 @@ export const api = {
   }) => request<SavedRoute>("/routes/saved", { method: "POST", body }),
   deleteSavedRoute: (id: string) =>
     request<{ ok: boolean }>(`/routes/saved/${id}`, { method: "DELETE" }),
+  /** 14/08/2026 (demande armateur) — Signalement « balisage non respecté » :
+   *  envoie automatiquement l'ID de route + la balise concernée au support. */
+  reportMarkIssue: (body: { route_id: string; mark_name?: string; comment?: string }) =>
+    request<{ ok: boolean; report_id: string; route_found: boolean }>(
+      "/routes/mark-report", { method: "POST", body }),
   /** 01/08/2026 — Recalcule une route enregistrée avec 1..6 moteurs et
    *  retourne les tracés côte à côte pour analyse. */
   recomputeSavedRoute: (id: string, engine_ids: string[]) =>

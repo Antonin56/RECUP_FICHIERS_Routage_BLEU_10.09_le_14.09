@@ -15,7 +15,7 @@ import pytest
 import requests
 
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://maritime-routing-v3.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://engine-e-crouesty.preview.emergentagent.com").rstrip("/")
 SILENCE_350_PATH = Path("/app/backend/tts_samples/silence_350ms.mp3")
 SILENCE_2000_PATH = Path("/app/backend/tts_samples/silence_2000ms.mp3")
 

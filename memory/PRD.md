@@ -2984,3 +2984,92 @@ prenant le dessus sur le balisage ». Confirmé — DEUX mécanismes :
   10/10 + 8/8 ; iter126 (B), iter129/130 (C), iter124 : OK.
 - Base forkée : user de test `user_0b6070a69154` re-seedé (les tests
   d'intégration HTTP en dépendent).
+
+## Itération 136 — 13/08/2026 : MOTEUR F (signalmar.v6) + gel du Moteur E
+### Consignes armateur
+- « Le Moteur E est le meilleur. Copie-le pour créer le Moteur F, verrouille
+  le Moteur E » ; priorité aux routes : balises du chenal de La Trinité non
+  respectées à l'arrivée, « Truie d'Arradon » non respectée au départ
+  d'Arradon (avec avertissement affiché), trajectoire en Z + N°12 (capture
+  11/08). Route de référence : R-20260813-144317-MX (engine_e, marge 30 m,
+  tirant+marge 1,5 m, marée 0) — retrouvée dans la base et REJOUÉE en local.
+### Causes racines (mesurées, scripts/diag_trinite_truie.py)
+1. Truie d'Arradon (couple avec « Le Druic », gap 344 m) recoupée à 165 m du
+   mauvais côté : le masque fin bloque bien (vérifié), mais le tronçon vient
+   d'une passe grossière (côté non rasterisé si maille > 35 m) jamais
+   re-raffinée là, et le semis de cercles de la passe 3 a des trous (raté
+   46 m). L'audit voyait (165 < 200 m), rien ne réparait.
+2. La Trinité hors zone pilote (ATL100, maille 75-110 m) : côté jamais
+   rasterisé ; la complétion v5 (extension A* marée +6 m) coupait la vasière
+   (N°4 à 0,7 m — sur le tronçon d'approche de l'ARRIVÉE RELOGÉE de la route
+   principale —, N°8 à 129 m du mauvais côté) ; reliquat d'arrivée lu depuis
+   end_snapped au lieu d'être MESURÉ → arrivée manquée de 98 m sans flag.
+### Correctifs (signalmar.v6 UNIQUEMENT, contextvar SIDE_ABSOLUTE_V6 ; E figé)
+- `algos/signalmar_v6/sidefix.py` : post-correction géométrique du tracé
+  FINAL (indép. de la maille, jamais bloquante) — (1) mauvais côtés (mêmes
+  critères que l'audit v4) réparés par RE-CALCUL LOCAL pleine résolution
+  (v1.compute_route sur le tronçon fautif, masques armés) sinon insertion
+  d'un point du bon côté (milieu de porte si couple) ; (2) frôlements
+  écartés (validation DEUX SEUILS : normal, ou marée −2,5 m si le tronçon
+  d'origine était déjà rouge) ; (3) LISSAGE des épingles > 100° (le « Z ») ;
+  garde-fou fond jamais dégradé, re-audit + recalcul rouges/risk/couloirs.
+- `algos/signalmar_v6/__init__.py` : complétion d'arrivée v6 — extension A*
+  REJETÉE si elle enfreint la discipline du chenal (latérale fiable mauvais
+  côté ≤ 250 m ou frôlement < 0,6 × écart) → suivi du chenal balisé ;
+  reliquat GÉOMÉTRIQUE (bug des 98 m) ; recul d'ancre (≤ 5 crans) quand
+  l'approche de l'arrivée relogée frôle une balise ou DÉPASSE l'arrivée
+  (U-turn de la capture Z) ; avertissement « EN ROUGE » seulement si
+  tronçons compromis réels.
+- seamarks.py : contextvar SIDE_ABSOLUTE_V6 ajouté (aucun usage dans les
+  chemins des moteurs A-E).
+- Moteurs : engine_f seedé en Mongo (« Moteur F base E 13.08.26 », algo
+  signalmar.v6, parent engine_e) ; description d'engine_e marquée « FIGÉ le
+  13.08.26 ».
+### Vérifié
+- Route MX (F) : Truie BON côté 128 m, N°4 à 113 m (0,7 m avant), N°2/
+  Grassus/N°6/N°8/N°10/Dalh/N°5/N°12 tous bon côté ≥ 29 m (N°5 exempt
+  arrivée), arrivée à 0 m, aucun repli > 100°, wrong_side vide.
+- Route « Z » (arrivée 47.5855/-3.0235) : 0 repli (5 avant lissage), arrivée
+  exacte, wrong_side vide, N°12 ≥ 40 m.
+- Moteur E FIGÉ : résultat strictement identique à la route MX stockée en
+  base (waypoints au mètre) — le bug Truie y reste (preuve de gel).
+- Tests : tests/test_iter136_moteur_f_trinite_truie.py 10/10 ; régressions
+  iter135 (E) 5/5 + iter134 5/5 + iter133 (D)/iter129/iter126 (B) 57 verts.
+  iter130 : 26 erreurs PRÉ-EXISTANTES (throttle OTP + ancien token bypass).
+- E2E API : POST /api/routes/compute/async engine_f → job done, wrong_side
+  vide, arrivée atteinte, chip « Moteur F base E 13.08.26 · engine_f ».
+
+## Itération 137 — 14/08/2026 : cardinale ≠ chenal scellé + bouton signalement
+### Bugs armateur (captures 14/08, moteur F)
+- R-20260814-164055-B5 : détour ~1 km par le NORD au lieu du chenal court
+  Truie d'Arradon ↔ Holavre/Le Druic ; R-20260814-165115-CT (11 min après,
+  départ à 160 m) divergeait (« cardinale privilégiée »).
+### Cause racine (mesurée)
+- Cardinale NORD à 114 m de la Truie : son demi-disque danger (300 m S)
+  scellait l'ENTRÉE du chenal en maille grossière 100 m (le masque fin 20 m
+  était OUVERT, fonds 4-15 m ; le couloir libre du couple ré-ouvrait trop
+  peu de cellules à 100 m) → la passe grossière partait au nord et les
+  fenêtres fines ne revisitaient jamais le chenal.
+### Correctifs
+- seamarks.rasterize_blocked (gated SIDE_ABSOLUTE_V6, Moteur F UNIQUEMENT) :
+  rayon « mauvais côté » d'une cardinale plafonné à 0,9 × la latérale la
+  plus proche (plancher 120 m historique) — la latérale fait autorité sur
+  la limite du chenal. Universel, aucune exception de terrain.
+- v6._complete_truncated_end : purge des warnings de FRÔLEMENT devenus
+  obsolètes après fusion/recul d'ancre + ré-audit (_mark_pass_audit) du
+  tracé fusionné (warning « passe à ~1 m de N°4 » restait à tort).
+- **Bouton « Signaler un balisage non respecté »** (demande armateur) :
+  RouteCard → modal (balise + commentaire) → POST /api/routes/mark-report
+  (snapshot auto : route_id, moteur, wrong_side_marks, warnings balisage,
+  request) → collection mark_reports, report_id « BR-… » ; GET
+  /api/routes/mark-reports (ses signalements, TOUS pour l'admin).
+  Fichiers : routers/routing.py (2 endpoints), src/api/client.ts
+  (reportMarkIssue), src/components/RouteCard.tsx (bouton + modal,
+  testIDs route-mark-report-*).
+### Vérifié
+- B5 : 23 602 → 22 739 m, chenal court, tracé au S de la Truie (146 m) /
+  au N du Druic (152 m) ; CT : 22 646 m, même corridor → convergence.
+- Moteur E figé : B5 reprend le détour nord historique (gel prouvé) ; cap
+  cardinal actif SEULEMENT sous SIDE_ABSOLUTE_V6 (test masque 100 m E vs F).
+- Tests : test_iter137_cardinale_chenal.py 6/6 ; iter136 10/10 ;
+  régressions iter126/129/133/134/135 : 60 verts.
