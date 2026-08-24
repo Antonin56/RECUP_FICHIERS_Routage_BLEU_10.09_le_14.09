@@ -1187,6 +1187,10 @@ export default function MapScreen() {
   // ses dépendances — voir la note anti-boucle dans fetchReports.
   const userLocRef = useRef<{ lat: number; lng: number } | null>(null);
   const radiusRef = useRef<number>(200);
+  // 14/08/2026 (audit QA FND-011) — centre COURANT de la carte (événement
+  // move de la WebView) : sert de repli de géofiltrage quand le GPS est
+  // refusé/absent (web) pour ne plus charger TOUTE la base de signalements.
+  const mapCenterRef = useRef<{ lat: number; lng: number } | null>(null);
   /** Phase J — Lissage exponentiel du cap (EMA) pour fluidifier la flèche
    *  et la ligne de projection. Le GPS donne un cap qui sautille de
    *  quelques degrés à chaque tic ; on filtre pour rendre le déplacement
@@ -1373,13 +1377,17 @@ export default function MapScreen() {
     // use user.notify_radius_km here — that field is for push notifications
     // (typically 5 km) and would hide most nearby reports from the map.
     // Cap at 1000 km (borne haute de la Zone de veille Navigation).
-    const userRadius = loc ? Math.max(1, Math.min(1000, radiusRef.current ?? 200)) : undefined;
+    // 14/08 (audit QA FND-011) — SANS GPS (web, permission refusée), le
+    // géofiltre utilise le CENTRE COURANT de la carte : plus jamais toute
+    // la base dessinée sur n'importe quel viewport.
+    const geo = loc ?? mapCenterRef.current ?? DEFAULT_CENTER;
+    const userRadius = Math.max(1, Math.min(1000, radiusRef.current ?? 200));
     try {
       const list = await api.listReports({
         types,
-        lat: loc?.lat,
-        lng: loc?.lng,
-        radius_km: loc ? userRadius : undefined,
+        lat: geo.lat,
+        lng: geo.lng,
+        radius_km: userRadius,
       });
       setReports(list);
       setOffline(false);
@@ -2150,6 +2158,7 @@ export default function MapScreen() {
         focusId={focusId}
         onMarkerPress={(id) => router.push(`/report/${id}`)}
         onMapMoved={(lat, lng) => {
+          mapCenterRef.current = { lat, lng };
           if (picking || routePickDest != null) setPickedPoint({ lat, lng });
         }}
         onMapLongPress={(lat, lng) => {

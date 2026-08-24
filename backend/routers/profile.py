@@ -235,7 +235,7 @@ async def points_history(request: Request, limit: int = 10):
     """
     u = await srv.current_user(request)
     try:
-        limit = max(1, min(int(limit), 50))
+        limit = max(1, min(int(limit), 200))
     except Exception:
         limit = 10
     rows: list[dict] = []

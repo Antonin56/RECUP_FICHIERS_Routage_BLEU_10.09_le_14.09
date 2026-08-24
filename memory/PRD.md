@@ -3073,3 +3073,48 @@ prenant le dessus sur le balisage ». Confirmé — DEUX mécanismes :
   cardinal actif SEULEMENT sous SIDE_ABSOLUTE_V6 (test masque 100 m E vs F).
 - Tests : test_iter137_cardinale_chenal.py 6/6 ; iter136 10/10 ;
   régressions iter126/129/133/134/135 : 60 verts.
+
+## Itération 138 — 14/08/2026 : correctifs de l'audit QA externe (40 défauts triés)
+### Décisions armateur : mot de passe oublié → PLUS TARD ; couverture Europe → PLUS TARD ; Moteur D (arrêt 1 309 m) → NE PAS TOUCHER (figé).
+### Corrigé (backend)
+- P0/FND-004 : Moteur F — JAMAIS de tronçon SUR TERRE : la complétion sonde
+  chaque tronçon ajouté tous les ~25 m ; TERRE (fond < −3,5 m ZH ou hors
+  donnée) → troncature au dernier point EN EAU + end_snapped
+  {reason: arrivee_a_terre} + warning franc (fini le tracé à −13,8 m sur le
+  Crouesty avec message « chenal balisé »). FND-040 : completion_failed=True
+  si la complétion lève. Moteur E conservé bugué (gel).
+- FND-042 : routeur /api/dev/* verrouillé par ALLOW_DEV_SWITCH (env) — posé
+  en dev (.env), ABSENT en prod → 403. ⚠ CHECKLIST DÉPLOIEMENT : ne pas
+  copier cette variable en production.
+- FND-001/002/038 : champ frozen posé sur engine_a..e (ensure_seed
+  idempotent) ; rename/delete/deactivate REFUSÉS sur figés ; noms uniques ;
+  list_engines expose frozen + algo_version (FND-026).
+- FND-003/004 : engine_id explicite inconnu/désactivé → 404 AVANT création
+  du job (compute, compute/async, manual, recompute/async) ; préférence
+  perso retombe sur le défaut ; ?include_inactive=true (admin) sur
+  GET /routing/engines ; delete_engine désindexe active_engine_id des users
+  (FND-032).
+- FND-012 : GET /routes/job/{id} ne détruit plus le job (relisible 15 min,
+  GC existant).
+- FND-028 : OTP faux 401→400 ; inscription en double 400→409. FND-024 :
+  notification inconnue → 404. FND-015 : bbox inversée → 422. FND-014 :
+  recompute/async d'une route inexistante → 404. FND-017 : anti double-tap
+  signalement (même auteur/type, <90 s, <~120 m → renvoie l'existant,
+  duplicate=true). FND-031 : diagnostics rattachés au compte connecté.
+  FND-022 : points-history limit max 50→200.
+### Corrigé (frontend)
+- FND-009 : login EMAIL + MOT DE PASSE (login.tsx, testIDs login-mode-email,
+  login-email, login-password, login-email-submit ; AuthContext.loginWithEmail,
+  api.loginEmail).
+- FND-011 : fetchReports géofiltre TOUJOURS (GPS sinon CENTRE COURANT de la
+  carte via mapCenterRef, sinon DEFAULT_CENTER) — plus jamais toute la base.
+- FND-013 : astuce visible sur la RouteCard (« appui long sur le tracé pour
+  déplacer le waypoint le plus proche »).
+- FND-037 : ReportSharePreview rend une iframe srcDoc sur web (plus de
+  « React Native WebView does not support this platform »).
+### Non traité (assumé)
+- FND-016/029 (données prod), FND-030 (démo 0 balise — à investiguer),
+  FND-033 (route manuelle, moteurs figés), FND-005/(P1-6 Moteur D figé),
+  P1-7 (complétion du DÉPART — backlog), FND-034/035/036 (low),
+  mot de passe oublié + Europe (décision armateur : plus tard).
+### Tests : tests/test_iter138_audit_qa.py (4) + iter136/137/135/133 = 34 verts.

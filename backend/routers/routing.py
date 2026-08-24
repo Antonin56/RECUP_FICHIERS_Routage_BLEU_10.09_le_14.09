@@ -25,6 +25,7 @@ from core.bathy import get_grid
 from core.routing import RouteError, compute_route, manual_route, nearest_navigable, shallow_legs
 from core.routing_engines import (
     bump_usage as _engine_bump_usage,
+    get_engine as _get_engine,
     get_engine_or_default as _get_engine_or_default,
     resolve_algo as _resolve_algo,
 )
@@ -197,7 +198,17 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
     # avec les méthodes de l'algo lié — TOUTES les closures internes utilisent
     # ainsi le bon algo automatiquement, sans modifier chaque call site.
     requested_engine_id = body.engine_id or user.get("active_engine_id")
-    engine_doc = await _get_engine_or_default(srv.db, requested_engine_id)
+    # 14/08/2026 (audit QA FND-003) — un ``engine_id`` EXPLICITE inconnu ou
+    # désactivé est REFUSÉ (404) : plus jamais de bascule silencieuse vers le
+    # Moteur A. La préférence perso, elle, retombe sur le défaut (tolérant).
+    if body.engine_id:
+        engine_doc = await _get_engine(srv.db, body.engine_id)
+        if not engine_doc or not engine_doc.get("active"):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Moteur « {body.engine_id} » introuvable ou désactivé.")
+    else:
+        engine_doc = await _get_engine_or_default(srv.db, requested_engine_id)
     _algo = _resolve_algo(engine_doc)
     # 02/08/2026 — les overrides de paramètres du MOTEUR sont transmis à
     # l'algo (v1 les ignore, v2+ les utilise : écart minimal aux balises…).
@@ -778,6 +789,15 @@ def _job_run(job_id: str, uid: str, coro):
 
 @router.post("/compute/async")
 async def routes_compute_async(body: RouteIn, user: dict = Depends(current_user)):
+    # 14/08 (audit QA FND-003) — moteur explicite inconnu/désactivé refusé
+    # AVANT la création du job (le 404 du calcul interne n'arrivait qu'au
+    # poll, et l'ancien code basculait silencieusement sur le Moteur A).
+    if body.engine_id:
+        eng = await _get_engine(srv.db, body.engine_id)
+        if not eng or not eng.get("active"):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Moteur « {body.engine_id} » introuvable ou désactivé.")
     uid = str(user.get("user_id") or user.get("id") or "")
     job_id = _job_start(uid)
     _job_run(job_id, uid, routes_compute(body, user))
@@ -793,10 +813,11 @@ async def routes_job(job_id: str, user: dict = Depends(current_user)):
     if job["status"] == "pending":
         return {"status": "pending"}
     if job["status"] == "done":
-        # Le résultat n'est rendu qu'une fois : libère la mémoire.
-        _JOBS.pop(job_id, None)
+        # 14/08 (audit QA FND-012) — le résultat reste RELISIBLE pendant tout
+        # le TTL (15 min) : un re-rendu client, un retry réseau ou un second
+        # onglet ne détruisent plus la route (le GC périodique libère la
+        # mémoire, plus le premier GET).
         return {"status": "done", "result": job["result"]}
-    _JOBS.pop(job_id, None)
     return {
         "status": "error",
         "status_code": job.get("status_code", 422),
@@ -821,9 +842,16 @@ class ManualRouteIn(BaseModel):
 
 @router.post("/manual")
 async def routes_manual(body: ManualRouteIn, user: dict = Depends(current_user)):
-    # 01/08/2026 — Résolution du moteur (idem /compute).
+    # 01/08/2026 — Résolution du moteur (idem /compute : explicite → strict).
     requested_engine_id = body.engine_id or user.get("active_engine_id")
-    engine_doc = await _get_engine_or_default(srv.db, requested_engine_id)
+    if body.engine_id:
+        engine_doc = await _get_engine(srv.db, body.engine_id)
+        if not engine_doc or not engine_doc.get("active"):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Moteur « {body.engine_id} » introuvable ou désactivé.")
+    else:
+        engine_doc = await _get_engine_or_default(srv.db, requested_engine_id)
     _algo = _resolve_algo(engine_doc)
     # L'algo v1 attend lateral_margin_m ; côté manuel il est ignoré mais on
     # respecte la signature de l'interface (uniforme avec compute_auto).
@@ -1091,6 +1119,12 @@ async def recompute_saved_route(
 async def recompute_saved_route_async(
     route_id: str, body: RecomputeIn, user: dict = Depends(current_user),
 ):
+    # 14/08 (audit QA FND-014) — l'existence de la route est vérifiée AVANT
+    # de créer le job (plus de 200 + job_id pour un id inexistant).
+    exists = await srv.db.saved_routes.find_one(
+        {"id": route_id, "user_id": user.get("user_id")}, {"_id": 1})
+    if exists is None:
+        raise HTTPException(404, "Route enregistrée introuvable.")
     uid = str(user.get("user_id") or user.get("id") or "")
     job_id = _job_start(uid)
     _job_run(job_id, uid, recompute_saved_route(route_id, body, user))

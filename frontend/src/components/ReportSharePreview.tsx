@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import WebView from "react-native-webview";
 
@@ -80,6 +80,41 @@ export function ReportSharePreview({
     }, 50);
   </script>
   </body></html>`;
+
+  // 14/08/2026 (audit QA FND-037) — sur le WEB, react-native-webview
+  // affichait « React Native WebView does not support this platform. » dans
+  // une UI française. Même recette que MarineMap : iframe srcDoc, avec le
+  // signalement injecté directement dans le HTML (pas d'injectJavaScript).
+  const webHtml = useMemo(() => {
+    if (Platform.OS !== "web") return "";
+    const payload = JSON.stringify({ lat, lng, color, emoji, polygon: driftPolygon || null });
+    return html.replace(
+      "window.ReactNativeWebView && window.ReactNativeWebView.postMessage('loaded');",
+      `SM.setReport(${payload});`,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lng, color, emoji, driftPolygon]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      const t = setTimeout(() => onReady?.(), 900);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (Platform.OS === "web") {
+    return (
+      <View style={[styles.wrap, { height }]} pointerEvents="none" testID="report-share-preview-web">
+        {/* eslint-disable-next-line react/no-unknown-property */}
+        <iframe
+          srcDoc={webHtml}
+          style={{ border: "none", width: "100%", height: "100%", background: "#0B132B" }}
+          title="report-preview"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.wrap, { height }]} pointerEvents="none">

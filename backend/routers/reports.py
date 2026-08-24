@@ -139,6 +139,26 @@ async def create_report(
             detail="Création interdite hors de la mer (≥ 1 km de la côte requis).",
         )
 
+    # 14/08 (audit QA FND-017) — anti DOUBLE-TAP : un signalement identique
+    # (même auteur, même type, < 90 s, < ~120 m) renvoie le signalement déjà
+    # créé au lieu d'en publier un deuxième.
+    dup = await srv.db.reports.find_one(
+        {
+            "author_id": u["user_id"],
+            "type": body.type,
+            "created_at": {"$gte": srv.now_utc() - timedelta(seconds=90)},
+            "lat": {"$gte": body.lat - 0.0011, "$lte": body.lat + 0.0011},
+            "lng": {"$gte": body.lng - 0.0016, "$lte": body.lng + 0.0016},
+        },
+        sort=[("created_at", -1)],
+    )
+    if dup:
+        result = srv.serialize_report(dup, u["user_id"])
+        result["points_awarded"] = 0
+        result["is_first_report"] = False
+        result["duplicate"] = True
+        return result
+
     doc = {
         "id": rid,
         # ID COURT public (12/07/2026) : 8 caractères non ambigus, MAJUSCULES,

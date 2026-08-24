@@ -25,6 +25,8 @@ type AuthState = {
   requestOtp: (phone: string) => Promise<{ account_exists: boolean; mock: boolean; cooldown: number }>;
   /** Phase A — vérifie l'OTP : connexion, ou création si pseudo fourni. */
   verifyOtp: (phone: string, code: string, pseudo?: string, referralCode?: string) => Promise<void>;
+  /** 14/08 — connexion email + mot de passe (comptes existants). */
+  loginWithEmail: (email: string, password: string) => Promise<void>;
   signInGoogle: () => Promise<void>;
   enterDemo: () => void;
   signOut: () => Promise<void>;
@@ -175,6 +177,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  // 14/08/2026 (audit QA FND-009) — connexion email + mot de passe (l'API
+  // existait, l'UI non : le compte de test email ne pouvait pas se connecter).
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
+    const r = await api.loginEmail(email.trim().toLowerCase(), password);
+    await setToken(r.token);
+    setDemoMode(false);
+    setUser(r.user);
+  }, []);
+
   const signInGoogle = useCallback(async () => {
     const redirect =
       Platform.OS === "web"
@@ -263,6 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       demoMode,
       requestOtp,
       verifyOtp,
+      loginWithEmail,
       signInGoogle,
       enterDemo,
       signOut,
@@ -270,7 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser,
       switchToTestAccount,
     }),
-    [user, loading, demoMode, requestOtp, verifyOtp, signInGoogle, enterDemo, signOut, hydrate, switchToTestAccount],
+    [user, loading, demoMode, requestOtp, verifyOtp, loginWithEmail, signInGoogle, enterDemo, signOut, hydrate, switchToTestAccount],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

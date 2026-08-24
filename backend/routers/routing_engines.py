@@ -66,14 +66,21 @@ class UserActiveEngineIn(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
 @router.get("/engines")
-async def api_list_engines(user: dict = Depends(current_user)):
-    """Liste des moteurs (lecture ouverte à tous : sélecteur du profil)."""
-    engines = await list_engines(srv.db, only_active=True)
+async def api_list_engines(
+    include_inactive: bool = False,
+    user: dict = Depends(current_user),
+):
+    """Liste des moteurs (lecture ouverte à tous : sélecteur du profil).
+    14/08 (audit QA FND-004) — ``?include_inactive=true`` (admin) liste AUSSI
+    les moteurs désactivés : un moteur désactivé n'est plus irrécupérable."""
+    admin = is_signalmar_admin(user)
+    engines = await list_engines(
+        srv.db, only_active=not (include_inactive and admin))
     return {
         "engines": engines,
         "default_id": DEFAULT_ENGINE_ID,
         "active_id": (user or {}).get("active_engine_id") or DEFAULT_ENGINE_ID,
-        "is_admin": is_signalmar_admin(user),
+        "is_admin": admin,
     }
 
 

@@ -245,13 +245,25 @@ async def diagnostics_ping():
 async def diagnostics_post(payload: DiagnosticIn, request: Request):
     """Stocke un bundle de diagnostic envoyé par l'app (logs + snapshot)
     pour qu'un membre du support puisse le consulter plus tard."""
+    # 14/08 (audit QA FND-031) — attribution : si le client est connecté
+    # (header Authorization présent), le diagnostic est rattaché au compte
+    # même quand le payload n'a pas renseigné user_id/email.
+    uid = payload.user_id
+    uemail = payload.user_email
+    if not uid:
+        try:
+            u = await srv.current_user(request)
+            uid = u.get("user_id")
+            uemail = uemail or u.get("email")
+        except Exception:  # noqa: BLE001 — endpoint volontairement sans auth
+            pass
     doc = {
         "id": uuid.uuid4().hex,
         "created_at": datetime.utcnow(),
         "snapshot": payload.snapshot,
         "logs_text": (payload.logs_text or "")[:200_000],  # cap 200 KB
-        "user_email": payload.user_email,
-        "user_id": payload.user_id,
+        "user_email": uemail,
+        "user_id": uid,
         "note": payload.note,
         "client_ip": request.client.host if request.client else None,
         "user_agent": request.headers.get("user-agent"),

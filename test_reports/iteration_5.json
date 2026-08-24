@@ -1,0 +1,40 @@
+{
+  "summary": "iter138 SignalMar armateur QA audit — GREEN. Backend pytest suite (test_iter138_audit_qa + iter137 + iter136) passes 20/20. New E2E public-URL pytest (/app/backend/tests/test_iter138_e2e_public.py) covering all requested API scenarios passes 16/16: engines frozen (engine_a..e frozen=true, engine_f frozen=false, all expose algo_version); PATCH rename engine_b → 422 refused; POST engine_e/active {active:false} → 422 refused; include_inactive=true admin GET → 200; unknown engine_id → 404 immediate; recompute unknown saved id → 404; async job re-readable multiple times after done; P0 arrivée à terre (engine_f Crouesty→terre): end_snapped.reason='arrivee_a_terre', min_depth_m=-1.5 (>= -3.5), warning starts with '⚠ ARRIVÉE DEMANDÉE À TERRE'; engine_e regression bug intact (min_depth_m < -5, gel confirmé); OTP wrong code → 400; bbox inversée /api/bathy/seamarks → 422; POST /api/notifications/id_inconnu/read → 404; duplicate report within 90s → 2nd returns duplicate=true (no extra doc). Dev switch gate present (ALLOW_DEV_SWITCH=true → /api/dev/test-accounts reachable, not 404). Frontend flow verified end-to-end (mobile viewport 390×844 on http://localhost:3000): onboarding → login-mode-email → login-email/password (antoninlepinay@gmail.com / 123454321) → /map, then Profile tab → Mes routes → my-route-details-{id} → RouteCard renders with 'Astuce : appui long sur le tracé pour déplacer le waypoint le plus proche (recalcul automatique).' text visible and route-mark-report-open button still functional (modal opens with route-mark-report-{modal,close,mark,comment,send}).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RN Web deprecated style props", "issue": "Console warnings on web: 'shadow*' → boxShadow, 'textShadow*' → textShadow, 'props.pointerEvents' → 'style.pointerEvents'. Non-blocking, web-only. Same as previous iteration — not regression."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter138_audit_qa.py",
+    "/app/backend/tests/test_iter137_cardinale_chenal.py",
+    "/app/backend/tests/test_iter136_moteur_f_trinite_truie.py",
+    "/app/backend/tests/test_iter138_e2e_public.py",
+    "/app/test_reports/pytest/iter138_combined.xml",
+    "/app/test_reports/pytest/iter138_e2e_public.xml"
+  ],
+  "action_items": [
+    "(Optional, low priority) Sweep deprecated RN Web style props (shadow*/textShadow*/props.pointerEvents) — same as iter137 report, not a regression."
+  ],
+  "critical_code_review_comments": [
+    "New E2E public-URL test file /app/backend/tests/test_iter138_e2e_public.py drives all iter138 API contracts via the public preview URL and is reusable for next iterations (auth via /api/auth/login email+password, RATE_LIMIT_BYPASS header, 300 s job poll).",
+    "Recompute endpoint requires body {engine_ids: [...]} — 404 vs 422 ordering is correct (unknown saved id returned 404 as soon as required body is present).",
+    "Reports payload literal validation on 'type' matches spec ('autorites','secours','obstacle_nav','animal_marin','pollution','meteo','autre'). 'hazard' from armateur report should be mapped to 'obstacle_nav' in any client that uses that alias."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter138_e2e_public.py (new — 16 E2E API tests for iter138 audit)"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 iter138+iter137+iter136 pytest + 16/16 E2E public-URL tests)",
+    "frontend": "100% for tested flows (email login → map; Profile → saved route → RouteCard with astuce hint + mark-report modal)"
+  },
+  "seed_data_creation": "Duplicate-check test created 2 test reports (obstacle_nav @ ~47.55/-2.92) with second returning duplicate=true; recommended cleanup by main agent if desired (they are within the anti double-tap window, not persisted twice).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL https://engine-e-crouesty.preview.emergentagent.com/api is fully reachable. Login endpoint is /api/auth/login (NOT /api/auth/login/email). Dev endpoints are /api/dev/test-accounts and /api/dev/switch-account. Reports 'type' enum: autorites|secours|obstacle_nav|animal_marin|pollution|meteo|autre. POST /api/routes/saved/{id}/recompute/async requires JSON body {\"engine_ids\": [\"engine_x\", ...]}. On frontend, onboarding shows 3 screens: 2× onboarding-next then landing carousel with onboarding-login button — must be tapped before login-mode-email is visible. Public preview URL currently returns 200 on /, but preview may occasionally show 'Preview Unavailable' — fallback to http://localhost:3000. Saved route 'QA-iter137' (id 4d85f1be90e44e87865f927fda2b2b23) still exists for user antoninlepinay@gmail.com.",
+  "rca_of_issue": "N/A — all armateur QA audit fixes validated on both backend API and frontend UI. Route computation on Crouesty→terre correctly triggers end_snapped.reason='arrivee_a_terre' with min_depth_m=-1.5 and warning banner; engine_e reproduces the historic bug (min_depth < -5) as expected (frozen). Anti double-tap on /api/reports works (duplicate=true). Dev switch gated by ALLOW_DEV_SWITCH env var. Frozen engines refuse rename/deactivate with 422."
+}

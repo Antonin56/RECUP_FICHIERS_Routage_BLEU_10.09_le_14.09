@@ -31,7 +31,7 @@ import logging
 import math
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 import server as srv
@@ -39,7 +39,21 @@ from core import friends as FR
 from core import referral as REF
 
 logger = logging.getLogger("signalmar.dev_switch")
-router = APIRouter(tags=["dev"])
+
+
+# 14/08/2026 (audit QA FND-042) — TOUT le routeur /api/dev/* est verrouillé
+# par un drapeau SERVEUR : ``ALLOW_DEV_SWITCH=true`` doit être présent dans
+# l'environnement (posé dans backend/.env en dev/préview, ABSENT en
+# production → 403 systématique, même pour un compte whitelist).
+def _require_dev_enabled() -> None:
+    import os
+    if os.environ.get("ALLOW_DEV_SWITCH", "").strip().lower() not in (
+            "1", "true", "yes"):
+        raise HTTPException(
+            403, "Fonctions de développement désactivées sur ce serveur.")
+
+
+router = APIRouter(tags=["dev"], dependencies=[Depends(_require_dev_enabled)])
 
 
 # ── Whitelist (compile-time constant) ────────────────────────────────

@@ -68,6 +68,10 @@ def _valid_slug(slug: str) -> bool:
 DEFAULT_ALGO = "signalmar.v1"
 DEFAULT_ENGINE_ID = "engine_a"
 
+# 14/08/2026 (audit QA) — moteurs de RÉFÉRENCE figés : A (historique),
+# B (02/08), C (03/08), D (10/08), E (13/08). Seul le Moteur F est modifiable.
+FROZEN_ENGINE_IDS = ("engine_a", "engine_b", "engine_c", "engine_d", "engine_e")
+
 _BUILTIN_SEEDS = [
     {
         "id": "engine_a",
@@ -153,6 +157,16 @@ async def ensure_seed(db) -> None:
             **seed, "created_at": now, "updated_at": now, "usage_count": 0,
         })
         logger.info("engine seeded: %s (%s)", seed["id"], seed["name"])
+    # 14/08/2026 (audit QA FND-001/002) — GEL RÉEL : champ ``frozen`` posé en
+    # base sur les moteurs de référence (A-E). Toute écriture (renommage,
+    # suppression, désactivation) est refusée sur un moteur figé — le champ
+    # est idempotent et re-posé à chaque démarrage.
+    await db.engines.update_many(
+        {"id": {"$in": list(FROZEN_ENGINE_IDS)}}, {"$set": {"frozen": True}},
+    )
+    await db.engines.update_many(
+        {"frozen": {"$exists": False}}, {"$set": {"frozen": False}},
+    )
 
 
 async def ensure_indexes(db) -> None:
@@ -163,7 +177,25 @@ async def ensure_indexes(db) -> None:
 async def list_engines(db, *, only_active: bool = True) -> list[dict]:
     q = {"active": True} if only_active else {}
     cursor = db.engines.find(q, {"_id": 0}).sort([("built_in", -1), ("created_at", 1)])
-    return await cursor.to_list(200)
+    docs = await cursor.to_list(200)
+    # 14/08 (audit QA FND-026) — chaque moteur expose la VERSION de son algo
+    # et son état ``frozen`` : indispensable côté client pour distinguer les
+    # références figées des moteurs de travail.
+    for d in docs:
+        try:
+            d["algo_version"] = getattr(get_algo(d.get("algo") or DEFAULT_ALGO),
+                                        "version", None)
+        except KeyError:
+            d["algo_version"] = None
+        d.setdefault("frozen", False)
+    return docs
+
+
+async def _name_taken(db, name: str, *, exclude_id: str | None = None) -> bool:
+    q: dict[str, Any] = {"name": name}
+    if exclude_id:
+        q["id"] = {"$ne": exclude_id}
+    return await db.engines.find_one(q, {"_id": 1}) is not None
 
 
 async def get_engine(db, engine_id: str) -> dict | None:
@@ -197,18 +229,23 @@ async def duplicate_engine(
     src = await get_engine(db, source_id)
     if src is None:
         raise KeyError(f"Moteur source introuvable : {source_id!r}.")
+    clean = name.strip()[:80] or f"Copie de {src.get('name', source_id)}"
+    # 14/08 (audit QA FND-038) — les noms de moteurs sont UNIQUES.
+    if await _name_taken(db, clean):
+        raise ValueError(f"Le nom « {clean} » est déjà utilisé par un autre moteur.")
 
     taken = {d["id"] async for d in db.engines.find({}, {"id": 1})}
     slug = _next_engine_id(taken)
     now = datetime.now(timezone.utc)
     clone = {
         "id": slug,
-        "name": name.strip()[:80] or f"Copie de {src.get('name', source_id)}",
+        "name": clean,
         "description": (description or f"Clone de {src.get('name', source_id)}")[:400],
         "algo": src["algo"],
         "params": dict(src.get("params") or {}),  # copie superficielle suffisante
         "active": True,
         "built_in": False,
+        "frozen": False,
         "parent_id": src["id"],
         "created_at": now,
         "updated_at": now,
@@ -227,11 +264,17 @@ async def rename_engine(db, engine_id: str, name: str,
     doc = await get_engine(db, engine_id)
     if doc is None:
         raise KeyError(f"Moteur introuvable : {engine_id!r}.")
+    if doc.get("frozen"):
+        raise ValueError(
+            f"Le moteur « {doc.get('name', engine_id)} » est FIGÉ (référence) : "
+            "ni renommage ni modification.")
     update = {"name": name.strip()[:80], "updated_at": datetime.now(timezone.utc)}
     if description is not None:
         update["description"] = description.strip()[:400]
     if not update["name"]:
         raise ValueError("Le nom du moteur ne peut pas être vide.")
+    if await _name_taken(db, update["name"], exclude_id=engine_id):
+        raise ValueError(f"Le nom « {update['name']} » est déjà utilisé par un autre moteur.")
     await db.engines.update_one({"id": engine_id}, {"$set": update})
     return (await get_engine(db, engine_id)) or {}
 
@@ -243,8 +286,9 @@ async def delete_engine(db, engine_id: str) -> None:
     doc = await get_engine(db, engine_id)
     if doc is None:
         raise KeyError(f"Moteur introuvable : {engine_id!r}.")
-    if doc.get("built_in"):
-        raise ValueError("Les moteurs A et B (built-in) ne peuvent pas être supprimés.")
+    if doc.get("built_in") or doc.get("frozen"):
+        raise ValueError(
+            "Les moteurs de référence (built-in ou figés) ne peuvent pas être supprimés.")
     # Vérification usage (voir aussi le compteur usage_count mais on prend la
     # source de vérité authoritative : présence dans les collections).
     used_saved = await db.saved_routes.find_one({"engine_id": engine_id}, {"_id": 1})
@@ -256,16 +300,26 @@ async def delete_engine(db, engine_id: str) -> None:
             "vous pouvez le désactiver."
         )
     await db.engines.delete_one({"id": engine_id})
+    # 14/08 (audit QA FND-032) — les comptes qui pointaient ce moteur
+    # retombent sur le moteur par défaut au lieu d'un pointeur mort.
+    try:
+        await db.users.update_many(
+            {"active_engine_id": engine_id},
+            {"$unset": {"active_engine_id": ""}},
+        )
+    except Exception:  # noqa: BLE001 — best-effort
+        pass
     logger.info("engine deleted: %s", engine_id)
 
 
 async def set_active_flag(db, engine_id: str, active: bool) -> dict:
-    """Active/désactive un moteur (les built-in restent toujours actifs)."""
+    """Active/désactive un moteur (built-in et FIGÉS restent toujours actifs)."""
     doc = await get_engine(db, engine_id)
     if doc is None:
         raise KeyError(f"Moteur introuvable : {engine_id!r}.")
-    if doc.get("built_in") and not active:
-        raise ValueError("Les moteurs A et B (built-in) ne peuvent pas être désactivés.")
+    if (doc.get("built_in") or doc.get("frozen")) and not active:
+        raise ValueError(
+            "Les moteurs de référence (built-in ou figés) ne peuvent pas être désactivés.")
     await db.engines.update_one(
         {"id": engine_id},
         {"$set": {"active": bool(active), "updated_at": datetime.now(timezone.utc)}},
@@ -299,7 +353,7 @@ def resolve_algo(engine_doc: dict):
 
 
 __all__ = [
-    "DEFAULT_ALGO", "DEFAULT_ENGINE_ID",
+    "DEFAULT_ALGO", "DEFAULT_ENGINE_ID", "FROZEN_ENGINE_IDS",
     "ensure_seed", "ensure_indexes",
     "list_engines", "get_engine", "get_engine_or_default",
     "duplicate_engine", "rename_engine", "delete_engine", "set_active_flag",

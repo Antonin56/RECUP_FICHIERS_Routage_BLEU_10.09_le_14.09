@@ -777,6 +777,12 @@ export const api = {
       "/auth/otp/request",
       { method: "POST", body: { phone }, auth: false },
     ),
+  /** 14/08/2026 (audit QA FND-009) — connexion email + mot de passe. */
+  loginEmail: (email: string, password: string) =>
+    request<AuthPayload>("/auth/login", {
+      method: "POST",
+      body: { email, password },
+    }),
   otpVerify: (phone: string, code: string, pseudo?: string, referralCode?: string) =>
     request<AuthPayload>("/auth/otp/verify", {
       method: "POST",

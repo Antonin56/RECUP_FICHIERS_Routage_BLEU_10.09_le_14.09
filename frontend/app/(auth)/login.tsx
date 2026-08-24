@@ -44,12 +44,16 @@ function normalizeName(s: string): string {
 }
 
 export default function Login() {
-  const { requestOtp, verifyOtp } = useAuth();
+  const { requestOtp, verifyOtp, loginWithEmail } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState(""); // format local 06/07, chiffres seuls
   const [code, setCode] = useState("");
+  // 14/08/2026 (audit QA FND-009) — connexion email + mot de passe.
+  const [emailMode, setEmailMode] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [pseudo, setPseudo] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [accountExists, setAccountExists] = useState(true);
@@ -236,7 +240,70 @@ export default function Login() {
               <Text style={styles.tag}>La sécurité en mer, ensemble.</Text>
             </View>
 
-            {step === "phone" ? (
+            {step === "phone" && emailMode ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Connexion par email</Text>
+                <Text style={styles.cardSub}>
+                  {"Réservée aux comptes disposant déjà d'un mot de passe."}
+                </Text>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="vous@exemple.fr"
+                  placeholderTextColor={theme.textMute}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  testID="login-email"
+                />
+                <Text style={[styles.label, { marginTop: spacing.sm }]}>Mot de passe</Text>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="••••••••"
+                  placeholderTextColor={theme.textMute}
+                  secureTextEntry
+                  autoComplete="password"
+                  testID="login-password"
+                />
+                <TouchableOpacity
+                  style={[styles.primary, (busy || !email.includes("@") || password.length < 4) && { opacity: 0.6 }]}
+                  onPress={async () => {
+                    setBusy(true);
+                    try {
+                      await loginWithEmail(email, password);
+                      router.replace("/(tabs)/map");
+                    } catch (e) {
+                      showToast("error", e instanceof Error ? e.message : "Identifiants invalides");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  disabled={busy || !email.includes("@") || password.length < 4}
+                  testID="login-email-submit"
+                >
+                  {busy ? (
+                    <ActivityIndicator color={theme.bg} />
+                  ) : (
+                    <>
+                      <Ionicons name="log-in" size={18} color={theme.bg} />
+                      <Text style={styles.primaryText}>Se connecter</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modeSwitch}
+                  onPress={() => setEmailMode(false)}
+                  testID="login-mode-phone"
+                >
+                  <Ionicons name="chatbubble-ellipses-outline" size={14} color={theme.textDim} />
+                  <Text style={styles.modeSwitchText}>Se connecter par SMS</Text>
+                </TouchableOpacity>
+              </View>
+            ) : step === "phone" ? (
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Connexion / Inscription</Text>
                 <Text style={styles.cardSub}>
@@ -277,6 +344,14 @@ export default function Login() {
                       <Text style={styles.primaryText}>Recevoir mon code</Text>
                     </>
                   )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modeSwitch}
+                  onPress={() => setEmailMode(true)}
+                  testID="login-mode-email"
+                >
+                  <Ionicons name="mail-outline" size={14} color={theme.textDim} />
+                  <Text style={styles.modeSwitchText}>Se connecter par email et mot de passe</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -507,6 +582,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: theme.border,
   },
   hint: { color: theme.textMute, fontSize: 11, lineHeight: 15, fontStyle: "italic" },
+  modeSwitch: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, marginTop: 14, minHeight: 44,
+  },
+  modeSwitchText: {
+    color: theme.textDim, fontSize: 12.5, fontWeight: "700",
+    textDecorationLine: "underline",
+  },
   primary: {
     backgroundColor: theme.primary, paddingVertical: 16, borderRadius: radii.md,
     alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8,

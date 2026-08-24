@@ -42,7 +42,13 @@ async def mark_read(notif_id: str, request: Request):
         {"$set": {"read_at": now}},
     )
     if res.matched_count == 0:
-        # Already read or doesn't belong to caller — no-op, not an error.
+        # 14/08 (audit QA FND-024) — id inconnu ou pas au caller : 404 franc
+        # (avant : 200 {"ok": true} mensonger). Une notification déjà lue
+        # reste un no-op OK.
+        already = await srv.db.notifications.find_one(
+            {"id": notif_id, "user_id": u["user_id"]}, {"_id": 1})
+        if already is None:
+            raise HTTPException(status_code=404, detail="Notification introuvable.")
         return {"ok": True}
     return {"ok": True}
 

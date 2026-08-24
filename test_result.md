@@ -244,3 +244,28 @@ agent_communication:
           chenal court, wrong_side vide, mark-report BR-… OK) ; frontend :
           bouton RouteCard → modal → envoi vérifié en préview web (toast +
           doc en base avec engine_id/route_id joints). Aucun bug.
+
+  - task: "Iter138 — audit QA : P0 tronçon sur terre (Moteur F), gel réel moteurs A-E, 404 moteur inconnu, job relisible, dev-switch gated env, login email UI, géofiltre carte, codes d'erreur API, anti double-tap signalement"
+    implemented: true
+    working: true
+    file: "backend/core/routing_engines/algos/signalmar_v6/__init__.py, backend/core/routing_engines/manager.py, backend/routers/{routing,routing_engines,auth,notifications,bathy,reports,diagnostics,dev_switch}.py, backend/tests/test_iter138_audit_qa.py, frontend/app/(auth)/login.tsx, frontend/app/(tabs)/map.tsx, frontend/src/{auth/AuthContext.tsx,api/client.ts,components/{RouteCard.tsx,ReportSharePreview.tsx}}"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Lot audit QA. Local : iter138 4/4, régressions 30 verts, curls OK
+          (frozen refusé, 404 moteur inconnu, 422 bbox, 404 recompute).
+          Décisions armateur : pas de reset mot de passe, pas d'Europe,
+          Moteur D intact. ALLOW_DEV_SWITCH="true" ajouté à backend/.env
+          (à NE PAS copier en prod).
+      - working: true
+        agent: "testing"
+        comment: >
+          iteration_5.json — pytest 20/20 + e2e URL publique 16/16 (gel A-E,
+          404 moteur inconnu, job relisible x2, P0 arrivee_a_terre min -1.5,
+          E garde son bug (gel), codes 400/422/404, duplicate=true) ;
+          frontend : login email OK, RouteCard astuce + signalement OK.
+          Aucun bug. Note : URL publique de préview = engine-e-crouesty.

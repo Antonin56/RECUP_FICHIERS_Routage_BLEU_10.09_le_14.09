@@ -146,7 +146,9 @@ async def otp_verify(request: Request, body: OtpVerifyIn = Body(...)):
             detail="Trop de tentatives. Demandez un nouveau code.",
         )
     if status == "invalid":
-        raise HTTPException(status_code=401, detail="Code incorrect.")
+        # 14/08 (audit QA FND-028) — code FAUX = requête invalide (400), pas
+        # un problème d'authentification de session (401).
+        raise HTTPException(status_code=400, detail="Code incorrect.")
 
     user = await srv.db.users.find_one({"phone": phone}, {"_id": 0})
     if user:
@@ -219,11 +221,12 @@ async def register(request: Request, body: RegisterIn = Body(...)):
     if body.email:
         existing_email = await srv.db.users.find_one({"email": body.email.lower()}, {"_id": 0})
         if existing_email:
-            raise HTTPException(status_code=400, detail="Email déjà utilisé.")
+            # 14/08 (audit QA FND-028) — doublon = CONFLIT (409).
+            raise HTTPException(status_code=409, detail="Email déjà utilisé.")
     if phone:
         existing_phone = await srv.db.users.find_one({"phone": phone}, {"_id": 0})
         if existing_phone:
-            raise HTTPException(status_code=400, detail="Numéro déjà utilisé.")
+            raise HTTPException(status_code=409, detail="Numéro déjà utilisé.")
     uid = srv.make_user_id()
     # Phase 4.2 — Contact sync. Users who register with a phone number can
     # be matched by their contacts via SHA-256(E.164) hashes (privacy-safe,

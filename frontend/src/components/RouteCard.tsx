@@ -489,6 +489,9 @@ export function RouteCard(props: {
         </KeyboardAvoidingView>
       </Modal>
       <Text style={styles.disclaimer}>
+        {"Astuce : appui long sur le tracé pour déplacer le waypoint le plus proche (recalcul automatique)."}
+      </Text>
+      <Text style={styles.disclaimer}>
         {route.tide
           ? "Profondeurs SHOM + marée Open-Meteo (approchée, non officielle) — vérifiez la marée sur zone."
           : "Profondeurs SHOM au zéro hydrographique (marée basse) — aide à la navigation, ne remplace pas les cartes officielles."}

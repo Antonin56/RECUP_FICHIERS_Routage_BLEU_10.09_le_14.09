@@ -42,6 +42,12 @@ from core.seamarks import SIDE_ABSOLUTE, SIDE_ABSOLUTE_V6, get_seamarks
 
 logger = logging.getLogger("signalmar.routing.v6")
 
+# 14/08/2026 (audit QA P0/FND-004) — au-delà de cette « profondeur » (fond
+# à plus de 3,5 m AU-DESSUS du zéro hydro), ce n'est plus une zone
+# découvrante mais la TERRE FERME : aucun tronçon de route n'a le droit d'y
+# être tracé, quelle que soit la marée.
+_LAND_LIMIT_M = -3.5
+
 
 class SignalmarV6(SignalmarV5):
     id = "signalmar.v6"
@@ -221,6 +227,47 @@ class SignalmarV6(SignalmarV5):
                 rest = 0.0
             if len(ext_w) < 2:
                 return
+            # 14/08 (audit QA P0/FND-004) — JAMAIS DE TRONÇON SUR TERRE : le
+            # point demandé peut être à terre (clic dans le port, quai…). Le
+            # tronçon ajouté est sondé tous les ~25 m ; au premier
+            # échantillon TERRE FERME (fond < −3,5 m au ZH ou hors donnée)
+            # la route est TRONQUÉE au dernier point EN EAU et l'arrivée est
+            # honnêtement signalée déplacée (fini le tracé qui grimpe à
+            # −15 m sur le Crouesty avec un message rassurant).
+            landed = False
+            grid0 = _v1.get_grid()
+            if grid0 is not None:
+                kept = [ext_w[0]]
+                for k in range(1, len(ext_w)):
+                    a = kept[-1]
+                    b = ext_w[k]
+                    a_ll = (float(a["lat"]), float(a["lng"]))
+                    b_ll = (float(b["lat"]), float(b["lng"]))
+                    seg_m = math.hypot(
+                        (b_ll[0] - a_ll[0]) * M_PER_DEG_LAT,
+                        (b_ll[1] - a_ll[1]) * m_per_deg_lng(a_ll[0]))
+                    n = max(2, int(seg_m / 25.0) + 1)
+                    cut_t = None
+                    for s in range(1, n + 1):
+                        t = s / n
+                        d = grid0.depth_at(
+                            a_ll[0] + (b_ll[0] - a_ll[0]) * t,
+                            a_ll[1] + (b_ll[1] - a_ll[1]) * t)
+                        if d is None or d < _LAND_LIMIT_M:
+                            cut_t = (s - 1) / n
+                            break
+                    if cut_t is None:
+                        kept.append(b)
+                        continue
+                    if cut_t > 0.1:  # garde le dernier point encore EN EAU
+                        kept.append({
+                            "lat": round(a_ll[0] + (b_ll[0] - a_ll[0]) * cut_t, 6),
+                            "lng": round(a_ll[1] + (b_ll[1] - a_ll[1]) * cut_t, 6),
+                        })
+                    landed = True
+                    break
+                if landed:
+                    ext_w = kept
             n0 = len(wps) - 1
             merged = wps + [
                 {"lat": float(w["lat"]), "lng": float(w["lng"])}
@@ -263,7 +310,24 @@ class SignalmarV6(SignalmarV5):
             # 13/08 (Moteur F) — avertissement « EN ROUGE » seulement s'il y
             # a réellement des tronçons compromis (le suivi du chenal balisé
             # trouve souvent la veine d'eau : pas de rouge, pas de peur).
-            if comp:
+            # 14/08 (audit QA P0) — arrivée à TERRE : ``end_snapped`` honnête
+            # (offset mesuré) + avertissement franc, plus jamais de message
+            # « suit le chenal balisé » sur un point injoignable en bateau.
+            if landed:
+                last = merged[-1]
+                off_land = math.hypot(
+                    (float(last["lat"]) - req_end[0]) * M_PER_DEG_LAT,
+                    (float(last["lng"]) - req_end[1]) * m_per_deg_lng(req_end[0]))
+                res["end_snapped"] = {
+                    "offset_m": round(off_land, 1),
+                    "reason": "arrivee_a_terre",
+                }
+                res["warnings"].insert(0, (
+                    f"⚠ ARRIVÉE DEMANDÉE À TERRE / NON NAVIGABLE : la route "
+                    f"s'arrête au dernier point en eau, à {off_land:.0f} m du "
+                    f"point demandé. Déplacez l'arrivée sur l'eau pour aller "
+                    f"plus loin."))
+            elif comp:
                 res["warnings"].insert(0, (
                     "⚠ FIN DE ROUTE EN ZONE PEU PROFONDE / DÉCOUVRANTE : le "
                     "dernier tronçon suit le chenal balisé jusqu'au point "
@@ -274,6 +338,9 @@ class SignalmarV6(SignalmarV5):
                     "Le dernier tronçon suit le chenal balisé jusqu'au "
                     "point demandé."))
         except Exception:  # noqa: BLE001
+            # 14/08 (audit QA FND-040) — une complétion en ÉCHEC n'est plus
+            # silencieuse : le client sait que la route rendue est tronquée.
+            res["completion_failed"] = True
             logger.exception("v6: complétion d'arrivée échouée, résultat rendu tel quel")
 
 

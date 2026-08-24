@@ -136,6 +136,12 @@ async def get_seamarks_bbox(
         west, south, east, north = [float(p) for p in bbox.split(",")]
     except (ValueError, IndexError):
         raise HTTPException(422, "bbox invalide — attendu west,south,east,north")
+    # 14/08 (audit QA FND-015) — bbox INVERSÉE (west > east ou south > north)
+    # = 422 franc (avant : 200 avec liste vide, indiscernable d'une zone
+    # réellement sans balise).
+    if west > east or south > north:
+        raise HTTPException(
+            422, "bbox inversée — attendu west ≤ east et south ≤ north")
     idx = get_seamarks()
     if idx is None:
         return {"marks": []}
