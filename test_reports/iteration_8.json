@@ -1,0 +1,28 @@
+{
+  "summary": "iter140 SignalMar — PERF ROUTAGE < 10 s (armateur) VALIDÉE end-to-end + non-régression balisage (26/26) + moteurs gelés (40/40). Test dédié /app/backend/tests/test_iter140_perf_route_10s.py créé (5/5 verts). Mesures publiques HTTPS depuis EXPO_PUBLIC_BACKEND_URL, auth email antoninlepinay@gmail.com/123454321. Numba JIT + cache raster + gather ZH/marée parallèles = objectif tenu.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter140_perf_route_10s.py",
+    "/app/test_reports/pytest/iter140_perf.xml",
+    "/app/test_reports/pytest/iter140_balisage.xml",
+    "/app/test_reports/pytest/iter140_moteurs_geles_serie.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routers/routing.py:_run_zh_tide — gather() correctement gardé derrière un fast-path (tide_m<=0.05 => 1 seul _run) pour éviter la course inutile ; les 2 branches ont chacune leur margin_box, plus de course sur used_margin. Warm-up mesuré 1.47 s après restart (JIT+grille), amorti hors mesure.",
+    "requirements.txt : numba==0.67.0 + llvmlite==0.49.0 présents, numpy==2.4.6 compatible. Backend supervisord RUNNING sans warning.",
+    "core/seamarks.py RASTER_CACHE contextvar + gating v6 uniquement (RASTER_CACHE.set({}) autour du calcul dans signalmar_v6/__init__.py) : les moteurs A-E ne voient pas le cache (défaut None), non-régression garantie.",
+    "Sémantique 28/07 (ZH préféré, marée seulement si ZH échoue ou arrivée tronquée > 800 m) : conservée telle quelle dans _run_zh_tide — la marée est indisponible dans cet env donc route Golfe tombe correctement en shallow_route=True (attendu)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter140_perf_route_10s.py"],
+  "success_rate": {
+    "backend": "100% (5/5 perf iter140 + 26/26 balisage iter139/136/137/138 + 40/40 moteurs gelés iter129/130/133/124)",
+    "frontend": "N/A (backend only per request)"
+  },
+  "seed_data_creation": "None. Comptes seedés utilisés.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "PERF ROUTE (armateur) — Mesures HTTPS publiques via EXPO_PUBLIC_BACKEND_URL après warm-up (1er calcul post-restart = +1-2 s chargement grille + JIT numba). Résultats iter140 : PERF1 Lorient(47.72987,-3.35677)→Golfe(47.63,-2.855) engine_f = 8.30s (compute_s=8.11), 69 waypoints, shallow_route=True (marée Open-Meteo down dans cet env, mode ZH+eau peu profonde), distance 66.5 km — <10s OK. PERF2 Lorient→La Trinité(47.572,-3.029) = 1.56s (compute_s=1.33), 28 wp — <5s OK. ITER139 entrée port(47.6776,-3.4288)→port(47.7299,-3.3568) engine_f = 6.24s, wrong_side_marks=[] OK. Sanity engine_e Lorient→La Trinité = 5.41s, 200 OK. IMPORTANT — les fixtures OTP admin (test_iter130) échouent en parallèle xdist (410 « Code expiré » car un autre worker consomme le code) : c'est un artefact environnemental noté par l'agent-to-agent, PAS une régression. Sérialisées (-p no:xdist), les 40/40 moteurs gelés passent. Pour retest fiable des suites qui utilisent la fixture admin OTP : mode série ou espacer d'≥30s.",
+  "rca_of_issue": "N/A — objectif de perf atteint. Tous les critères de la review passent : (1) <10s Lorient→Golfe (mesuré 8.30s), (2) <5s Lorient→La Trinité (1.56s), (3) 26/26 tests balisage verts, (4) 40/40 moteurs gelés verts (en série pour éviter le rate-limit OTP fixture), (5) iter139 wrong_side_marks vide, (6) Moteur E répond 200. Marée Open-Meteo indisponible dans cet env → mode ZH/eau peu profonde (shallow_route=True) : comportement attendu, conforme à la sémantique du 28/07."
+}

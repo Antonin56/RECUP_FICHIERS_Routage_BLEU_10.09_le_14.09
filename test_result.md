@@ -337,3 +337,32 @@ agent_communication:
           bandeau danger, enregistrement, fiche balise, ancre, unités).
           AlertSettingsModal gaté par un `false &&` PRÉEXISTANT (décision
           armateur) — vérifié par revue de code. Aucune régression.
+
+  - task: "Iter141 — perf : calcul de route < 10 s (numba A* JIT + cache rasterisation v6 + ZH/marée en parallèle)"
+    implemented: true
+    working: true
+    file: "backend/requirements.txt (numba/llvmlite), backend/core/seamarks.py (RASTER_CACHE + cache rasterize_blocked), backend/core/routing_engines/algos/signalmar_v6/__init__.py (cache armé par calcul), backend/routers/routing.py (_run margin_box, _run_zh_tide parallèle), backend/tests/test_iter140_perf_route_10s.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          3 leviers : (1) numba installé → le cœur A* JIT (_astar_nb, prévu
+          par conception, commentaire 27/07 « hyper lent comparé à
+          Navionics ») est ACTIF : _astar_py 9,9 s → ~0,3 s ; (2) cache de
+          rasterize_blocked par fenêtre, contextvar RASTER_CACHE gated v6
+          (A-E : défaut None, inchangés) — 252 rasterisations/calcul ;
+          (3) endpoint : ZH et marée en PARALLÈLE (asyncio.gather), suivi
+          de marge par margin_box (plus de nonlocal partagé), sémantique
+          28/07 inchangée. Lorient→Golfe (pire cas, cascade ZH+marée+eau
+          peu profonde) : ~30 s user / 16,2 s mesuré → 8,1 s.
+          Lorient→Trinité : 2,2 s → 1,3 s.
+      - working: true
+        agent: "testing"
+        comment: >
+          iteration_8 — PERF 5/5 : Golfe 8,30 s (<10) ✓, Trinité 1,56 s ✓,
+          iter139 wrong_side vide ✓, Moteur E OK ✓, warm-up 1,47 s.
+          Non-régression : 26/26 balisage + 40/40 moteurs gelés (série).
+          Échecs OTP 410 en xdist parallèle = artefact env connu.

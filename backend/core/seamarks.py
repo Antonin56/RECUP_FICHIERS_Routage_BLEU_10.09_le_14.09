@@ -125,6 +125,14 @@ SIDE_ABSOLUTE_V6 = contextvars.ContextVar("sm_side_absolute_v6", default=False)
 DIR_COHERENCE_V6 = contextvars.ContextVar("sm_dir_coherence_v6", default=False)
 # Garde anti-récursion de l'héritage de direction (25/08).
 _DIR_INFER_GUARD = contextvars.ContextVar("sm_dir_infer_guard", default=False)
+# 27/08/2026 (perf Moteur F « route < 10 s ») — cache de ``rasterize_blocked``
+# pour la durée d'UN calcul v6 : les réparations sidefix relancent des
+# ``compute_route`` locaux sur les MÊMES fenêtres (252 rasterisations ≈ 2,7 s
+# sur Lorient → Golfe). None (défaut) = désactivé : Moteurs A-E strictement
+# inchangés. Le masque retourné n'est jamais muté par les appelants
+# (consommé via ``nav &= ~blocked``).
+RASTER_CACHE: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
+    "sm_raster_cache", default=None)
 
 # 27/07/2026 — ZONES DE MOUILLAGE SURFACIQUES (seamark:type=anchorage,
 # ingest_anchorages.py) : mêmes règles que les bouées de mouillage
@@ -810,6 +818,29 @@ class SeamarkIndex:
         """Masque bool (len(lats), len(lngs)) des cellules interdites par le
         balisage ET les dangers (roches/épaves/obstructions — 22/07/2026).
         lats décroissantes, lngs croissantes (fenêtre A*)."""
+        # 27/08/2026 (perf) — cache par fenêtre, gated v6 (cf. RASTER_CACHE).
+        cache = RASTER_CACHE.get()
+        cache_key = None
+        if cache is not None:
+            try:
+                cache_key = (
+                    len(lats), len(lngs),
+                    float(lats[0]), float(lats[-1]),
+                    float(lngs[0]), float(lngs[-1]),
+                    round(float(min_depth), 4),
+                    None if strict_depth is None else round(float(strict_depth), 4),
+                    None if strict_exempt is None
+                    else tuple(tuple(p) for p in strict_exempt),
+                    MOORINGS_OPEN.get(), SIDE_RULES_OPEN.get(),
+                    SIDE_ABSOLUTE.get(), SIDE_ABSOLUTE_V6.get(),
+                    ISOLATED_SIDE_BATHY.get(), DIR_COHERENCE_V6.get(),
+                )
+            except TypeError:
+                cache_key = None
+            if cache_key is not None:
+                hit = cache.get(cache_key)
+                if hit is not None:
+                    return hit
         ny, nx = len(lats), len(lngs)
         blocked = np.zeros((ny, nx), dtype=bool)
         # 22/07/2026 (bug armateur) — les interdits BALISES sont rasterisés à
@@ -1216,7 +1247,10 @@ class SeamarkIndex:
             r0, r1, c0, c1, _dy, _dx, inside = d
             marks_blocked[r0:r1, c0:c1] |= inside
 
-        return blocked | marks_blocked
+        out = blocked | marks_blocked
+        if cache_key is not None and cache is not None:
+            cache[cache_key] = out
+        return out
 
     # ── 27/07/2026 (consigne armateur : « obligatoire de suivre les
     # chenaux ») — PORTES DE CHENAL pour l'attraction A* : chaque couple de

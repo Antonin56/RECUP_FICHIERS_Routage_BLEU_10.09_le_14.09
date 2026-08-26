@@ -279,8 +279,24 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
     req_margin = AUTO_LATERAL_M if auto_margin else float(body.lateral_margin_m)
     used_margin = req_margin
 
-    async def _run(s_lat: float, s_lng: float, tide: float, allow_last_resort: bool = True):
+    async def _run(s_lat: float, s_lng: float, tide: float,
+                   allow_last_resort: bool = True,
+                   margin_box: list | None = None):
         nonlocal used_margin
+
+        # 27/08/2026 (perf) — ``margin_box`` : suivi de marge LOCAL pour les
+        # exécutions PARALLÈLES (cf. _run_zh_tide) ; sans box, comportement
+        # historique (nonlocal used_margin).
+        def _set_margin(v: float) -> None:
+            nonlocal used_margin
+            if margin_box is not None:
+                margin_box[0] = v
+            else:
+                used_margin = v
+
+        def _get_margin() -> float:
+            return margin_box[0] if margin_box is not None else used_margin
+
         margins = [req_margin]
         while margins[-1] > 10.0:
             margins.append(max(10.0, margins[-1] / 2.0))
@@ -293,7 +309,6 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
             parfois faux, ex. Vilaine). L'ÉCART MINIMAL aux balises n'est
             plus JAMAIS levé (route SUR la balise Holavre/n°6 en vidéo).
             Retourne le résultat annoté, ou None."""
-            nonlocal used_margin
             for stage in ("moorings", "side"):
                 tok_m = MOORINGS_OPEN.set(True)
                 tok_s = SIDE_RULES_OPEN.set(True) if stage == "side" else None
@@ -313,7 +328,7 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
                     MOORINGS_OPEN.reset(tok_m)
                 if res is None:
                     continue
-                used_margin = margins[-1]
+                _set_margin(margins[-1])
                 if stage == "moorings":
                     res.setdefault("warnings", []).insert(
                         0,
@@ -342,19 +357,19 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
                     body.draft_m, body.depth_margin_m, m,
                     tide,
                 )
-                used_margin = m
+                _set_margin(m)
                 # 26/07 (bug Vilaine) — arrivée fortement déplacée (> 800 m) :
                 # le blocage vient parfois du BALISAGE (sens conventionnel
                 # faux) et non du fond. On tente aussi le dernier recours et
                 # on le préfère s'il approche NETTEMENT plus la destination.
                 off = float((res.get("end_snapped") or {}).get("offset_m") or 0.0)
                 if off > 800.0 and allow_last_resort:
-                    kept_margin = used_margin
+                    kept_margin = _get_margin()
                     res2 = await _last_resort()
                     off2 = float((res2.get("end_snapped") or {}).get("offset_m") or 0.0) if res2 else None
                     if res2 is not None and off2 is not None and off2 < off - 500.0:
                         return res2
-                    used_margin = kept_margin
+                    _set_margin(kept_margin)
                 return res
             except RouteError as e:
                 first = first or e
@@ -387,26 +402,41 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
     async def _run_zh_tide(s_lat: float, s_lng: float) -> tuple[dict, float]:
         nonlocal used_margin
         zh_tide = min(0.0, tide_m)
-        try:
-            res = await _run(s_lat, s_lng, zh_tide,
-                             allow_last_resort=(tide_m <= 0.05))
-        except RouteError:
-            if tide_m > 0.05:
-                return await _run(s_lat, s_lng, tide_m), tide_m
-            raise
-        off = float((res.get("end_snapped") or {}).get("offset_m") or 0.0)
-        if tide_m > 0.2 and off > 800.0:
-            kept_margin = used_margin
+        if tide_m <= 0.05:
+            return await _run(s_lat, s_lng, zh_tide,
+                              allow_last_resort=True), zh_tide
+        # 27/08/2026 (perf « route < 10 s ») — ZH et MARÉE calculés EN
+        # PARALLÈLE. Sémantique du 28/07 INCHANGÉE : le pire cas (ZH) reste
+        # préféré ; le résultat marée n'est retenu que si le ZH échoue ou
+        # arrive tronqué de > 800 m. Avant, l'échec ZH (exploration
+        # exhaustive) et le calcul marée s'ADDITIONNAIENT (~6 s + ~7 s sur
+        # Lorient → Golfe). Chaque exécution suit sa marge dans sa propre
+        # ``margin_box`` (pas de course sur used_margin).
+        zh_box = [used_margin]
+        t_box = [used_margin]
+
+        async def _task(tide: float, allow_lr: bool, box: list):
             try:
-                res_t = await _run(s_lat, s_lng, tide_m)
-            except RouteError:
-                res_t = None
-            if res_t is not None:
-                off_t = float((res_t.get("end_snapped") or {}).get("offset_m") or 0.0)
-                if off_t < off - 500.0:
-                    return res_t, tide_m
-            used_margin = kept_margin
-        return res, zh_tide
+                return await _run(s_lat, s_lng, tide,
+                                  allow_last_resort=allow_lr, margin_box=box)
+            except RouteError as e:
+                return e
+
+        res_zh, res_t = await asyncio.gather(
+            _task(zh_tide, False, zh_box), _task(tide_m, True, t_box))
+        if isinstance(res_zh, RouteError):
+            if isinstance(res_t, RouteError):
+                raise res_t
+            used_margin = t_box[0]
+            return res_t, tide_m
+        off = float((res_zh.get("end_snapped") or {}).get("offset_m") or 0.0)
+        if tide_m > 0.2 and off > 800.0 and not isinstance(res_t, RouteError):
+            off_t = float((res_t.get("end_snapped") or {}).get("offset_m") or 0.0)
+            if off_t < off - 500.0:
+                used_margin = t_box[0]
+                return res_t, tide_m
+        used_margin = zh_box[0]
+        return res_zh, zh_tide
 
     # ── 29/07/2026 (décision armateur — façon Navionics) : EAU PEU PROFONDE.
     async def _run_shallow(s_lat: float, s_lng: float) -> dict | None:

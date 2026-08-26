@@ -39,7 +39,8 @@ from core.routing_engines.algos.signalmar_v5 import (
 )
 from core.routing_engines.algos.signalmar_v6 import sidefix
 from core.seamarks import (
-    DIR_COHERENCE_V6, SIDE_ABSOLUTE, SIDE_ABSOLUTE_V6, get_seamarks,
+    DIR_COHERENCE_V6, RASTER_CACHE, SIDE_ABSOLUTE, SIDE_ABSOLUTE_V6,
+    get_seamarks,
 )
 
 logger = logging.getLogger("signalmar.routing.v6")
@@ -79,6 +80,10 @@ class SignalmarV6(SignalmarV5):
         # direction, influence 1,2 × couple, lissage 60°) : UNIQUEMENT si le
         # moteur les demande (params.dir_coherence — Moteur G).
         tokd = DIR_COHERENCE_V6.set(bool((params or {}).get("dir_coherence")))
+        # 27/08/2026 (perf « route < 10 s ») — cache de rasterisation pour la
+        # durée de CE calcul (les réparations sidefix relancent des
+        # compute_route locaux sur les mêmes fenêtres). Gated : A-E intacts.
+        tokr = RASTER_CACHE.set({})
         try:
             res = super().compute_auto(
                 start_lat, start_lng, end_lat, end_lng,
@@ -108,6 +113,7 @@ class SignalmarV6(SignalmarV5):
             except Exception:  # noqa: BLE001 — jamais bloquant
                 logger.exception("v6: sidefix en échec, résultat rendu tel quel")
         finally:
+            RASTER_CACHE.reset(tokr)
             DIR_COHERENCE_V6.reset(tokd)
             SIDE_ABSOLUTE.reset(tok5)
             SIDE_ABSOLUTE_V6.reset(tok6)

@@ -3167,3 +3167,22 @@ prenant le dessus sur le balisage ». Confirmé — DEUX mécanismes :
 - Restent dans map.tsx (extraction future si besoin) : modal recherche,
   feuille de filtres, modal cône, barres pick/manual/edit.
 - Non-régression : iteration_7.json 10/10 verts (simulation MessageEvent).
+
+## Itération 141 (27/08/2026) — Perf : calcul de route < 10 s (demande armateur)
+Cause de la lenteur (~30 s Lorient → Golfe) : cascade de CALCULS COMPLETS
+séquentiels (ZH exhaustif en échec + marée + « eau peu profonde ») × un A*
+en Python pur (numba absent de l'env) × 252 rasterisations par calcul.
+1. numba installé (requirements.txt) → le cœur A* JIT `_astar_nb`
+   (signalmar_v1/core.py, prévu par conception 27/07/2026) est actif :
+   même algorithme, 30-80× plus rapide, GIL libéré (nogil).
+2. seamarks.RASTER_CACHE (contextvar, défaut None = A-E inchangés) : cache
+   de `rasterize_blocked` par fenêtre pour la durée d'UN calcul v6 — armé
+   dans SignalmarV6.compute_auto.
+3. routers/routing.py : `_run_zh_tide` lance ZH et MARÉE en PARALLÈLE
+   (asyncio.gather) ; chaque branche suit sa marge dans une `margin_box`
+   (le nonlocal used_margin n'est plus écrit en concurrence). Sémantique du
+   28/07 INCHANGÉE (ZH préféré ; marée si échec ou arrivée > 800 m).
+Mesures (API, engine_f) : Lorient→Golfe 16,2 s → 8,1-8,3 s ; Lorient→La
+Trinité 2,2 s → 1,3-1,6 s ; warm-up post-restart ~1,5 s.
+Non-régression : 26/26 balisage (iter136-139) + 40/40 moteurs gelés
+(iter124/129/130/133) + test perf dédié tests/test_iter140_perf_route_10s.py.
