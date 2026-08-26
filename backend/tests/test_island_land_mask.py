@@ -52,6 +52,7 @@ ISLANDS: list[tuple[str, float, float, bool]] = [
 # Masques par zone : (fichier meta, fichier masque)
 ZONE_MASKS = [
     ("bathy_morbihan.json", "land_mask.npy"),
+    ("bathy_lorient.json", "land_mask_lorient.npy"),
     ("bathy_atl100.json", "land_mask_atl100.npy"),
 ]
 

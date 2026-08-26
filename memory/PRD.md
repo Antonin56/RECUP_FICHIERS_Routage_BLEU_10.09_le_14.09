@@ -1,5 +1,51 @@
 # SignalMar — PRD
 
+## ✅ ITER142 (26/08, ordre armateur) — MNT 20 m Lorient-Groix + routes sûres INGÉRÉS
+- Ordre : « télécharge le MNT 20 m baie de Lorient→Groix, ingère (dont routes
+  sûres), confirme, puis RIEN sans mon GO » (suite = Moteur H + fin refactor
+  map.tsx, en attente du feu vert). Ville de Lorient exclue sur son ordre
+  (« entrée → fin du port suffit »).
+- SOURCE : aucun prépaquet SHOM 20 m ne couvre Lorient/Groix → LITTO3D BZH
+  2018-2021 (lidar SHOM/IGN, Licence Ouverte), 20 paquets 5 km (~7 Go),
+  MNT 5 m max-poolé (alt) → 20 m, mosaïque L93 → WGS84 0.0002°.
+  scripts/ingest_litto3d_lorient.py (reprise Range + état litto3d_state.json,
+  archives supprimées au fil de l'eau — disque limité).
+- VERTICAL : Litto3D = IGN69 ≠ ZH → depth = z0 − alt, z0 = −2.34 m calibré
+  par médiane vs TANDEM Morbihan (recouvrement Gâvres-Étel, n=76k,
+  MAD=0.15 m). Conservateur (max-pooling ≈ +0.3 m pessimiste).
+- LACUNES LIDAR (chenaux profonds/turbides sans retour, 72 % natif dans la
+  rade seulement) : rebouchées par ATL100 partout où il répond, SAUF ≤ 2
+  cellules d'une terre/assèche lidar. FAUX ASSÈCHES isolés (bords de bandes
+  de vol, navires amarrés) : composantes ≤ 60 cellules avec ATL100 médian
+  ≥ 5 m → remplacées (sinon murs NaN infranchissables — bug corrigé).
+- PIÈGE (corrigé) : ingest_islands.py repart de *_orig.npy (idempotent) →
+  TOUTE régénération de bathy_lorient.npy DOIT être suivie de
+  `rm bathy_lorient_orig.npy` puis re-bake --zone lorient.
+- Branché : core/bathy.py ZONE_FILES (morbihan > lorient > atl100 — TANDEM
+  natif ZH prioritaire sur le recouvrement), ingest_islands.py ZONES,
+  test_island_land_mask.py ZONE_MASKS. land_mask_lorient.npy (34 îles, 15
+  nommées vérifiées, 0 échec).
+- ROUTES SÛRES : scripts/ingest_safe_routes.py → data/bathy/safe_routes.json
+  = 180 ways OSM façade entière (74 recommended_track, 90 navigation_line,
+  16 fairway). AUCUN moteur ne les consomme encore (Moteur H, attente GO).
+- CONTRÔLES : connectivité navigable large→passes→Jument→chenal→port→Groix
+  = 1 seule composante ✓. Route test Lorient : atteint le port (8.8 km),
+  fond mini 1.6 m (avant : −0.1 m « hauteur d'eau fausse » → RÉSOLU),
+  dt≈3 s. PERF1/PERF2 iter140 repassent ✓ (< 10 s / < 5 s).
+- ENV : contourpy manquait dans le pod forké (isobathes 500) → installé +
+  requirements.txt. rasterio/py7zr/pyproj = deps scripts uniquement (hors
+  requirements, politique existante).
+- RESTE (exposé par la donnée fine, PAS des régressions de données) :
+  ① wrong_side FAUX POSITIFS Jument + N°4 à Lorient : la route passe du BON
+  côté (rouge à bâbord, vérifié géométriquement) mais l'inférence de
+  direction est inversée par des FAUX COUPLES dos-à-dos (Jument rouge du
+  chenal principal appariée à une verte du chenal secondaire à 106 m) →
+  3 tests rouges (iter139 e2e, iter139 n4 consensus 0.4998<0.5,
+  iter140::iter139_wrong_side). C'est le périmètre exact du Moteur H.
+  ② iter103 home→côte start_blocked : PRÉ-EXISTANT (prouvé : identique avec
+  et sans la zone lorient), indépendant de l'ingestion.
+  ③ Échecs OTP/429 en suite complète séquentielle = artefact env connu.
+
 ## 🔍 ANALYSE 26/08 (post-fork) — captures armateur + Moteur H : AUCUN CODE, feu vert attendu
 - Directive armateur : AUCUN CODE SANS AUTORISATION. map.tsx (fin du refactor)
   sera repris quand il donnera le feu vert, APRÈS cette analyse.

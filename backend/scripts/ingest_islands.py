@@ -60,6 +60,14 @@ ZONES: dict[str, dict[str, str]] = {
         "orig": "bathy_atl100_orig.npy",
         "mask": "land_mask_atl100.npy",
     },
+    # Lorient-Groix 20 m (Litto3D BZH, 26/08/2026) — le lidar résout déjà la
+    # terre finement, le bake OSM reste appliqué par sécurité (îlots).
+    "lorient": {
+        "meta": "bathy_lorient.json",
+        "npy": "bathy_lorient.npy",
+        "orig": "bathy_lorient_orig.npy",
+        "mask": "land_mask_lorient.npy",
+    },
 }
 
 ENDPOINTS = [  # conservé pour référence — le fetch passe par scripts/overpass.py

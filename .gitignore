@@ -86,3 +86,4 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+backend/data/bathy/litto3d/0225_6755.part

@@ -31,6 +31,9 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "bathy"
 # Ordre = de la plus FINE à la plus GROSSIÈRE (résolution).
 ZONE_FILES: list[tuple[str, str, str]] = [
     ("morbihan", "bathy_morbihan.npy", "bathy_morbihan.json"),
+    # Lorient-Groix 20 m (Litto3D BZH converti ZH, 26/08/2026). Placé APRÈS
+    # morbihan : sur le recouvrement Gâvres→Étel, le TANDEM (ZH natif) gagne.
+    ("lorient", "bathy_lorient.npy", "bathy_lorient.json"),
     ("atl100", "bathy_atl100.npy", "bathy_atl100.json"),
 ]
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="5" time="19.857" timestamp="2026-08-26T18:35:27.531342+00:00" hostname="agent-env-756a8a72-38dd-47e0-be80-ff71949739dd"><testcase classname="tests.test_iter140_perf_route_10s" name="test_00_warmup" time="1.761" /><testcase classname="tests.test_iter140_perf_route_10s" name="test_perf1_lorient_to_golfe_under_10s" time="8.464" /><testcase classname="tests.test_iter140_perf_route_10s" name="test_perf2_lorient_to_trinite_under_5s" time="1.321" /><testcase classname="tests.test_iter140_perf_route_10s" name="test_iter139_lorient_wrong_side_empty" time="1.507"><failure message="AssertionError: wrong_side_marks non vide : [{'name': 'La Petite Jument', 'kind': 'lateral', 'category': 'port', 'dist_m': 50.6, 'side_required': 'à bâbord'}, {'name': 'N° 4', 'kind': 'lateral', 'category': 'port', 'dist_m': 108.4, 'side_required': 'à bâbord'}]&#10;assert [{'name': 'La...: 108.4, ...}] == []&#10;  &#10;  Left contains 2 more items, first extra item: {'name': 'La Petite Jument', 'kind': 'lateral', 'category': 'port', 'dist_m': 50.6, ...}&#10;  &#10;  Full diff:&#10;  - []&#10;  + [&#10;  +     {...&#10;  &#10;  ...Full output truncated (14 lines hidden), use '-vv' to show">backend/tests/test_iter140_perf_route_10s.py:104: in test_iter139_lorient_wrong_side_empty
+    assert wsm == [], f"wrong_side_marks non vide : {wsm[:3]}"
+E   AssertionError: wrong_side_marks non vide : [{'name': 'La Petite Jument', 'kind': 'lateral', 'category': 'port', 'dist_m': 50.6, 'side_required': 'à bâbord'}, {'name': 'N° 4', 'kind': 'lateral', 'category': 'port', 'dist_m': 108.4, 'side_required': 'à bâbord'}]
+E   assert [{'name': 'La...: 108.4, ...}] == []
+E     
+E     Left contains 2 more items, first extra item: {'name': 'La Petite Jument', 'kind': 'lateral', 'category': 'port', 'dist_m': 50.6, ...}
+E     
+E     Full diff:
+E     - []
+E     + [
+E     +     {...
+E     
+E     ...Full output truncated (14 lines hidden), use '-vv' to show</failure></testcase><testcase classname="tests.test_iter140_perf_route_10s" name="test_sanity_engine_e_200" time="6.448" /></testsuite></testsuites>

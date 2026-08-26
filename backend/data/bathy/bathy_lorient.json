@@ -1,0 +1,15 @@
+{
+  "product": "LITTO3D_BZH_2018_2021_MNT5M_aggr20m_ZH",
+  "license": "Licence Ouverte \u2014 Litto3D\u00ae \u00a9 SHOM/IGN (non officiel navigation)",
+  "ncols": 1750,
+  "nrows": 1200,
+  "x0": -3.6,
+  "y0": 47.79,
+  "dx": 0.0002,
+  "dy": -0.0002,
+  "z0_zh_ign69_m": -2.34,
+  "z0_mad_m": 0.15,
+  "z0_ref": "TANDEM",
+  "offshore_filled_cells": 984150,
+  "downloaded_at": "2026-08-26T18:00:53.453660+00:00"
+}
