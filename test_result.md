@@ -269,3 +269,45 @@ agent_communication:
           E garde son bug (gel), codes 400/422/404, duplicate=true) ;
           frontend : login email OK, RouteCard astuce + signalement OK.
           Aucun bug. Note : URL publique de préview = engine-e-crouesty.
+
+  - task: "Iter139 — Moteur F : balises de chenaux respectées (Lorient/Croisic/Kerpenhir) + zones rouges PRÉCISES cliquables (info hauteur d'eau + options route)"
+    implemented: true
+    working: "NA"
+    file: "backend/core/seamarks.py (mark_dir_confident v6 : cache v5 ne court-circuite plus le mode V6, faux couple corrigé par consensus des voisines), backend/core/routing_engines/algos/signalmar_v6/sidefix.py (validation limitée aux segments modifiés, passes côtés/frôlements rejouées, infractions préexistantes non bloquantes via ref, variante épinglée sur longs bords), backend/tests/test_iter139_directions_chenaux.py, frontend/src/components/marine-map/js/route.ts (zones rouges depuis depth_profile + tap → route_tap avec danger), frontend/src/components/MarineMap.tsx (RouteTapDanger), frontend/app/(tabs)/map.tsx (bandeau danger dans le menu route), frontend/src/screens/map/map-styles.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Bugs armateur 25/08 (balises de chenal non respectées). 5 causes
+          racines corrigées (gated v6) : 1. cache _dir_conf_v5 court-
+          circuitait le bloc V6 (Kerpenhir/Rouzins jamais héritées) ;
+          2. validation d'insertion incluait des segments INCHANGÉS déjà
+          rouges → toutes réparations rejetées ; 3. les phases côtés/
+          frôlements ne se rejouaient pas (réparations interdépendantes
+          N°3 → Banc du Turc) ; 4. faux couple N°4-N°3 (dir SW) corrigé
+          par consensus des voisines ; 5. Écrevisse : longs bords réparés
+          par variante « épinglée » + infractions préexistantes (épave à
+          38 m) non bloquantes. Résultat : route Lorient = 0 mauvais côté
+          (avant : 6). Local : 26/26 verts (iter136-139). Baseline git
+          stash confirmée : les 12 échecs e2e (iter101/103/104, OTP 429)
+          sont PRÉEXISTANTS au fork, pas causés par ces correctifs.
+          Feature : zones ROUGES PRÉCISES sur la carte (échantillons du
+          depth_profile < seuil, plus le tronçon entier) ; tap sur une
+          zone rouge → menu route AVEC bandeau « Hauteur d'eau
+          insuffisante ici : fond mini ~X m pour un besoin de Y m »
+          (testID route-menu-danger) ; tronçon entier conservé en rouge si
+          raison low_margin ou profil muet (fallback).
+      - working: true
+        agent: "testing"
+        comment: >
+          iteration_6.json — backend : pytest 26/26 (iter136-139) + e2e URL
+          publique 3/3 (Lorient F wrong_side vide ~8,8 km, E gelé OK,
+          depth_profile + threshold_m présents). Frontend (390x844, login
+          email) : tap zone rouge → modal « Route sûre » AVEC bandeau
+          route-menu-danger (« Hauteur d'eau insuffisante ici, fond mini
+          ~X m ») + toutes les options ; tap route normale → modal SANS
+          bandeau. Aucun bug bloquant. Notes API : job = /api/routes/job/{id},
+          champ login = token, testID submit = login-email-submit.

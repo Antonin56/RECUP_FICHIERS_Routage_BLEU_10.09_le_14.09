@@ -3118,3 +3118,38 @@ prenant le dessus sur le balisage ». Confirmé — DEUX mécanismes :
   P1-7 (complétion du DÉPART — backlog), FND-034/035/036 (low),
   mot de passe oublié + Europe (décision armateur : plus tard).
 ### Tests : tests/test_iter138_audit_qa.py (4) + iter136/137/135/133 = 34 verts.
+
+## Itération 139 (26/08/2026) — Balises de chenaux respectées (Moteur F) + zones rouges précises cliquables
+### Bug armateur (25/08) : balises non imposées à Lorient (« La Petite Jument »,
+### N° 2/3/4/6/7, « Banc du Turc », « Écrevisse »), au Croisic (« Les Rouzins »)
+### et au Golfe (« Kerpenhir »). 5 causes racines corrigées (gated v6 uniquement) :
+1. seamarks.mark_dir_confident : le cache `_dir_conf_v5` court-circuitait le
+   bloc V6 (un None v5 empêchait l'héritage de direction) → le cache v5 n'est
+   plus retourné en mode V6, seulement réutilisé comme base.
+2. sidefix._side_insert/_graze_insert : la fenêtre de validation englobait des
+   segments INCHANGÉS déjà « rouges » (arrivée découvrante) → toutes les
+   réparations étaient rejetées au fond. Un segment identique au tracé courant
+   n'est plus re-validé (cur_segs).
+3. enforce_mark_sides : les phases côtés/frôlements sont rejouées une 2e passe
+   (réparations interdépendantes : écarter N° 3 débloque Banc du Turc).
+4. Faux couple « N° 4 »–« N° 3 » (direction SW absurde) : si la direction du
+   couple est OPPOSÉE au consensus des latérales fiables voisines et que la
+   bathy est muette, le consensus prime (_dir_v6_inferred).
+5. « Écrevisse » : sur un LONG bord (> 900 m), variante « épinglée » (± 300 m
+   autour de la balise, le reste du bord garde sa ligne) + une infraction
+   PRÉEXISTANTE sur le tracé courant (épave frôlée à 38 m) ne bloque plus une
+   réparation (_seg_marks_ok(ref=pts)).
+### Résultat : route Lorient (entrée du port) = 0 balise du mauvais côté (6 avant).
+### Feature carte (demande armateur) : zones ROUGES PRÉCISES
+- route.ts (__setRoute) : le rouge #FF1744 est peint sur les échantillons du
+  depth_profile SOUS le seuil (interpolation aux bords), plus jamais le tronçon
+  waypoint-à-waypoint entier. Fallback tronçon entier si raison low_margin ou
+  profil muet (aucun avertissement perdu). Triangle ⚠ par zone.
+- Tap sur une zone rouge → postMsg route_tap + danger{min_depth_m, threshold_m,
+  reason} → le menu « Route sûre » s'ouvre AVEC un bandeau rouge
+  (testID route-menu-danger) « Hauteur d'eau insuffisante ici : fond mini ~X m
+  pour un besoin de Y m » ET toutes les options habituelles.
+### Tests : tests/test_iter139_directions_chenaux.py (6) + e2e
+### tests/test_iter139_e2e_lorient.py (3) ; régressions iter136/137/138 = 26 verts.
+### Baseline git stash : les échecs e2e iter101/103/104 + OTP 429 sont
+### PRÉEXISTANTS à l'environnement du fork (identiques avant/après correctifs).

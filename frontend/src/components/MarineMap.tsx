@@ -6,6 +6,13 @@ import { captureRef } from "react-native-view-shot";
 import { TYPE_COLOR, buildHtml } from "./marine-map/leaflet-html";
 import type { ComputedRoute, ReportItem, Seamark } from "@/src/api/client";
 
+/** 26/08/2026 — info portée par le tap d'une ZONE ROUGE de la route. */
+export interface RouteTapDanger {
+  min_depth_m?: number | null;
+  threshold_m?: number | null;
+  reason?: string | null;
+}
+
 // Base URL du backend — utilisée DANS la WebView pour charger les isobathes.
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
 
@@ -96,8 +103,11 @@ type Props = {
   bathymetryOpacity?: number;
   /** N1 (20/07/2026) — route sûre calculée (waypoints + profil) ou null. */
   route?: ComputedRoute | null;
-  /** 21/07/2026 — tap sur le tracé de la route (menu détails/supprimer). */
-  onRouteTap?: () => void;
+  /** 21/07/2026 — tap sur le tracé de la route (menu détails/supprimer).
+   *  26/08/2026 — tap sur une ZONE ROUGE : `danger` transporte l'info de
+   *  faible hauteur d'eau (fond mini, seuil, raison) à afficher dans le
+   *  menu de la route. */
+  onRouteTap?: (danger?: RouteTapDanger | null) => void;
   /** 22/07/2026 — waypoints de la route MANUELLE en cours de création. */
   manualPoints?: { lat: number; lng: number }[] | null;
   /** 11/08 (règle armateur) — édition : SEUL ce waypoint est déplaçable
@@ -440,7 +450,7 @@ export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
       } else if (d.event === "ruler_tap") {
         onRulerTap?.();
       } else if (d.event === "route_tap") {
-        onRouteTap?.();
+        onRouteTap?.(d.danger ?? null);
       } else if (d.event === "seamark_tap" && d.mark) {
         onSeamarkTap?.(d.mark);
       } else if (d.event === "measure_snap") {

@@ -46,7 +46,7 @@ from core.routing_engines.algos.signalmar_v2.standoff import (
     _best_insert_index, _closest_on, _d_m, _length_m,
 )
 from core.routing_engines.algos.signalmar_v4 import _audit_wrong_sides
-from core.seamarks import get_seamarks
+from core.seamarks import DIR_COHERENCE_V6, get_seamarks
 
 logger = logging.getLogger("signalmar.routing.v6.sidefix")
 
@@ -62,11 +62,34 @@ DEFAULT_PARAMS: dict[str, Any] = {
     # Abords du départ / de l'arrivée DEMANDÉS : on ne déplace rien.
     "sidefix_exempt_m": 200.0,
     # Nombre de balises réparées au maximum (sécurité perf).
-    "sidefix_max_marks": 6,
+    "sidefix_max_marks": 10,
 }
 
 #: Mêmes constantes que l'audit du Moteur D (_INFLUENCE_M / _EXEMPT_M).
 _INFLUENCE_M = 200.0
+
+
+def pair_influence(sm, m: dict) -> float:
+    """Portée d'imposition du côté d'une latérale. 25/08 (bug Lorient « La
+    Petite Jument » : MAUVAIS côté à 93 m, ancien plafond 0,8 × couple =
+    85 m → jamais réparée) : pour un couple, plafond relevé à
+    min(200, max(1,2 × écartement, 80)) — passer juste À CÔTÉ de la porte du
+    mauvais côté est bien une faute de balisage."""
+    infl = _INFLUENCE_M
+    pair = sm._pair_of(m)
+    if pair is not None:
+        gap = math.hypot((pair["lat"] - m["lat"]) * M_PER_DEG_LAT,
+                         (pair["lng"] - m["lng"]) * m_per_deg_lng(m["lat"]))
+        if DIR_COHERENCE_V6.get():
+            infl = min(infl, max(1.2 * gap, 80.0))
+        else:  # comportement Moteur F validé (audit v4)
+            infl = min(infl, max(0.8 * gap, 40.0))
+    # 25/08 — direction HÉRITÉE du voisinage (pas de signal propre) : portée
+    # réduite, on n'impose pas un chenal secondaire à une route qui passe au
+    # large (A6/A8/M6 de Kernevel).
+    if m.get("_dir_v6_inferred"):
+        infl = min(infl, 120.0)
+    return infl
 
 
 def merge_params(params: Optional[dict]) -> dict[str, Any]:
@@ -113,12 +136,7 @@ def side_violations(
         u = required_side_u(sm, m)
         if u is None:
             continue
-        infl = _INFLUENCE_M
-        pair = sm._pair_of(m)
-        if pair is not None:
-            gap = math.hypot((pair["lat"] - m["lat"]) * M_PER_DEG_LAT,
-                             (pair["lng"] - m["lng"]) * m_per_deg_lng(m["lat"]))
-            infl = min(infl, max(0.8 * gap, 40.0))
+        infl = pair_influence(sm, m)
         d, i, p = _closest_on(pts, m["lat"], m["lng"], mlng)
         if d > infl:
             continue
@@ -186,6 +204,7 @@ def _reroute_bracket(
     pts: list[Pt], i0: int, i1: int, mlng: float, *,
     draft_m: float, depth_margin_m: float, lateral_margin_m: float,
     tide_m: float, max_detour_m: float,
+    sm=None, exempt: Optional[tuple[Pt, Pt]] = None, exempt_m: float = 200.0,
 ) -> Optional[list[Pt]]:
     """RE-CALCUL LOCAL du tronçon fautif [i0..i1] : A* pleine résolution sur
     une courte fenêtre — c'est la passe fine (masques de côté armés) que le
@@ -211,6 +230,14 @@ def _reroute_bracket(
     sw[0], sw[-1] = a, b
     if _length_m(sw, mlng) - _length_m(pts[i0:i1 + 1], mlng) > max_detour_m:
         return None
+    # 25/08 — hors zone pilote (maille ATL100 > 35 m) le sous-A* n'applique
+    # PAS les côtés : le sous-tracé ne doit créer AUCUNE nouvelle infraction
+    # de balisage (mauvais côté / frôlement), sinon repli géométrique.
+    if sm is not None and exempt is not None and DIR_COHERENCE_V6.get():
+        if not all(_seg_marks_ok(sm, sw[k], sw[k + 1], mlng, exempt, exempt_m,
+                                 repair_mode=True, ref=pts)
+                   for k in range(len(sw) - 1)):
+            return None
     return pts[:i0] + sw + pts[i1 + 1:]
 
 
@@ -235,10 +262,18 @@ def _wrong_side(m: dict, u: Pt, p: Pt, mlng: float) -> bool:
 def _side_insert(
     pts: list[Pt], m: dict, u: Pt, target: float, infl: float,
     val: _Validator, max_detour_m: float, mlng: float, pair: Optional[dict],
+    sm=None, exempt: Optional[tuple[Pt, Pt]] = None, exempt_m: float = 200.0,
 ) -> Optional[list[Pt]]:
     """Repli géométrique : insertion d'UN point de passage du BON côté
-    (milieu de porte si couple), points intérieurs du mauvais côté retirés."""
+    (milieu de porte si couple), points intérieurs du mauvais côté retirés.
+
+    26/08 (bug Lorient : « N° 3 »/« Banc du Turc » jamais réparées) : la
+    fenêtre de validation englobait des segments INCHANGÉS du tracé (dont un
+    segment d'arrivée déjà « rouge ») → tous les candidats étaient rejetés
+    au fond. Un segment identique au tracé courant ne peut pas créer de
+    régression : il n'est plus re-validé."""
     n0 = len(pts)
+    cur_segs = {(pts[k], pts[k + 1]) for k in range(n0 - 1)}
     base = [p for k, p in enumerate(pts)
             if k in (0, n0 - 1)
             or not (_d_m(p, m["lat"], m["lng"], mlng) < infl * 1.3
@@ -269,17 +304,55 @@ def _side_insert(
 
     for q in cands:
         j = _best_insert_index(base, q, mlng, i)
-        cand = base[:j + 1] + [q] + base[j + 1:]
-        if _length_m(cand, mlng) - len0 > max_detour_m:
-            continue
-        d2, _i2, p2 = _closest_on(cand, m["lat"], m["lng"], mlng)
-        if d2 <= infl and _wrong_side(m, u, p2, mlng):
-            continue  # toujours du mauvais côté
-        allow = val.orig_relaxed(base[j], base[j + 1] if j + 1 < len(base) else base[j])
-        lo = max(0, j - 1)
-        hi = min(len(cand) - 1, j + 3)
-        if all(val.seg_ok(cand[k], cand[k + 1], allow_relaxed=allow)
-               for k in range(lo, hi)):
+        a0 = base[j]
+        b0 = base[j + 1] if j + 1 < len(base) else base[j]
+        variants: list[tuple[list[Pt], int]] = [
+            (base[:j + 1] + [q] + base[j + 1:], 1)]
+        # 26/08 (bug Lorient « Écrevisse ») — sur un LONG bord, insérer q
+        # seul fait pivoter tout le bord (3,5 km) et peut le rapprocher
+        # d'un danger lointain. Variante « épinglée » : le bord garde sa
+        # ligne d'origine sauf aux abords de la balise (± 300 m).
+        seg_len = _d_m(a0, b0[0], b0[1], mlng)
+        if seg_len > 900.0:
+            sx = (b0[1] - a0[1]) * mlng
+            sy = (b0[0] - a0[0]) * M_PER_DEG_LAT
+            qx = (q[1] - a0[1]) * mlng
+            qy = (q[0] - a0[0]) * M_PER_DEG_LAT
+            t = max(0.0, min(seg_len, (qx * sx + qy * sy) / max(seg_len, 1.0)))
+            mid: list[Pt] = []
+            for tt in (t - 300.0, None, t + 300.0):
+                if tt is None:
+                    mid.append(q)
+                elif 50.0 < tt < seg_len - 50.0:
+                    f = tt / seg_len
+                    mid.append((a0[0] + (b0[0] - a0[0]) * f,
+                                a0[1] + (b0[1] - a0[1]) * f))
+            if len(mid) > 1:
+                variants.append((base[:j + 1] + mid + base[j + 1:], len(mid)))
+
+        for cand, ins_n in variants:
+            if _length_m(cand, mlng) - len0 > max_detour_m:
+                continue
+            d2, _i2, p2 = _closest_on(cand, m["lat"], m["lng"], mlng)
+            if d2 <= infl and _wrong_side(m, u, p2, mlng):
+                continue  # toujours du mauvais côté
+            allow = val.orig_relaxed(a0, b0)
+            lo = max(0, j - 1)
+            hi = min(len(cand) - 1, j + 2 + ins_n)
+            changed = [k for k in range(lo, hi)
+                       if (cand[k], cand[k + 1]) not in cur_segs]
+            if not all(val.seg_ok(cand[k], cand[k + 1], allow_relaxed=allow)
+                       for k in changed):
+                continue
+            # aucune NOUVELLE infraction de balisage (segments modifiés)
+            if sm is not None and exempt is not None and DIR_COHERENCE_V6.get():
+                others_ok = all(
+                    _seg_marks_ok(sm, cand[k], cand[k + 1], mlng, exempt,
+                                  exempt_m, ignore=m, repair_mode=True,
+                                  ref=pts)
+                    for k in changed)
+                if not others_ok:
+                    continue
             return cand
     return None
 
@@ -289,8 +362,10 @@ def _graze_insert(
     val: _Validator, max_detour_m: float, mlng: float,
 ) -> Optional[list[Pt]]:
     """Écarte le tracé d'une balise frôlée SANS changer de côté (le côté est
-    imposé par le balisage) — version deux-seuils du standoff v2."""
+    imposé par le balisage) — version deux-seuils du standoff v2.
+    26/08 : segments inchangés jamais re-validés (cf. _side_insert)."""
     n0 = len(pts)
+    cur_segs = {(pts[k], pts[k + 1]) for k in range(n0 - 1)}
     base = [p for k, p in enumerate(pts)
             if k in (0, n0 - 1) or _d_m(p, m_lat, m_lng, mlng) >= target]
     if len(base) < 2:
@@ -326,7 +401,8 @@ def _graze_insert(
                                      base[j + 1] if j + 1 < len(base) else base[j])
             lo = max(0, j - 1)
             hi = min(len(cand) - 1, j + 3)
-            if all(val.seg_ok(cand[k], cand[k + 1], allow_relaxed=allow)
+            if all((cand[k], cand[k + 1]) in cur_segs
+                   or val.seg_ok(cand[k], cand[k + 1], allow_relaxed=allow)
                    for k in range(lo, hi)):
                 return cand
     return None
@@ -346,8 +422,23 @@ def _turn_angle_deg(pts: list[Pt], i: int, mlng: float) -> float:
 
 
 def _seg_marks_ok(sm, a: Pt, c: Pt, mlng: float,
-                  exempt: tuple[Pt, Pt], exempt_m: float) -> bool:
-    """True si le segment direct a→c ne crée ni frôlement ni mauvais côté."""
+                  exempt: tuple[Pt, Pt], exempt_m: float,
+                  ignore: Optional[dict] = None,
+                  repair_mode: bool = False,
+                  ref: Optional[list[Pt]] = None) -> bool:
+    """True si le segment direct a→c ne crée ni frôlement ni mauvais côté.
+
+    26/08 — ``ref`` (tracé COURANT) : une gêne DÉJÀ présente sur le tracé
+    d'origine (ex. épave frôlée à 38 m sur un long bord inchangé en
+    direction) ne bloque pas la réparation — seule une infraction NOUVELLE
+    compte (bug Lorient « Écrevisse » jamais réparée)."""
+
+    def _preexisting(o_lat: float, o_lng: float, thresh: float) -> bool:
+        if ref is None:
+            return False
+        d0, _i0, _p0 = _closest_on(ref, o_lat, o_lng, mlng)
+        return d0 < thresh
+
     lat_s, lat_n = min(a[0], c[0]) - 0.005, max(a[0], c[0]) + 0.005
     lng_w, lng_e = min(a[1], c[1]) - 0.005, max(a[1], c[1]) + 0.005
     for (m_lat, m_lng2, r_std, _name) in sm.standoff_circles(
@@ -355,9 +446,12 @@ def _seg_marks_ok(sm, a: Pt, c: Pt, mlng: float,
         if any(_d_m(q, m_lat, m_lng2, mlng) < exempt_m for q in exempt):
             continue
         d, _i, _p = _closest_on([a, c], m_lat, m_lng2, mlng)
-        if d < r_std - 1.0:
+        thr = 0.6 * r_std if repair_mode else r_std - 1.0
+        if d < thr and not _preexisting(m_lat, m_lng2, thr):
             return False
     for m in sm.marks:
+        if m is ignore:
+            continue
         if m.get("kind") != "lateral" or m.get("category") not in ("port", "starboard"):
             continue
         if not (lat_s <= m["lat"] <= lat_n and lng_w <= m["lng"] <= lng_e):
@@ -367,14 +461,31 @@ def _seg_marks_ok(sm, a: Pt, c: Pt, mlng: float,
         u = required_side_u(sm, m)
         if u is None:
             continue
-        infl = _INFLUENCE_M
-        pair = sm._pair_of(m)
-        if pair is not None:
-            gap = math.hypot((pair["lat"] - m["lat"]) * M_PER_DEG_LAT,
-                             (pair["lng"] - m["lng"]) * m_per_deg_lng(m["lat"]))
-            infl = min(infl, max(0.8 * gap, 40.0))
+        infl = pair_influence(sm, m)
+        if repair_mode:
+            # en réparation, seule la création d'un FRÔLEMENT est bloquante
+            # ici : les côtés sont re-contrôlés globalement (tours suivants
+            # + garde-fou net final).
+            continue
         d, _i, p = _closest_on([a, c], m["lat"], m["lng"], mlng)
         if d <= infl and _wrong_side(m, u, p, mlng):
+            return False
+    # 25/08 (mode cohérence chenaux uniquement) — le segment direct ne doit
+    # pas traverser un champ de mouillage ni frôler un danger.
+    if not DIR_COHERENCE_V6.get():
+        return True
+    la_c, lo_c = (a[0] + c[0]) / 2, (a[1] + c[1]) / 2
+    for mo in sm.moorings:
+        if abs(mo["lat"] - la_c) > 0.02 or abs(mo["lng"] - lo_c) > 0.03:
+            continue
+        d, _i, _p = _closest_on([a, c], mo["lat"], mo["lng"], mlng)
+        if d < 45.0 and not _preexisting(mo["lat"], mo["lng"], 45.0):
+            return False
+    for h in sm.hazards:
+        if abs(h["lat"] - la_c) > 0.02 or abs(h["lng"] - lo_c) > 0.03:
+            continue
+        d, _i, _p = _closest_on([a, c], h["lat"], h["lng"], mlng)
+        if d < 40.0 and not _preexisting(h["lat"], h["lng"], 40.0):
             return False
     return True
 
@@ -390,12 +501,18 @@ def _smooth_hairpins(
     removed = 0
     frozen: set[Pt] = set()
     while removed < max_removals:
-        worst_i, worst_ang = -1, 100.0
+        worst_i, worst_ang = -1, 0.0
         for i in range(1, len(pts) - 1):
             if pts[i] in frozen:
                 continue
             ang = _turn_angle_deg(pts, i, mlng)
-            if ang > worst_ang:
+            # 25/08 (« virages droite puis gauche injustifiés » après Grand
+            # Mouton) — en plus des épingles (> 100°), les CROCHETS locaux
+            # (> 60° entre deux segments courts < 500 m) sont candidats.
+            local = (DIR_COHERENCE_V6.get() and ang > 60.0
+                     and _d_m(pts[i], pts[i - 1][0], pts[i - 1][1], mlng) < 500.0
+                     and _d_m(pts[i], pts[i + 1][0], pts[i + 1][1], mlng) < 500.0)
+            if (ang > 100.0 or local) and ang > worst_ang:
                 worst_ang, worst_i = ang, i
         if worst_i < 0:
             break
@@ -449,64 +566,94 @@ def enforce_mark_sides(
                      gates_arr, strict_depth)
 
     fixed: list[str] = []
-    budget = int(p["sidefix_max_marks"])
+    budget = int(p["sidefix_max_marks"]) if DIR_COHERENCE_V6.get() else 6
 
-    # ── 1. MAUVAIS CÔTÉS (priorité armateur : le balisage prime) ─────────
-    for _round in range(2):
-        viols = side_violations(sm, pts, exempt, mlng, exempt_m)
-        if not viols or budget <= 0:
-            break
-        progressed = False
-        for (_d0, seg_i, m, u, infl) in viols[:budget]:
-            name = m.get("name") or f"latérale {m['category']}"
-            i0, i1 = _brackets(pts, seg_i, m["lat"], m["lng"], mlng,
-                               infl + 120.0)
-            cand = None
-            if i1 > i0:
-                cand = _reroute_bracket(
-                    pts, i0, i1, mlng,
-                    draft_m=draft_m, depth_margin_m=depth_margin_m,
-                    lateral_margin_m=lateral_margin_m, tide_m=tide_m,
-                    max_detour_m=max_detour)
+    # 26/08 (bug Lorient : réparations INTERDÉPENDANTES) — écarter une
+    # balise frôlée (phase 2) peut débloquer la réparation d'un mauvais
+    # côté voisin (phase 1, ex. « N° 3 » puis « Banc du Turc ») : les deux
+    # phases sont rejouées une seconde fois en mode cohérence chenaux.
+    for _pass in range(2 if DIR_COHERENCE_V6.get() else 1):
+        budget_at_pass = budget
+
+        # ── 1. MAUVAIS CÔTÉS (priorité armateur : le balisage prime) ─────
+        for _round in range(4 if DIR_COHERENCE_V6.get() else 2):
+            viols = side_violations(sm, pts, exempt, mlng, exempt_m)
+            if not viols or budget <= 0:
+                break
+            progressed = False
+            for (_d0, seg_i, m, u, infl) in viols[:budget]:
+                name = m.get("name") or f"latérale {m['category']}"
+                i0, i1 = _brackets(pts, seg_i, m["lat"], m["lng"], mlng,
+                                   infl + 120.0)
+                cand = None
+                if i1 > i0:
+                    cand = _reroute_bracket(
+                        pts, i0, i1, mlng,
+                        draft_m=draft_m, depth_margin_m=depth_margin_m,
+                        lateral_margin_m=lateral_margin_m, tide_m=tide_m,
+                        max_detour_m=max_detour,
+                        sm=sm, exempt=exempt, exempt_m=exempt_m)
+                    if cand is not None:
+                        d2, _i2, p2 = _closest_on(cand, m["lat"], m["lng"],
+                                                  mlng)
+                        if d2 <= infl and _wrong_side(m, u, p2, mlng):
+                            cand = None  # toujours fautif : repli géométrique
+                if cand is None:
+                    r_std = min(60.0, max(0.35 * sm._nearest_lateral_m(m),
+                                          25.0))
+                    cand = _side_insert(pts, m, u, r_std + pad, infl, val,
+                                        max_detour, mlng, sm._pair_of(m),
+                                        sm=sm, exempt=exempt,
+                                        exempt_m=exempt_m)
                 if cand is not None:
-                    d2, _i2, p2 = _closest_on(cand, m["lat"], m["lng"], mlng)
-                    if d2 <= infl and _wrong_side(m, u, p2, mlng):
-                        cand = None  # toujours fautif : repli géométrique
-            if cand is None:
-                r_std = min(60.0, max(0.35 * sm._nearest_lateral_m(m), 25.0))
-                cand = _side_insert(pts, m, u, r_std + pad, infl, val,
-                                    max_detour, mlng, sm._pair_of(m))
-            if cand is not None:
-                pts = cand
-                budget -= 1
-                progressed = True
-                if name not in fixed:
-                    fixed.append(name)
-        if not progressed:
-            break
+                    pts = cand
+                    budget -= 1
+                    progressed = True
+                    if name not in fixed:
+                        fixed.append(name)
+            if not progressed:
+                break
 
-    # ── 2. FRÔLEMENTS résiduels (écart minimal, deux seuils) ─────────────
-    for _round in range(2):
-        grz = graze_violations(sm, pts, exempt, mlng, exempt_m)
-        if not grz or budget <= 0:
-            break
-        progressed = False
-        for (_d0, _seg_i, (m_lat, m_lng), r_std, name) in grz[:budget]:
-            cand = _graze_insert(pts, m_lat, m_lng, r_std + pad, val,
-                                 max_detour, mlng)
-            if cand is not None:
-                pts = cand
-                budget -= 1
-                progressed = True
-                if name not in fixed:
-                    fixed.append(name)
-        if not progressed:
-            break
+        # ── 2. FRÔLEMENTS résiduels (écart minimal, deux seuils) ─────────
+        for _round in range(2):
+            grz = graze_violations(sm, pts, exempt, mlng, exempt_m)
+            if not grz or budget <= 0:
+                break
+            progressed = False
+            for (_d0, _seg_i, (m_lat, m_lng), r_std, name) in grz[:budget]:
+                cand = _graze_insert(pts, m_lat, m_lng, r_std + pad, val,
+                                     max_detour, mlng)
+                if cand is not None:
+                    pts = cand
+                    budget -= 1
+                    progressed = True
+                    if name not in fixed:
+                        fixed.append(name)
+            if not progressed:
+                break
+
+        if budget == budget_at_pass or budget <= 0:
+            break  # rien réparé à cette passe : inutile de rejouer
 
     # ── 3. LISSAGE des épingles (« trajectoire en Z non justifiée ») ─────
     pts, n_smooth = _smooth_hairpins(pts, sm, val, mlng, exempt, exempt_m)
 
     if not fixed and not n_smooth:
+        return result
+
+    # ── Garde-fou NET (25/08) : le tracé réparé doit être STRICTEMENT
+    # meilleur (score = mauvais côtés + frôlements, frôlement < 25 m compte
+    # double). Sinon, résultat d'origine conservé tel quel.
+    def _score(pp: list[Pt]) -> int:
+        sc = 0
+        for (_d, _i, _m, _u, _infl) in side_violations(sm, pp, exempt, mlng, exempt_m):
+            sc += 1
+        for (dd, _i, _mm, _rs, _n) in graze_violations(sm, pp, exempt, mlng, exempt_m):
+            sc += 2 if dd < 25.0 else 1
+        return sc
+
+    orig_pts = [(float(w["lat"]), float(w["lng"])) for w in wps]
+    if DIR_COHERENCE_V6.get() and fixed and _score(pts) >= _score(orig_pts):
         return result
 
     # ── Reconstruction des champs dépendants de la géométrie ─────────────

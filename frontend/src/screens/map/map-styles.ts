@@ -711,6 +711,16 @@ export const styles = StyleSheet.create({
     padding: spacing.md, gap: 10,
   },
   unitPickerHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  // 26/08/2026 — bandeau « faible hauteur d'eau » du menu de la route
+  // (tap sur une zone rouge du tracé).
+  routeDangerBanner: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    backgroundColor: "rgba(255,23,68,0.12)", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(255,23,68,0.45)",
+    padding: 10, marginBottom: 4,
+  },
+  routeDangerTitle: { color: "#FF5252", fontSize: 14, fontWeight: "800" },
+  routeDangerText: { color: theme.text, fontSize: 12.5, lineHeight: 17, marginTop: 2 },
   unitPickerTitle: { color: theme.text, fontSize: 15, fontWeight: "800" },
   unitPickerRow: {
     flexDirection: "row", alignItems: "center", gap: 10,

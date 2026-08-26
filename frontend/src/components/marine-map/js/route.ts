@@ -55,53 +55,90 @@ export const JS_ROUTE = `  // ── N1 (20/07/2026) — ROUTE SÛRE calculée p
         } else { flush(); }
       }
       flush();
-      // 24/07/2026 (demande armateur) — TRONÇONS COMPROMIS en ROUGE VIF.
-      // 29/07 (façon Navionics) : trait rouge PLEIN + triangle ⚠ au milieu de
-      // chaque tronçon ; un tap sur le trait ou le triangle ouvre la popup
-      // rouge « Eau peu profonde ».
-      function _dangerPop(latlng, txt){
-        L.popup({ className: 'sm-danger-pop', closeButton: false, autoPan: false, offset: [0, -8] })
-          .setLatLng(latlng).setContent(txt || 'Eau peu profonde').openOn(map);
+      // 24/07/2026 (demande armateur) — zones dangereuses en ROUGE VIF.
+      // 26/08/2026 (demande armateur) — ZONES ROUGES PRÉCISES : seuls les
+      // échantillons du profil de profondeur SOUS le seuil sont peints en
+      // rouge (plus le tronçon entier). Un tap sur une zone rouge envoie
+      // route_tap AVEC l'info de hauteur d'eau → le menu RN affiche la
+      // faible hauteur d'eau ET les options de la route.
+      function _dangerTap(danger){
+        return function(ev){
+          if (ev.originalEvent){ ev.originalEvent._smRouteTap = true; }
+          postMsg({ event: 'route_tap', danger: danger });
+        };
       }
-      // 03/08/2026 (Moteur C) — MOTIF du tronçon rouge : le backend renvoie
-      // leg_reasons {index: 'shallow'|'low_margin'} → le tap affiche la vraie
-      // raison au lieu du texte générique.
-      function _dangerTxt(li){
-        var r = (route.leg_reasons || {})[String(li)];
-        if (r === 'low_margin') return 'Marge lat\u00e9rale < 20 m';
-        if (r === 'shallow') return 'Zone peu profonde ou d\u00e9couverte';
-        return 'Eau peu profonde';
+      function _dangerTri(latlng, danger){
+        L.marker(latlng, {
+          interactive: true, zIndexOffset: 1200,
+          icon: L.divIcon({
+            className: '', iconSize: [0, 0], iconAnchor: [0, 0],
+            html: '<div class="sm-danger-tri">\u26A0</div>',
+          }),
+        }).on('click', _dangerTap(danger)).addTo(_routeLayer);
       }
+      var thr = (typeof route.threshold_m === 'number') ? route.threshold_m : 2;
+      var zones = [];
+      var zpts = null, zmin = null;
+      function _mid(a, b){ return [(a.lat + b.lat) / 2, (a.lng + b.lng) / 2]; }
+      for (var q = 0; q < prof.length; q++){
+        var pp = prof[q];
+        var bad = (typeof pp.lat === 'number' && pp.depth_m != null && pp.depth_m < thr);
+        if (bad){
+          if (!zpts){
+            zpts = [];
+            if (q > 0) zpts.push(_mid(prof[q - 1], pp));
+            zmin = pp.depth_m;
+          }
+          zpts.push([pp.lat, pp.lng]);
+          if (pp.depth_m < zmin) zmin = pp.depth_m;
+        } else if (zpts){
+          if (typeof pp.lat === 'number') zpts.push(_mid(prof[q - 1], pp));
+          if (zpts.length >= 2) zones.push({ pts: zpts, min: zmin });
+          zpts = null; zmin = null;
+        }
+      }
+      if (zpts && zpts.length >= 2) zones.push({ pts: zpts, min: zmin });
+      for (var zi = 0; zi < zones.length; zi++){
+        (function(z){
+          var danger = { min_depth_m: z.min, threshold_m: thr, reason: 'shallow' };
+          L.polyline(z.pts, {
+            color: '#FF1744', weight: 6, opacity: 0.95,
+            interactive: true, bubblingMouseEvents: false,
+          }).on('click', _dangerTap(danger)).addTo(_routeLayer);
+          _dangerTri(z.pts[Math.floor(z.pts.length / 2)], danger);
+        })(zones[zi]);
+      }
+      // Tronçons compromis SANS zone précise correspondante (raison ≠ fond,
+      // ex. marge latérale, ou profil muet) : tronçon entier conservé en
+      // rouge — on ne perd JAMAIS un avertissement.
       var comp = route.compromised_legs || [];
+      function _zoneNearLeg(a, b){
+        for (var k2 = 0; k2 < zones.length; k2++){
+          var zp = zones[k2].pts;
+          for (var k3 = 0; k3 < zp.length; k3++){
+            var okLat = Math.min(a[0], b[0]) - 0.001 <= zp[k3][0] && zp[k3][0] <= Math.max(a[0], b[0]) + 0.001;
+            var okLng = Math.min(a[1], b[1]) - 0.0015 <= zp[k3][1] && zp[k3][1] <= Math.max(a[1], b[1]) + 0.0015;
+            if (okLat && okLng) return true;
+          }
+        }
+        return false;
+      }
       for (var ci = 0; ci < comp.length; ci++){
         var li = comp[ci];
-        if (li >= 0 && li < pts.length - 1){
-          (function(idx){
-            L.polyline([pts[idx], pts[idx + 1]], {
-              color: '#FF1744', weight: 6, opacity: 0.95,
-              interactive: true, bubblingMouseEvents: false,
-            }).on('click', function(ev){
-              if (ev.originalEvent){ ev.originalEvent._smRouteTap = true; }
-              _dangerPop(ev.latlng, _dangerTxt(idx));
-            }).addTo(_routeLayer);
-          })(li);
-          var mid = [
-            (pts[li][0] + pts[li + 1][0]) / 2,
-            (pts[li][1] + pts[li + 1][1]) / 2,
-          ];
-          (function(m2, idx){
-            L.marker(m2, {
-              interactive: true, zIndexOffset: 1200,
-              icon: L.divIcon({
-                className: '', iconSize: [0, 0], iconAnchor: [0, 0],
-                html: '<div class="sm-danger-tri">\u26A0</div>',
-              }),
-            }).on('click', function(ev){
-              if (ev.originalEvent){ ev.originalEvent._smRouteTap = true; }
-              _dangerPop(L.latLng(m2[0], m2[1]), _dangerTxt(idx));
-            }).addTo(_routeLayer);
-          })(mid, li);
-        }
+        if (li < 0 || li >= pts.length - 1) continue;
+        var rs0 = (route.leg_reasons || {})[String(li)] || 'shallow';
+        if (rs0 !== 'low_margin' && _zoneNearLeg(pts[li], pts[li + 1])) continue;
+        (function(idx, rs){
+          var danger = { min_depth_m: null, threshold_m: thr, reason: rs };
+          L.polyline([pts[idx], pts[idx + 1]], {
+            color: '#FF1744', weight: 6, opacity: 0.95,
+            interactive: true, bubblingMouseEvents: false,
+          }).on('click', _dangerTap(danger)).addTo(_routeLayer);
+          _dangerTri([
+            (pts[idx][0] + pts[idx + 1][0]) / 2,
+            (pts[idx][1] + pts[idx + 1][1]) / 2,
+          ], danger);
+        })(li, rs0);
       }
       // Départ (rond vert) / arrivée (drapeau).
       L.circleMarker(pts[0], { radius: 7, color: '#fff', weight: 2, fillColor: '#2EC4B6', fillOpacity: 1, interactive: false }).addTo(_routeLayer);

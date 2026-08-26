@@ -1,0 +1,41 @@
+{
+  "summary": "iter139 SignalMar armateur — 'Zones rouges précises + bandeau danger' fully validated backend + frontend. BACKEND 1 GREEN: pytest suite iter139_directions_chenaux + iter136 + iter137 + iter138 → 26/26 passed in 22.7 s. BACKEND 2/3/4 GREEN: new E2E public-URL pytest (/app/backend/tests/test_iter139_e2e_lorient.py) 3/3: engine_f on Lorient (47.6776,-3.4288)→(47.7299,-3.3568) draft=1.0 margin=0.5 returns wrong_side_marks empty, distance in ~7-12 km tolerance (target ~8.8), waypoints >=2 ; engine_e (frozen) still returns a result on the same Lorient input (no crash) ; response contains a non-empty depth_profile (points with lat/lng/depth_m) AND a numeric threshold_m — the two fields required to render the precise red zones. FRONTEND GREEN: mobile viewport 390×844, login antoninlepinay@gmail.com/123454321 → /map. Simulated the Leaflet iframe → RN bridge via window.postMessage: (1) route_tap+danger{min_depth_m,threshold_m,reason:'shallow'} opens the 'Route sûre' modal AND shows testID='route-menu-danger' banner with 'Hauteur d'eau insuffisante ici' + 'Fond mini ~-1,2 m pour un besoin de 1,5 m. Zone peu profonde ou découverte selon la marée.' and keeps all normal options underneath (Suivre la route, Voir les détails, Recalculer avec un autre moteur, Enregistrer la route, Supprimer la route) ; (2) route_tap without danger opens the SAME modal but WITHOUT the danger banner (banner hidden, options intact). Code review of /app/frontend/src/components/marine-map/js/route.ts confirms precise red zones: only depth_profile samples with depth_m<threshold_m are painted #FF1744 (with midpoint interpolation on entry/exit), a ⚠ divIcon marker is added on each zone, and clicking either sends postMsg({event:'route_tap', danger:{min_depth_m, threshold_m, reason:'shallow'}}) — chain end-to-end coherent with the RN handler in map.tsx (lines 3651-3672). No red-screen, no console errors (only known non-blocking RN Web deprecation warnings: shadow*, textShadow*, props.pointerEvents — same as previous iterations, non-regression).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RN Web deprecated style props", "issue": "Console warnings on web only: 'shadow*' → boxShadow, 'textShadow*' → textShadow, 'props.pointerEvents' → 'style.pointerEvents'. Non-blocking, not a regression (same as iter137/iter138 reports)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter139_directions_chenaux.py",
+    "/app/backend/tests/test_iter136_moteur_f_trinite_truie.py",
+    "/app/backend/tests/test_iter137_cardinale_chenal.py",
+    "/app/backend/tests/test_iter138_audit_qa.py",
+    "/app/backend/tests/test_iter139_e2e_lorient.py",
+    "/app/test_reports/pytest/iter139_combined.xml",
+    "/app/test_reports/pytest/iter139_e2e.xml"
+  ],
+  "action_items": [
+    "(Optional, low priority) Sweep deprecated RN Web style props (shadow* → boxShadow, textShadow* → textShadow, props.pointerEvents → style.pointerEvents) to silence web-only console warnings — no functional impact."
+  ],
+  "critical_code_review_comments": [
+    "route.ts precise red-zones logic (lines ~79-110) uses midpoint interpolation on entry/exit of a bad-depth run — good, prevents gaps between the fushia and red segments. Fallback keeps entire compromised leg red when profile is silent OR reason='low_margin' (lines 111-142) — belt-and-braces, no danger warning ever lost.",
+    "map.tsx routeMenuDanger banner (lines 3651-3672) branches on reason='low_margin' vs shallow: uses testID='route-menu-danger' consistently and keeps the standard Follow/Details/Recompute/Save/Delete options visible below the banner — spec respected.",
+    "Backend POST /api/routes/compute (and compute/async) is engine-aware and now returns depth_profile + threshold_m at top level — verified by iter139 E2E test. engine_e still returns a result on the Lorient input (gel confirmé, no crash)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter139_e2e_lorient.py (new — 3 E2E API tests via public URL: engine_f OK on Lorient, engine_e still returns a result, depth_profile+threshold_m present)"
+  ],
+  "success_rate": {
+    "backend": "100% (26/26 unit pytest iter139+iter138+iter137+iter136 + 3/3 E2E public-URL iter139_e2e_lorient)",
+    "frontend": "100% for tested wiring (login → map, danger banner shown on route_tap+danger, hidden on plain route_tap, banner text and options coherent)"
+  },
+  "seed_data_creation": "None. Existing seeded user antoninlepinay@gmail.com used for login.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Async job endpoint is GET /api/routes/job/{job_id} (singular 'job', NOT 'jobs'). Login endpoint /api/auth/login returns JSON with field 'token' (NOT 'access_token'). Public URL preview can be SLOW (30-60 s job compute + ~5 s cold call) — timeouts must be ≥60 s per HTTP call and ≥300 s per compute poll. Frontend testIDs: onboarding-next (×2), onboarding-login, login-mode-email, login-email, login-password, login-email-submit (NOT login-submit). Danger banner testID='route-menu-danger'; menu options testIDs = route-menu-follow / route-menu-details / route-menu-refresh / route-menu-save / route-menu-delete. Simulating iframe→RN messages on web preview via window.dispatchEvent(new MessageEvent('message', {data: JSON.stringify({event:'route_tap', danger:{...}}), source: iframes[0].contentWindow})) is the reliable way to exercise the danger wiring without going through the full route compute + WebView click. Real route compute on Lorient takes ~30 s at ambient load.",
+  "rca_of_issue": "N/A — the requested armateur fix (chenaux Lorient/Croisic/Kerpenhir) plus the new precise-red-zones + danger-banner feature are working end-to-end. Backend: engine_f respects channel side marks (wrong_side_marks empty), depth_profile+threshold_m returned. Frontend: Leaflet route layer paints only sub-threshold samples red (#FF1744), adds ⚠ tri, and tap forwards a JSON payload with danger info to RN which shows the testID='route-menu-danger' banner with the correct wording ('Hauteur d'eau insuffisante ici' / 'Fond mini ~X m pour un besoin de Y m'), keeping all normal options underneath. Non-danger taps open the same modal without the banner."
+}

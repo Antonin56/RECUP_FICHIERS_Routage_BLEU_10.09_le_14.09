@@ -20,7 +20,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { MarineMap, type MarineMapHandle } from "@/src/components/MarineMap";
+import { MarineMap, type MarineMapHandle, type RouteTapDanger } from "@/src/components/MarineMap";
 import { api, type ComputedRoute, type ReportItem, type RouteErrorDetail, type SavedRoute, type Seamark } from "@/src/api/client";
 import { theme, spacing, radii } from "@/src/lib/theme";
 import { showToast } from "@/src/components/Toast";
@@ -329,6 +329,9 @@ export default function MapScreen() {
   // tap sur le tracé → menu.
   const [routeCardMode, setRouteCardMode] = useState<"full" | "min" | "hidden">("full");
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
+  // 26/08/2026 (demande armateur) — tap sur une ZONE ROUGE du tracé : le
+  // menu de la route s'ouvre AVEC un bandeau « faible hauteur d'eau ».
+  const [routeMenuDanger, setRouteMenuDanger] = useState<RouteTapDanger | null>(null);
   // ── 02/08/2026 (demande armateur) — A/B TESTING DE MOTEURS ──────────────
   // Une route affichée peut être RECALCULÉE avec un autre moteur : les deux
   // tracés sont superposés sur la carte, les écarts surlignés, chaque tracé
@@ -2215,8 +2218,11 @@ export default function MapScreen() {
         route={route}
         routeCompare={routeComparePayload}
         netQuiet={routeBusy || compareBusy || saferBusy || supportQuiet}
-        onRouteTap={() => {
-          if (!editPoints) setRouteMenuOpen(true);
+        onRouteTap={(danger) => {
+          if (!editPoints) {
+            setRouteMenuDanger(danger ?? null);
+            setRouteMenuOpen(true);
+          }
         }}
         manualPoints={manualPoints ?? editPoints}
         draftEditIndex={editPoints != null ? editIdx : null}
@@ -3640,6 +3646,30 @@ export default function MapScreen() {
               <Ionicons name="navigate" size={18} color="#E5383B" />
               <Text style={styles.unitPickerTitle}>Route sûre</Text>
             </View>
+            {/* 26/08/2026 (demande armateur) — tap sur une ZONE ROUGE :
+                bandeau « faible hauteur d'eau » AVANT les options. */}
+            {routeMenuDanger ? (
+              <View style={styles.routeDangerBanner} testID="route-menu-danger">
+                <Ionicons name="warning" size={20} color="#FF1744" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.routeDangerTitle}>
+                    {routeMenuDanger.reason === "low_margin"
+                      ? "Passage étroit ici"
+                      : "Hauteur d'eau insuffisante ici"}
+                  </Text>
+                  <Text style={styles.routeDangerText}>
+                    {routeMenuDanger.reason === "low_margin"
+                      ? "Marge latérale < 20 m sur ce tronçon — passage à vue recommandé."
+                      : routeMenuDanger.min_depth_m != null
+                        ? `Fond mini ~${routeMenuDanger.min_depth_m.toFixed(1).replace(".", ",")} m${
+                            routeMenuDanger.threshold_m != null
+                              ? ` pour un besoin de ${routeMenuDanger.threshold_m.toFixed(1).replace(".", ",")} m`
+                              : ""}. Zone peu profonde ou découverte selon la marée.`
+                        : "Zone peu profonde ou découverte selon la marée."}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
             <TouchableOpacity
               style={styles.longPressRow}
               onPress={() => {

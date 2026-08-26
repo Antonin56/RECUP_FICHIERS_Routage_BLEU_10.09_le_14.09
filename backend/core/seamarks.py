@@ -119,6 +119,12 @@ SIDE_ABSOLUTE = contextvars.ContextVar("sm_side_absolute", default=False)
 # « la Truie » au départ d'Arradon…) devront être gardées par CE contextvar
 # afin de ne JAMAIS modifier le comportement des Moteurs A/B/C/D/E.
 SIDE_ABSOLUTE_V6 = contextvars.ContextVar("sm_side_absolute_v6", default=False)
+# 25/08/2026 — règles de COHÉRENCE de direction des chenaux (faux couples,
+# héritage de voisinage). Armées UNIQUEMENT par les moteurs dont le document
+# porte ``params.dir_coherence`` (Moteur G) : F reste au comportement validé.
+DIR_COHERENCE_V6 = contextvars.ContextVar("sm_dir_coherence_v6", default=False)
+# Garde anti-récursion de l'héritage de direction (25/08).
+_DIR_INFER_GUARD = contextvars.ContextVar("sm_dir_infer_guard", default=False)
 
 # 27/07/2026 — ZONES DE MOUILLAGE SURFACIQUES (seamark:type=anchorage,
 # ingest_anchorages.py) : mêmes règles que les bouées de mouillage
@@ -467,18 +473,105 @@ class SeamarkIndex:
         if m.get("category") not in ("port", "starboard"):
             return None
         ck = "_dir_conf_v5" if SIDE_ABSOLUTE.get() else "_dir_conf"
-        if ck in m:
+        # 26/08/2026 — le cache v5 ne doit JAMAIS court-circuiter le mode V6
+        # (sinon un None v5 mis en cache par un appel A-E empêche l'héritage
+        # v6 : bug Kerpenhir/Les Rouzins). On ne retourne le cache v5 que
+        # hors mode V6 ; en mode V6 on le réutilise comme base seulement.
+        v6_mode = DIR_COHERENCE_V6.get() and not _DIR_INFER_GUARD.get()
+        if v6_mode and "_dir_conf_v6" in m:
+            return m["_dir_conf_v6"]
+        if not v6_mode and ck in m:
             return m[ck]
-        d = self._pair_dir(m)
-        if d is None:
-            w = self.navigable_side(m)
-            if w is not None:
-                we, wn = w
-                # Verte : la route passe à BÂBORD de D → bâbord(D) = w
-                # ⇒ D = w tourné de −90°. Rouge : tribord(D) = w ⇒ +90°.
-                d = (wn, -we) if m["category"] == "starboard" else (-wn, we)
-        m[ck] = d
+        if ck in m:
+            d = m[ck]
+        else:
+            d = self._pair_dir(m)
+            if d is None:
+                w = self.navigable_side(m)
+                if w is not None:
+                    we, wn = w
+                    # Verte : la route passe à BÂBORD de D → bâbord(D) = w
+                    # ⇒ D = w tourné de −90°. Rouge : tribord(D) = w ⇒ +90°.
+                    d = (wn, -we) if m["category"] == "starboard" else (-wn, we)
+            m[ck] = d
+        # 25/08/2026 (Moteur F UNIQUEMENT, bugs armateur Lorient/Croisic/
+        # Kerpenhir) — deux failles, deux replis SÛRS :
+        # 1. FAUX COUPLE : « La Petite Jument » (rouge, chenal de Lorient)
+        #    est appariée à une verte du chenal voisin de Kernevel → côté
+        #    requis INVERSÉ. Si le côté requis contredit le CÔTÉ NAVIGABLE
+        #    mesuré par la bathy (eau profonde), la BATHY PRIME.
+        # 2. latérale SANS direction (ni couple ni signal bathy — fréquent
+        #    en ATL100) : elle HÉRITE du consensus des latérales fiables
+        #    voisines (« Les Rouzins », « Kerpenhir » n'étaient JAMAIS
+        #    imposées) — jamais utilisé pour CONTREDIRE un signal existant.
+        # Gated SIDE_ABSOLUTE_V6 : Moteurs A-E strictement inchangés.
+        if v6_mode:
+            tok = _DIR_INFER_GUARD.set(True)
+            try:
+                if d is not None:
+                    w = self.navigable_side(m)
+                    if w is not None:
+                        de, dn = d
+                        u = (dn, -de) if m["category"] == "port" else (-dn, de)
+                        if u[0] * w[0] + u[1] * w[1] < 0.0:
+                            we, wn = w
+                            d = ((wn, -we) if m["category"] == "starboard"
+                                 else (-wn, we))
+                    else:
+                        # 26/08 (bug Lorient « N° 4 ») — faux couple SANS
+                        # signal bathy : si la direction du couple est
+                        # OPPOSÉE au consensus des latérales fiables
+                        # voisines, le consensus prime (même philosophie
+                        # que le repli bathy ci-dessus).
+                        cons = self._neighbor_dir_consensus(m)
+                        if (cons is not None
+                                and d[0] * cons[0] + d[1] * cons[1] < 0.0):
+                            d = cons
+                            m["_dir_v6_inferred"] = True
+                else:
+                    d = self._neighbor_dir_consensus(m)
+                    if d is not None:
+                        # marque héritée : fiabilité moindre (portée réduite
+                        # côté réparation — cf. sidefix).
+                        m["_dir_v6_inferred"] = True
+            finally:
+                _DIR_INFER_GUARD.reset(tok)
+            m["_dir_conf_v6"] = d
+            return d
         return d
+
+    def _neighbor_dir_consensus(self, m: dict) -> Optional[tuple[float, float]]:
+        """Consensus (moyenne normalisée) des directions conventionnelles
+        FIABLES des ≤ 3 latérales les plus proches (≤ 1 000 m, hors la
+        marque elle-même et son éventuel partenaire de couple)."""
+        partner = self._pair_of(m)
+        mlng = 111320.0 * math.cos(math.radians(m["lat"]))
+        cands: list[tuple[float, dict]] = []
+        for o in self._laterals_near(m["lat"], m["lng"]):
+            if o is m or o is partner:
+                continue
+            if o.get("category") not in ("port", "starboard"):
+                continue
+            dist = math.hypot((o["lat"] - m["lat"]) * 111320.0,
+                              (o["lng"] - m["lng"]) * mlng)
+            if dist <= 1000.0:
+                cands.append((dist, o))
+        cands.sort(key=lambda t: t[0])
+        se = sn = 0.0
+        n = 0
+        for _dist, o in cands:
+            od = self.mark_dir_confident(o)
+            if od is None:
+                continue
+            se += od[0]
+            sn += od[1]
+            n += 1
+            if n >= 3:
+                break
+        norm = math.hypot(se, sn)
+        if n == 0 or norm < 0.5:
+            return None
+        return (se / norm, sn / norm)
 
     def _pair_dir(self, m: dict) -> Optional[tuple[float, float]]:
         """Direction conventionnelle depuis le COUPLE rouge/verte (None si la
