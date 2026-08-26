@@ -1,5 +1,22 @@
 # SignalMar — PRD
 
+## 🔍 ANALYSE 26/08 (post-fork) — captures armateur + Moteur H : AUCUN CODE, feu vert attendu
+- Directive armateur : AUCUN CODE SANS AUTORISATION. map.tsx (fin du refactor)
+  sera repris quand il donnera le feu vert, APRÈS cette analyse.
+- Analyse complète livrée : /app/memory/ANALYSE_MOTEUR_H_2608.md
+  (diagnostic des 6 captures « 26.08 post mihir », capacité de détection
+  actuelle, faisabilité mesurée des routes officielles OSM, avis Moteur H).
+- Faits mesurés clés : Lorient HORS zone pilote (MNT 20 m s'arrête à
+  lng −3.333) → maille ~100 m ; le chenal de Lorient EST dans nos ATL100
+  (6-18 m le long de l'axe) → « hauteur d'eau fausse » = placement de la
+  route, pas la donnée. OSM contient recommended_track/navigation_line/
+  fairway : Lorient 9 ways, Golfe 19, Quiberon 8, Loire 8, Brest 2,
+  Douarnenez 0 (couverture inégale → repli calcul classique obligatoire).
+  On n'ingère aujourd'hui QUE des nœuds balises (pas les ways).
+- Avis rendu : Moteur H pertinent ; recommandé en « couloirs à coût quasi
+  nul » dans l'A* (base F, gated) plutôt qu'en si/sinon ; rayon 1 km en
+  param moteur ajustable par API sans UI. EN ATTENTE DE DÉCISION ARMATEUR.
+
 ## ✅ ITER127 (02/08, priorité armateur) — Erreurs 429 : calcul en tâche de fond + départ conservé, et fragilité du Moteur B corrigée
 - **Plainte** : « 429 quasi à chaque calcul de route qui commence ou termine
   très près des côtes, entrées de ports… et à chaque fois le départ de la

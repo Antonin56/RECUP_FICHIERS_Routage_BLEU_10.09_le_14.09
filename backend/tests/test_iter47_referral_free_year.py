@@ -16,7 +16,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "EXPO_BACKEND_URL",
-    "https://engine-e-crouesty.preview.emergentagent.com",
+    "https://signalmar-optimize.preview.emergentagent.com",
 ).rstrip("/")
 BYPASS = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 ADMIN_PHONE_LOCAL = "0760071445"

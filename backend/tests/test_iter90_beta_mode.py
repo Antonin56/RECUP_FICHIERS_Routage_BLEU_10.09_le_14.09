@@ -6,7 +6,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://engine-e-crouesty.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://signalmar-optimize.preview.emergentagent.com").rstrip("/")
 QA_BYPASS = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 
 PHONES = {
