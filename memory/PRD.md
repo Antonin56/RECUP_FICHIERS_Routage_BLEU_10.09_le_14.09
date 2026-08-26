@@ -3153,3 +3153,17 @@ prenant le dessus sur le balisage ». Confirmé — DEUX mécanismes :
 ### tests/test_iter139_e2e_lorient.py (3) ; régressions iter136/137/138 = 26 verts.
 ### Baseline git stash : les échecs e2e iter101/103/104 + OTP 429 sont
 ### PRÉEXISTANTS à l'environnement du fork (identiques avant/après correctifs).
+
+## Itération 140 (27/08/2026) — Refactor map.tsx (backlog approuvé iter138)
+- map.tsx : 4 774 → 4 125 lignes. Déplacement PUR (zéro changement visible) :
+  - src/screens/map/map-constants.ts : libellés balises FR, DEFAULT_CENTER,
+    DISPLAY_RADIUS_KM, seuils bascule Vigie/Nav, bornes du cône.
+  - src/screens/map/route-geometry.ts : nearestSegOnRoute, nearestWpIdx.
+  - src/screens/map/modals/ : 12 composants typés — UnitPicker, BathyOpacity,
+    Anchor, LongPressMenu, AlertSettings, LowMargin, SaferPreview,
+    RiskConfirm, RouteMenu (avec bandeau danger 26/08), RouteChoice,
+    SaveRouteName, SeamarkInfo. Tous les testIDs conservés.
+- L'état et les handlers restent dans MapScreen (props explicites).
+- Restent dans map.tsx (extraction future si besoin) : modal recherche,
+  feuille de filtres, modal cône, barres pick/manual/edit.
+- Non-régression : iteration_7.json 10/10 verts (simulation MessageEvent).

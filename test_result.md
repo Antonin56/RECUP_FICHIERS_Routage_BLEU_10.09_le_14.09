@@ -311,3 +311,29 @@ agent_communication:
           ~X m ») + toutes les options ; tap route normale → modal SANS
           bandeau. Aucun bug bloquant. Notes API : job = /api/routes/job/{id},
           champ login = token, testID submit = login-email-submit.
+
+  - task: "Iter140 — refactor map.tsx : constantes + helpers purs + 13 modals extraits sous src/screens/map/ (déplacement pur, zéro changement fonctionnel)"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/map.tsx (4774→4125 lignes), frontend/src/screens/map/map-constants.ts, frontend/src/screens/map/route-geometry.ts, frontend/src/screens/map/modals/{UnitPickerModal,BathyOpacityModal,AnchorModal,LongPressMenuModal,AlertSettingsModal,LowMarginModal,SaferPreviewModal,RiskConfirmModal,RouteMenuModal,RouteChoiceModal,SaveRouteNameModal,SeamarkInfoModal}.tsx, frontend/src/components/MarineMap.tsx (type danger du message route_tap)"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Refactor demandé par l'armateur (backlog approuvé iter138).
+          Extraction par plages de lignes (script python bottom-up avec
+          garde-fous par jeton), tous les testIDs conservés. tsc : 0 erreur
+          dans les nouveaux fichiers, baseline 25 erreurs préexistantes → 24
+          (une corrigée : type danger MarineMap). Imports morts retirés
+          (GestureHandlerRootView, AnchorPanel).
+      - working: true
+        agent: "testing"
+        comment: >
+          iteration_7.json — 10/10 flux OK via simulation MessageEvent
+          (longpress menu, choix de route, barre manuelle, menu route ±
+          bandeau danger, enregistrement, fiche balise, ancre, unités).
+          AlertSettingsModal gaté par un `false &&` PRÉEXISTANT (décision
+          armateur) — vérifié par revue de code. Aucune régression.

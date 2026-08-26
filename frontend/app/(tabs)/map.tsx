@@ -18,7 +18,6 @@ import Slider from "@react-native-community/slider";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { MarineMap, type MarineMapHandle, type RouteTapDanger } from "@/src/components/MarineMap";
 import { api, type ComputedRoute, type ReportItem, type RouteErrorDetail, type SavedRoute, type Seamark } from "@/src/api/client";
@@ -42,7 +41,6 @@ import { RouteCompareBar, BASE_COLOR, VARIANT_COLOR } from "@/src/components/Rou
 import { EnginePickerModal } from "@/src/components/EnginePickerModal";
 import { compareRoutes, diffCount, type RouteDiff } from "@/src/lib/routeCompare";
 import { RouteNavPanel } from "@/src/components/RouteNavPanel";
-import { AnchorPanel } from "@/src/components/AnchorPanel";
 import {
   ANCHOR_RADIUS_DEFAULT_M,
   getAnchorPos,
@@ -73,91 +71,30 @@ import { useMapUnit } from "@/src/lib/map-unit";
 import { useConeState } from "@/src/lib/cone-state";
 import { styles } from "@/src/screens/map/map-styles";
 
-// 22/07/2026 — libellés FR des objets cliquables (balises + dangers).
-const SEAMARK_KIND_LABEL: Record<string, string> = {
-  lateral: "Balise latérale",
-  cardinal: "Balise cardinale",
-  isolated_danger: "Danger isolé",
-  special: "Marque spéciale",
-  safe_water: "Eaux saines",
-  rock: "Roche",
-  wreck: "Épave",
-  obstruction: "Obstruction",
-  // 26/07 — bouées de mouillage cliquables (zones évitées par le routeur).
-  mooring: "Bouée de mouillage",
-};
-const SEAMARK_CAT_LABEL: Record<string, string> = {
-  port: "Bâbord (rouge) — laisser à bâbord en entrant",
-  starboard: "Tribord (verte) — laisser à tribord en entrant",
-  north: "Nord — passer au NORD de la balise",
-  south: "Sud — passer au SUD de la balise",
-  east: "Est — passer à l'EST de la balise",
-  west: "Ouest — passer à l'OUEST de la balise",
-  dangerous: "Épave DANGEREUSE pour la navigation",
-  "non-dangerous": "Épave non dangereuse",
-  hull_showing: "Coque visible",
-  mast_showing: "Mât visible",
-  distributed_remains: "Débris épars",
-};
-// Niveau d'eau des roches/obstructions (seamark:*:water_level OSM).
-const WATER_LEVEL_LABEL: Record<string, string> = {
-  covers: "Couvrante/découvrante (couvre et découvre avec la marée)",
-  awash: "À fleur d'eau",
-  submerged: "Toujours submergée",
-  always_dry: "Toujours émergée",
-  dry: "Découvrante",
-};
-
-// Default centre: between the Golfe du Morbihan and Belle-Île.
-const DEFAULT_CENTER = { lat: 47.46, lng: -2.92 };
-// 26/07 — ÉDITION DE ROUTE : segment le plus proche d'un point (m + index).
-function nearestSegOnRoute(
-  lat: number, lng: number, wps: { lat: number; lng: number }[],
-): { distM: number; segIdx: number } {
-  const mLat = 111320;
-  const mLng = 111320 * Math.cos((lat * Math.PI) / 180);
-  let best = { distM: Infinity, segIdx: 0 };
-  for (let i = 0; i < wps.length - 1; i++) {
-    const ax = (wps[i].lng - lng) * mLng, ay = (wps[i].lat - lat) * mLat;
-    const bx = (wps[i + 1].lng - lng) * mLng, by = (wps[i + 1].lat - lat) * mLat;
-    const dx = bx - ax, dy = by - ay;
-    const l2 = dx * dx + dy * dy;
-    const t = l2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
-    const d = Math.hypot(ax + t * dx, ay + t * dy);
-    if (d < best.distM) best = { distM: d, segIdx: i };
-  }
-  return best;
-}
-// 11/08 (règle armateur) — ÉDITION : seul le waypoint LE PLUS PROCHE de la
-// zone touchée devient éditable (les autres restent de simples repères).
-function nearestWpIdx(
-  lat: number, lng: number, wps: { lat: number; lng: number }[],
-): number {
-  const mLat = 111320;
-  const mLng = 111320 * Math.cos((lat * Math.PI) / 180);
-  let best = 0, bestD = Infinity;
-  for (let i = 0; i < wps.length; i++) {
-    const d = Math.hypot((wps[i].lng - lng) * mLng, (wps[i].lat - lat) * mLat);
-    if (d < bestD) { bestD = d; best = i; }
-  }
-  return best;
-}
-// Rayon d'AFFICHAGE des signalements (fixe, interne). L'ancien bouton
-// « 200 km » en haut de la carte a été supprimé (10/07/2026) : il créait
-// une confusion avec la Zone de veille. Tous les signalements dans ce
-// rayon restent visibles ; seule la Zone de veille déclenche les alertes.
-const DISPLAY_RADIUS_KM = 200;
-// Bascule AUTO Vigie ⇄ Navigation (11/07/2026) : le mode suit le bateau.
-// ≥ 3 km/h maintenu 5 s → Navigation ; < 3 km/h maintenu 5 s → Vigie.
-const AUTO_SWITCH_SPEED_MS = 3 / 3.6; // 3 km/h en m/s
-const AUTO_SWITCH_SUSTAIN_MS = 5_000;
-// Phase K — Navigation cone defaults & bounds.
-const CONE_ANGLE_DEFAULT = 45;   // total spread in degrees (half-angle = 22.5)
-const CONE_ANGLE_MIN = 5;
-const CONE_ANGLE_MAX = 90;
-// Longueur du cône Navigation = Zone de veille Navigation (valeur fixe
-// choisie par l'utilisateur — l'ancienne formule vitesse × 10 min a été
-// remplacée le 10/07/2026 : « Simple, sans ambiguïté »).
+// 27/08/2026 (refactor map.tsx) — constantes, helpers purs et modals
+// déplacés dans src/screens/map/ (déplacement PUR, zéro changement).
+import {
+  AUTO_SWITCH_SPEED_MS,
+  AUTO_SWITCH_SUSTAIN_MS,
+  CONE_ANGLE_DEFAULT,
+  CONE_ANGLE_MAX,
+  CONE_ANGLE_MIN,
+  DEFAULT_CENTER,
+  DISPLAY_RADIUS_KM,
+} from "@/src/screens/map/map-constants";
+import { nearestSegOnRoute, nearestWpIdx } from "@/src/screens/map/route-geometry";
+import { AlertSettingsModal } from "@/src/screens/map/modals/AlertSettingsModal";
+import { AnchorModal } from "@/src/screens/map/modals/AnchorModal";
+import { BathyOpacityModal } from "@/src/screens/map/modals/BathyOpacityModal";
+import { LongPressMenuModal } from "@/src/screens/map/modals/LongPressMenuModal";
+import { LowMarginModal } from "@/src/screens/map/modals/LowMarginModal";
+import { RiskConfirmModal } from "@/src/screens/map/modals/RiskConfirmModal";
+import { RouteChoiceModal } from "@/src/screens/map/modals/RouteChoiceModal";
+import { RouteMenuModal } from "@/src/screens/map/modals/RouteMenuModal";
+import { SaferPreviewModal } from "@/src/screens/map/modals/SaferPreviewModal";
+import { SaveRouteNameModal } from "@/src/screens/map/modals/SaveRouteNameModal";
+import { SeamarkInfoModal } from "@/src/screens/map/modals/SeamarkInfoModal";
+import { UnitPickerModal } from "@/src/screens/map/modals/UnitPickerModal";
 
 // Phase 3c — Welcome banner is shown only ONCE per app boot (JS session).
 // The module-level flag is reset when the JS engine reloads, so a full
@@ -2884,285 +2821,70 @@ export default function MapScreen() {
       )}
 
       {/* ── Popup unité d'échelle km/NM (tap sur une règle) — 16/07/2026 ── */}
-      <Modal
+      <UnitPickerModal
         visible={unitPickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setUnitPickerOpen(false)}
-      >
-        <Pressable style={styles.unitPickerBackdrop} onPress={() => setUnitPickerOpen(false)}>
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            <View style={styles.unitPickerHeader}>
-              <Ionicons name="settings-outline" size={18} color={theme.primary} />
-              <Text style={styles.unitPickerTitle}>Unité des échelles</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.unitPickerRow, mapUnit === "km" && styles.unitPickerRowActive]}
-              onPress={() => { setMapUnit("km"); setUnitPickerOpen(false); }}
-              testID="unit-picker-km"
-            >
-              <Ionicons
-                name={mapUnit === "km" ? "radio-button-on" : "radio-button-off"}
-                size={20}
-                color={mapUnit === "km" ? theme.primary : theme.textDim}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.unitPickerLabel}>Kilomètres</Text>
-                <Text style={styles.unitPickerHint}>Distances routières / usage général</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.unitPickerRow, mapUnit === "nm" && styles.unitPickerRowActive]}
-              onPress={() => { setMapUnit("nm"); setUnitPickerOpen(false); }}
-              testID="unit-picker-nm"
-            >
-              <Ionicons
-                name={mapUnit === "nm" ? "radio-button-on" : "radio-button-off"}
-                size={20}
-                color={mapUnit === "nm" ? theme.primary : theme.textDim}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.unitPickerLabel}>Milles nautiques (NM)</Text>
-                <Text style={styles.unitPickerHint}>1 NM = 1 852 m — usage marin</Text>
-              </View>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        mapUnit={mapUnit}
+        onPick={(u) => { setMapUnit(u); setUnitPickerOpen(false); }}
+        onClose={() => setUnitPickerOpen(false)}
+      />
 
       {/* ── Popup bathymétrie SHOM (appui long sur la goutte d'eau) —
           réglage d'opacité de la surcouche (19/07/2026). ── */}
-      <Modal
+      <BathyOpacityModal
         visible={bathyModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setBathyModalOpen(false)}
-      >
-        <Pressable style={styles.unitPickerBackdrop} onPress={() => setBathyModalOpen(false)}>
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            <View style={styles.unitPickerHeader}>
-              <Ionicons name="water" size={18} color="#48CAE4" />
-              <Text style={styles.unitPickerTitle}>Bathymétrie SHOM — opacité</Text>
-            </View>
-            {/* 22/07/2026 (bug tablette : le curseur ne répondait pas dans la
-                popup) → CHIPS d'opacité fiables, aperçu TEMPS RÉEL (chaque tap
-                est poussé dans la WebView via bathymetryOpacity). */}
-            <View style={styles.bathySliderHead}>
-              <Text style={styles.bathySliderLabel}>Opacité</Text>
-              <Text style={styles.bathySliderValue} testID="bathy-opacity-value">
-                {Math.round(bathyOpacity * 100)} %
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-              {[0.3, 0.5, 0.7, 0.85, 1].map((v) => {
-                const active = Math.abs(bathyOpacity - v) < 0.01;
-                return (
-                  <TouchableOpacity
-                    key={v}
-                    style={[styles.chip, active && { backgroundColor: "#48CAE4", borderColor: "#48CAE4" }]}
-                    onPress={() => {
-                      setBathyOpacity(v);
-                      Haptics.selectionAsync().catch(() => {});
-                    }}
-                    testID={`bathy-opacity-${Math.round(v * 100)}`}
-                  >
-                    <Text style={[styles.chipText, active && { color: "#0B132B" }]}>
-                      {Math.round(v * 100)} %
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={styles.unitPickerHint}>
-              Profondeurs SHOM (open data) — indicatif, pas pour la navigation officielle.
-            </Text>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        opacity={bathyOpacity}
+        onChangeOpacity={setBathyOpacity}
+        onClose={() => setBathyModalOpen(false)}
+      />
 
       {/* ── 23/07/2026 — ALARME DE MOUILLAGE (bouton ancre) : pose/levée +
           rayon de garde (aussi réglable dans Réglages → Alarme de mouillage). ── */}
-      <Modal
+      <AnchorModal
         visible={anchorModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAnchorModalOpen(false)}
-      >
-        {/* 23/07 (bug armateur « curseur mort dans la popup ») — les Modal
-            Android vivent dans une AUTRE fenêtre native : sans
-            GestureHandlerRootView local, le MarineSlider (Gesture.Pan) ne
-            reçoit AUCUN geste. + backdrop en FRÈRE absolu (plus de Pressable
-            ANCÊTRE qui capture le glissement du doigt). */}
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <View style={styles.unitPickerBackdrop}>
-            <Pressable
-              style={styles.modalBackdropFill}
-              onPress={() => setAnchorModalOpen(false)}
-              testID="anchor-modal-backdrop"
-            />
-            <View style={styles.unitPickerSheet}>
-            <View style={styles.unitPickerHeader}>
-              <MaterialCommunityIcons name="anchor" size={18} color="#2EC4B6" />
-              <Text style={styles.unitPickerTitle}>Alarme de mouillage</Text>
-            </View>
-            {anchor ? (
-              <View style={styles.anchorStatusRow}>
-                <Ionicons name="time" size={16} color="#2EC4B6" />
-                <Text style={styles.anchorStatusTxt}>
-                  À l&apos;ancre depuis{" "}
-                  {new Date(anchor.since).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                  {anchorDriftM != null ? ` · dérive actuelle ${Math.round(anchorDriftM)} m` : ""}
-                </Text>
-              </View>
-            ) : null}
-            <AnchorPanel radiusM={anchorRadiusM} onChangeRadius={setAnchorRadiusM} />
-            {anchor ? (
-              <TouchableOpacity
-                style={[styles.anchorActionBtn, { backgroundColor: "#E5383B" }]}
-                onPress={liftAnchor}
-                testID="anchor-lift"
-              >
-                <MaterialCommunityIcons name="anchor" size={18} color="#fff" />
-                <Text style={[styles.anchorActionTxt, { color: "#fff" }]}>Lever l&apos;ancre</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.anchorActionBtn, { backgroundColor: "#2EC4B6" }, !userLoc && { opacity: 0.5 }]}
-                onPress={() => void dropAnchor()}
-                disabled={!userLoc}
-                testID="anchor-drop"
-              >
-                <MaterialCommunityIcons name="anchor" size={18} color="#04121F" />
-                <Text style={styles.anchorActionTxt}>Mouiller ici (position du bateau)</Text>
-              </TouchableOpacity>
-            )}
-            </View>
-          </View>
-        </GestureHandlerRootView>
-      </Modal>
+        anchor={anchor}
+        anchorDriftM={anchorDriftM}
+        radiusM={anchorRadiusM}
+        onChangeRadius={setAnchorRadiusM}
+        canDrop={!!userLoc}
+        onDrop={() => void dropAnchor()}
+        onLift={liftAnchor}
+        onClose={() => setAnchorModalOpen(false)}
+      />
 
       {/* ── Menu appui long (N0, 20/07/2026) — « Signaler ici » /
-          « Naviguer ici ». Le routage sûr arrive en V2 (phase N1). ── */}
-      <Modal
-        visible={longPressPoint != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setLongPressPoint(null)}
-      >
-        <Pressable
-          style={styles.unitPickerBackdrop}
-          onPress={() => {
-            // 26/07 — anti-fermeture fantôme : le relâché d'un appui long
-            // maintenu ne doit pas fermer le menu qui vient de s'ouvrir.
-            if (Date.now() - longPressOpenedAtRef.current < 700) return;
-            setLongPressPoint(null);
-          }}
-        >
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            <View style={styles.unitPickerHeader}>
-              <Ionicons name="location" size={18} color={theme.primary} />
-              <Text style={styles.unitPickerTitle}>Position choisie</Text>
-            </View>
-            {longPressPoint ? (
-              <Text style={styles.longPressCoords}>
-                {formatDM(longPressPoint.lat, longPressPoint.lng)}
-              </Text>
-            ) : null}
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                const pt = longPressPoint;
-                setLongPressPoint(null);
-                if (!pt) return;
-                router.push({
-                  pathname: "/report/new",
-                  params: { lat: String(pt.lat), lng: String(pt.lng), src: "longpress" },
-                });
-              }}
-              testID="longpress-report"
-            >
-              <Ionicons name="alert-circle" size={20} color="#F4A261" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Signaler ici</Text>
-                <Text style={styles.unitPickerHint}>Créer un signalement à cette position</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMute} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                const pt = longPressPoint;
-                setLongPressPoint(null);
-                if (!pt) return;
-                void computeSafeRoute(pt);
-              }}
-              testID="longpress-navigate"
-            >
-              <Ionicons name="navigate" size={20} color={theme.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Naviguer ici</Text>
-                <Text style={styles.unitPickerHint}>Depuis la position du bateau — selon Mon bateau</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMute} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                const pt = longPressPoint;
-                setLongPressPoint(null);
-                if (!pt) return;
-                // 22/07 — choix du TYPE de route (auto / manuelle /
-                // enregistrées) avant de continuer.
-                setRouteChoicePt(pt);
-              }}
-              testID="longpress-create-route"
-            >
-              <Ionicons name="git-branch" size={20} color="#2EC4B6" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Créer une route</Text>
-                <Text style={styles.unitPickerHint}>Automatique, manuelle ou enregistrée</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMute} />
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+          « Naviguer ici » / « Créer une route ». ── */}
+      <LongPressMenuModal
+        point={longPressPoint}
+        openedAt={() => longPressOpenedAtRef.current}
+        onClose={() => setLongPressPoint(null)}
+        onReport={(pt) => {
+          setLongPressPoint(null);
+          router.push({
+            pathname: "/report/new",
+            params: { lat: String(pt.lat), lng: String(pt.lng), src: "longpress" },
+          });
+        }}
+        onNavigate={(pt) => {
+          setLongPressPoint(null);
+          void computeSafeRoute(pt);
+        }}
+        onCreateRoute={(pt) => {
+          setLongPressPoint(null);
+          setRouteChoicePt(pt);
+        }}
+      />
 
       {/* ── Popup « Zone de veille » (bouton cloche+engrenage) — réglages
-          rapides uniquement : zones Vigie/Nav + types de notification +
-          accès à la page complète des paramètres. ── */}
-      <Modal
+          rapides uniquement. ── */}
+      <AlertSettingsModal
         visible={alertSettingsOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setAlertSettingsOpen(false)}
-      >
-        <Pressable style={styles.alertSheetBackdrop} onPress={() => setAlertSettingsOpen(false)}>
-          <Pressable style={styles.alertSheet} onPress={() => {}}>
-            <View style={styles.alertSheetHandle} />
-            <View style={styles.alertSheetHeader}>
-              <Ionicons name="notifications" size={18} color="#F4A261" />
-              <Text style={styles.alertSheetTitle}>Zone de veille</Text>
-              <TouchableOpacity
-                onPress={() => setAlertSettingsOpen(false)}
-                style={styles.alertSheetClose}
-                testID="alert-settings-close"
-              >
-                <Ionicons name="close" size={22} color={theme.textMute} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>
-              <AlertSettingsPanel
-                variant="quick"
-                onOpenFullSettings={() => {
-                  setAlertSettingsOpen(false);
-                  router.push("/profile/settings");
-                }}
-              />
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        bottomInset={insets.bottom}
+        onClose={() => setAlertSettingsOpen(false)}
+        onOpenFullSettings={() => {
+          setAlertSettingsOpen(false);
+          router.push("/profile/settings");
+        }}
+      />
 
       {/* ── N1 (20/07/2026) — Route sûre : pill de calcul puis RouteCard
           (distance, profil de profondeur, avertissements, fermer). ── */}
@@ -3437,188 +3159,56 @@ export default function MapScreen() {
       {/* 26/07 — ROUTE DANGEREUSE (règle des 150 %) : marge d'eau minimale
           insuffisante → route plus sûre (+2 m) proposée, ou acceptation
           EXPLICITE du risque avant de pouvoir suivre la route. */}
-      <Modal
+      <LowMarginModal
         visible={lowMarginOpen && route?.low_margin != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setLowMarginOpen(false)}
-      >
-        <Pressable style={styles.unitPickerBackdrop} onPress={() => setLowMarginOpen(false)}>
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            <Text style={styles.riskTitle}>⚠ Route à faible marge de sécurité</Text>
-            {route?.low_margin ? (
-              <Text style={styles.riskMsg}>
-                Hauteur d&apos;eau minimale sur ce trajet :{" "}
-                <Text style={{ fontWeight: "900", color: "#FF6B6B" }}>
-                  {route.low_margin.min_height_m.toFixed(1).replace(".", ",")} m
-                </Text>
-                , pour un besoin de {route.low_margin.required_m.toFixed(1).replace(".", ",")} m
-                (tirant d&apos;eau + marge de fond).{"\n"}
-                C&apos;est moins de 150 % de votre besoin
-                ({route.low_margin.alert_at_m.toFixed(1).replace(".", ",")} m) :
-                une imprécision de carte ou de marée peut suffire à talonner.
-              </Text>
-            ) : null}
-            {/* 27/07 (vidéo 15h45, « bon sens ») — la recherche d'une route
-                plus sûre est AUTOMATIQUE : le bouton « Comparer » n'apparaît
-                que si une alternative existe ; sinon message d'échec. */}
-            {saferBusy ? (
-              <View style={styles.lowMarginSafeBtn}>
-                <ActivityIndicator size="small" color={theme.bg} />
-                <Text style={styles.lowMarginSafeTxt}>Recherche d&apos;une route plus sûre…</Text>
-              </View>
-            ) : saferReady ? (
-              <TouchableOpacity
-                style={styles.lowMarginSafeBtn}
-                onPress={() => {
-                  setLowMarginOpen(false);
-                  setSaferPreview(saferReady);
-                }}
-                testID="low-margin-safer"
-              >
-                <Ionicons name="shield-checkmark" size={18} color={theme.bg} />
-                <Text style={styles.lowMarginSafeTxt}>
-                  Comparer avec la route plus sûre trouvée (+2 m)
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-            {saferFail ? (
-              <Text style={styles.saferFailTxt} testID="safer-fail-msg">
-                ⚠ {saferFail}
-              </Text>
-            ) : null}
-            <TouchableOpacity
-              style={styles.riskAcceptBtn}
-              onPress={() => {
-                setLowMarginAccepted(true);
-                setLowMarginOpen(false);
-                showToast("info", "Route conservée — naviguez prudemment.");
-              }}
-              testID="low-margin-keep"
-            >
-              <Text style={styles.riskAcceptTxt}>{"Garder cette route — j'accepte le risque"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.riskCancelBtn}
-              onPress={() => setLowMarginOpen(false)}
-              testID="low-margin-later"
-            >
-              <Text style={styles.riskCancelTxt}>Décider plus tard</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        lowMargin={route?.low_margin ?? null}
+        saferBusy={saferBusy}
+        saferReady={saferReady != null}
+        saferFail={saferFail}
+        onCompareSafer={() => {
+          setLowMarginOpen(false);
+          setSaferPreview(saferReady);
+        }}
+        onKeep={() => {
+          setLowMarginAccepted(true);
+          setLowMarginOpen(false);
+          showToast("info", "Route conservée — naviguez prudemment.");
+        }}
+        onClose={() => setLowMarginOpen(false)}
+      />
 
       {/* 26/07 — APERÇU COMPARATIF : route actuelle vs route plus sûre (+2 m). */}
-      <Modal
-        visible={saferPreview != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSaferPreview(null)}
-      >
-        <Pressable style={styles.unitPickerBackdrop} onPress={() => setSaferPreview(null)}>
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            <Text style={styles.riskTitle}>Comparer les deux routes</Text>
-            {route && saferPreview ? (() => {
-              const fD = (m: number) => `${(m / 1000).toFixed(1).replace(".", ",")} km`;
-              const fT = (m: number) => {
-                const min = Math.round((m / 1852 / Math.max(cruiseKn, 0.1)) * 60);
-                return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}`;
-              };
-              const fB = (v?: number | null) => (v == null ? "—" : `${v.toFixed(1).replace(".", ",")} m`);
-              return (
-                <View style={styles.cmpTable}>
-                  <View style={styles.cmpRow}>
-                    <Text style={styles.cmpLbl} />
-                    <Text style={styles.cmpHead}>Actuelle</Text>
-                    <Text style={[styles.cmpHead, { color: "#2EC4B6" }]}>Plus sûre (+2 m)</Text>
-                  </View>
-                  <View style={styles.cmpRow}>
-                    <Text style={styles.cmpLbl}>Distance</Text>
-                    <Text style={styles.cmpVal}>{fD(route.distance_m)}</Text>
-                    <Text style={[styles.cmpVal, { color: "#2EC4B6" }]}>{fD(saferPreview.distance_m)}</Text>
-                  </View>
-                  <View style={styles.cmpRow}>
-                    <Text style={styles.cmpLbl}>Durée ({cruiseKn.toFixed(0)} nd)</Text>
-                    <Text style={styles.cmpVal}>{fT(route.distance_m)}</Text>
-                    <Text style={[styles.cmpVal, { color: "#2EC4B6" }]}>{fT(saferPreview.distance_m)}</Text>
-                  </View>
-                  <View style={styles.cmpRow}>
-                    <Text style={styles.cmpLbl}>Fond min (carte)</Text>
-                    <Text style={[styles.cmpVal, { color: "#FF6B6B" }]}>{fB(route.min_depth_m)}</Text>
-                    <Text style={[styles.cmpVal, { color: "#2EC4B6" }]}>{fB(saferPreview.min_depth_m)}</Text>
-                  </View>
-                </View>
-              );
-            })() : null}
-            <TouchableOpacity
-              style={styles.lowMarginSafeBtn}
-              onPress={() => {
-                if (!saferPreview) return;
-                setRoute(saferPreview);
-                setRouteCardMode("full");
-                lowMarginCtxRef.current = null;
-                setSaferPreview(null);
-                mapRef.current?.suspendFollow(true);
-                showToast("success", "Route plus sûre adoptée (+2 m de marge).");
-              }}
-              testID="safer-adopt"
-            >
-              <Ionicons name="shield-checkmark" size={18} color={theme.bg} />
-              <Text style={styles.lowMarginSafeTxt}>Adopter la route plus sûre</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.riskAcceptBtn}
-              onPress={() => {
-                setLowMarginAccepted(true);
-                setSaferPreview(null);
-                showToast("info", "Route actuelle conservée — naviguez prudemment.");
-              }}
-              testID="safer-keep-current"
-            >
-              <Text style={styles.riskAcceptTxt}>{"Garder l'actuelle — j'accepte le risque"}</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <SaferPreviewModal
+        route={route}
+        safer={saferPreview}
+        cruiseKn={cruiseKn}
+        onAdopt={() => {
+          if (!saferPreview) return;
+          setRoute(saferPreview);
+          setRouteCardMode("full");
+          lowMarginCtxRef.current = null;
+          setSaferPreview(null);
+          mapRef.current?.suspendFollow(true);
+          showToast("success", "Route plus sûre adoptée (+2 m de marge).");
+        }}
+        onKeepCurrent={() => {
+          setLowMarginAccepted(true);
+          setSaferPreview(null);
+          showToast("info", "Route actuelle conservée — naviguez prudemment.");
+        }}
+        onClose={() => setSaferPreview(null)}
+      />
 
       {/* 24/07 — acceptation du risque avant de suivre une route douteuse. */}
-      <Modal
+      <RiskConfirmModal
         visible={riskConfirmOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRiskConfirmOpen(false)}
-      >
-        <Pressable style={styles.unitPickerBackdrop} onPress={() => setRiskConfirmOpen(false)}>
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            <Text style={styles.riskTitle}>⚠ Route avec passage compromis</Text>
-            <Text style={styles.riskMsg}>
-              Le ou les tronçons EN ROUGE ne sont pas vérifiés : fond
-              insuffisant, obstacle ou terre possibles. En suivant cette
-              route, vous acceptez ce risque et naviguez sous votre seule
-              responsabilité.
-            </Text>
-            <TouchableOpacity
-              style={styles.riskAcceptBtn}
-              onPress={() => {
-                setRiskAccepted(true);
-                setRiskConfirmOpen(false);
-                void startFollowForced();
-              }}
-              testID="risk-accept"
-            >
-              <Text style={styles.riskAcceptTxt}>{"J'accepte le risque — suivre la route"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.riskCancelBtn}
-              onPress={() => setRiskConfirmOpen(false)}
-              testID="risk-cancel"
-            >
-              <Text style={styles.riskCancelTxt}>Annuler</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onAccept={() => {
+          setRiskAccepted(true);
+          setRiskConfirmOpen(false);
+          void startFollowForced();
+        }}
+        onClose={() => setRiskConfirmOpen(false)}
+      />
 
       {/* 02/08/2026 (demande armateur) — A/B TESTING : choix du moteur de
           recalcul (liste triée par ID décroissant). */}
@@ -3633,196 +3223,45 @@ export default function MapScreen() {
         }}
       />
 
-      {/* 21/07 — menu du tracé (tap sur la route) : détails / supprimer. */}
-      <Modal
+      {/* 21/07 — menu du tracé (tap sur la route) : détails / supprimer.
+          26/08 — bandeau danger si le tap vient d'une ZONE ROUGE. */}
+      <RouteMenuModal
         visible={routeMenuOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRouteMenuOpen(false)}
-      >
-        <Pressable style={styles.unitPickerBackdrop} onPress={() => setRouteMenuOpen(false)}>
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            <View style={styles.unitPickerHeader}>
-              <Ionicons name="navigate" size={18} color="#E5383B" />
-              <Text style={styles.unitPickerTitle}>Route sûre</Text>
-            </View>
-            {/* 26/08/2026 (demande armateur) — tap sur une ZONE ROUGE :
-                bandeau « faible hauteur d'eau » AVANT les options. */}
-            {routeMenuDanger ? (
-              <View style={styles.routeDangerBanner} testID="route-menu-danger">
-                <Ionicons name="warning" size={20} color="#FF1744" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.routeDangerTitle}>
-                    {routeMenuDanger.reason === "low_margin"
-                      ? "Passage étroit ici"
-                      : "Hauteur d'eau insuffisante ici"}
-                  </Text>
-                  <Text style={styles.routeDangerText}>
-                    {routeMenuDanger.reason === "low_margin"
-                      ? "Marge latérale < 20 m sur ce tronçon — passage à vue recommandé."
-                      : routeMenuDanger.min_depth_m != null
-                        ? `Fond mini ~${routeMenuDanger.min_depth_m.toFixed(1).replace(".", ",")} m${
-                            routeMenuDanger.threshold_m != null
-                              ? ` pour un besoin de ${routeMenuDanger.threshold_m.toFixed(1).replace(".", ",")} m`
-                              : ""}. Zone peu profonde ou découverte selon la marée.`
-                        : "Zone peu profonde ou découverte selon la marée."}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                setRouteMenuOpen(false);
-                void startFollow();
-              }}
-              testID="route-menu-follow"
-            >
-              <Ionicons name="play" size={20} color="#2EC4B6" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Suivre la route</Text>
-                <Text style={styles.unitPickerHint}>Cap à suivre, ETA — waypoints grisés au passage</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                setRouteMenuOpen(false);
-                setRouteCardMode("full");
-              }}
-              testID="route-menu-details"
-            >
-              <Ionicons name="information-circle" size={20} color={theme.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Voir les détails</Text>
-                <Text style={styles.unitPickerHint}>Distance, profil de profondeur, alertes</Text>
-              </View>
-            </TouchableOpacity>
-            {/* 26/07 (décision armateur) — recalcul avec la marée de MAINTENANT :
-                l'utilisateur re-vérifie les hauteurs d'eau avant un passage. */}
-            {route?.mode === "auto" && routeCtxRef.current ? (
-              <TouchableOpacity
-                style={styles.longPressRow}
-                onPress={() => {
-                  const ctx = routeCtxRef.current;
-                  setRouteMenuOpen(false);
-                  if (ctx) void computeSafeRoute(ctx.dest, ctx.from);
-                }}
-                testID="route-menu-refresh"
-              >
-                <Ionicons name="refresh" size={20} color="#48CAE4" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.longPressLabel}>Actualiser la route</Text>
-                  <Text style={styles.unitPickerHint}>Recalcule avec la hauteur de marée de maintenant</Text>
-                </View>
-              </TouchableOpacity>
-            ) : null}
-            {/* 02/08/2026 (demande armateur) — A/B TESTING : recalculer cette
-                route avec un AUTRE moteur et comparer les deux tracés. */}
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                setRouteMenuOpen(false);
-                setEnginePickerOpen(true);
-              }}
-              testID="route-menu-compare"
-            >
-              <Ionicons name="git-compare" size={20} color="#FFB703" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Recalculer avec un autre moteur</Text>
-                <Text style={styles.unitPickerHint}>
-                  Compare les deux tracés sur la carte (écarts surlignés)
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                setRouteMenuOpen(false);
-                setSaveName("");
-                setSaveNameOpen(true);
-              }}
-              testID="route-menu-save"
-            >
-              <Ionicons name="bookmark" size={20} color="#2EC4B6" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Enregistrer la route</Text>
-                <Text style={styles.unitPickerHint}>Jusqu’à 20 routes — retrouvables via « Créer une route »</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                setRouteMenuOpen(false);
-                setRoute(null);
-                setBlocked(null);
-                showToast("info", "Route supprimée.");
-              }}
-              testID="route-menu-delete"
-            >
-              <Ionicons name="trash" size={20} color="#E5383B" />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.longPressLabel, { color: "#E5383B" }]}>Supprimer la route</Text>
-                <Text style={styles.unitPickerHint}>Efface le tracé de la carte</Text>
-              </View>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        danger={routeMenuDanger}
+        canRefresh={route?.mode === "auto" && routeCtxRef.current != null}
+        onFollow={() => { setRouteMenuOpen(false); void startFollow(); }}
+        onDetails={() => { setRouteMenuOpen(false); setRouteCardMode("full"); }}
+        onRefresh={() => {
+          const ctx = routeCtxRef.current;
+          setRouteMenuOpen(false);
+          if (ctx) void computeSafeRoute(ctx.dest, ctx.from);
+        }}
+        onCompare={() => { setRouteMenuOpen(false); setEnginePickerOpen(true); }}
+        onSave={() => { setRouteMenuOpen(false); setSaveName(""); setSaveNameOpen(true); }}
+        onDelete={() => {
+          setRouteMenuOpen(false);
+          setRoute(null);
+          setBlocked(null);
+          showToast("info", "Route supprimée.");
+        }}
+        onClose={() => setRouteMenuOpen(false)}
+      />
 
       {/* 22/07 — « Créer une route » : CHOIX auto / manuelle / enregistrées. */}
-      <Modal
-        visible={routeChoicePt != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRouteChoicePt(null)}
-      >
-        <Pressable style={styles.unitPickerBackdrop} onPress={() => setRouteChoicePt(null)}>
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            <View style={styles.unitPickerHeader}>
-              <Ionicons name="git-branch" size={18} color="#2EC4B6" />
-              <Text style={styles.unitPickerTitle}>Créer une route</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                const pt = routeChoicePt;
-                setRouteChoicePt(null);
-                if (!pt) return;
-                setPickedPoint(userLocRef.current ?? pt);
-                setRoutePickDest(pt);
-              }}
-              testID="route-choice-auto"
-            >
-              <Ionicons name="flash" size={20} color={theme.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Route automatique</Text>
-                <Text style={styles.unitPickerHint}>Calculée selon les fonds SHOM, le balisage et Mon bateau</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMute} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                const pt = routeChoicePt;
-                setRouteChoicePt(null);
-                if (!pt) return;
-                setManualPoints([pt]);
-                showToast("info", "Départ placé — appui long sur la carte pour ajouter des étapes.");
-              }}
-              testID="route-choice-manual"
-            >
-              <Ionicons name="create" size={20} color="#2EC4B6" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Route manuelle</Text>
-                <Text style={styles.unitPickerHint}>Ce point = départ, puis appui long pour chaque étape</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMute} />
-            </TouchableOpacity>
-            {/* 26/07 — « Mes routes enregistrées » déplacé dans le PROFIL. */}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <RouteChoiceModal
+        point={routeChoicePt}
+        onAuto={(pt) => {
+          setRouteChoicePt(null);
+          setPickedPoint(userLocRef.current ?? pt);
+          setRoutePickDest(pt);
+        }}
+        onManual={(pt) => {
+          setRouteChoicePt(null);
+          setManualPoints([pt]);
+          showToast("info", "Départ placé — appui long sur la carte pour ajouter des étapes.");
+        }}
+        onClose={() => setRouteChoicePt(null)}
+      />
 
       {/* 22/07 — barre de création de route MANUELLE (appui long = étape). */}
       {manualPoints != null && (
@@ -3913,110 +3352,20 @@ export default function MapScreen() {
       )}
 
       {/* 22/07 — nom de la route à ENREGISTRER (max 20 / compte). */}
-      <Modal
+      <SaveRouteNameModal
         visible={saveNameOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSaveNameOpen(false)}
-      >
-        <Pressable style={styles.searchBackdrop} onPress={() => setSaveNameOpen(false)}>
-          <Pressable style={styles.searchSheet} onPress={() => {}}>
-            <View style={styles.searchTitleRow}>
-              <Ionicons name="bookmark" size={18} color="#2EC4B6" />
-              <Text style={styles.searchTitle}>Enregistrer la route</Text>
-            </View>
-            <Text style={styles.searchHint}>
-              Donnez un nom à cette route (20 routes max par compte). Le partage à vos contacts arrivera plus tard.
-            </Text>
-            <TextInput
-              style={styles.searchInput}
-              value={saveName}
-              onChangeText={setSaveName}
-              placeholder="Ex. Arradon → Houat"
-              placeholderTextColor={theme.textDim}
-              maxLength={40}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={() => void submitSaveRoute()}
-              testID="route-save-name-input"
-            />
-            <TouchableOpacity
-              style={[styles.searchBtn, (savingRoute || !saveName.trim()) && { opacity: 0.5 }]}
-              onPress={() => void submitSaveRoute()}
-              disabled={savingRoute || !saveName.trim()}
-              testID="route-save-submit"
-            >
-              {savingRoute ? (
-                <ActivityIndicator color={theme.bg} />
-              ) : (
-                <>
-                  <Ionicons name="bookmark" size={18} color={theme.bg} />
-                  <Text style={styles.searchBtnTxt}>Enregistrer</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setSaveNameOpen(false)}
-              style={{ alignSelf: "center", padding: 8 }}
-              testID="route-save-later"
-            >
-              <Text style={{ color: theme.textMute, fontSize: 12, fontWeight: "700" }}>
-                Plus tard — touchez le tracé pour l’enregistrer
-              </Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        name={saveName}
+        saving={savingRoute}
+        onChangeName={setSaveName}
+        onSubmit={() => void submitSaveRoute()}
+        onClose={() => setSaveNameOpen(false)}
+      />
 
       {/* 26/07 — le popup « Mes routes enregistrées » a été déplacé dans le
           PROFIL (section « Mes routes », au-dessus de l'historique). */}
 
       {/* 22/07 — fiche BALISE (tap sur un seamark de la carte). */}
-      <Modal
-        visible={seamarkInfo != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSeamarkInfo(null)}
-      >
-        <Pressable style={styles.unitPickerBackdrop} onPress={() => setSeamarkInfo(null)}>
-          <Pressable style={styles.unitPickerSheet} onPress={() => {}}>
-            {seamarkInfo ? (
-              <>
-                <View style={styles.unitPickerHeader}>
-                  <Ionicons name="location" size={18} color="#F4A261" />
-                  <Text style={styles.unitPickerTitle}>
-                    {SEAMARK_KIND_LABEL[seamarkInfo.kind] || "Balise"}
-                    {seamarkInfo.name ? ` — ${seamarkInfo.name}` : ""}
-                  </Text>
-                </View>
-                {seamarkInfo.category && SEAMARK_CAT_LABEL[seamarkInfo.category] ? (
-                  <Text style={styles.longPressLabel}>{SEAMARK_CAT_LABEL[seamarkInfo.category]}</Text>
-                ) : null}
-                {seamarkInfo.water_level && WATER_LEVEL_LABEL[seamarkInfo.water_level] ? (
-                  <Text style={styles.longPressLabel}>{WATER_LEVEL_LABEL[seamarkInfo.water_level]}</Text>
-                ) : null}
-                {seamarkInfo.kind === "rock" || seamarkInfo.kind === "wreck" || seamarkInfo.kind === "obstruction" ? (
-                  <Text style={[styles.unitPickerHint, { color: "#E5383B", fontWeight: "800" }]}>
-                    ⚠ Danger — {typeof seamarkInfo.depth_m === "number"
-                      ? `profondeur ${seamarkInfo.depth_m.toFixed(1)} m`
-                      : "profondeur inconnue"}. La route automatique l{"'"}évite.
-                  </Text>
-                ) : null}
-                {seamarkInfo.colour ? (
-                  <Text style={styles.unitPickerHint}>Couleur : {seamarkInfo.colour.replace(/;/g, " / ")}</Text>
-                ) : null}
-                {seamarkInfo.light ? (
-                  <Text style={styles.unitPickerHint}>Feu : {seamarkInfo.light}</Text>
-                ) : null}
-                <Text style={styles.longPressCoords}>{formatDM(seamarkInfo.lat, seamarkInfo.lng)}</Text>
-                <Text style={styles.unitPickerHint}>
-                  Source : OpenSeaMap (contributif) — vérifiez avec les documents officiels.
-                </Text>
-              </>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <SeamarkInfoModal seamark={seamarkInfo} onClose={() => setSeamarkInfo(null)} />
 
       {/* 19/07 (retour device armateur : bouton trop haut en PORTRAIT) —
           ne PAS ajouter insets.bottom : la barre d'échelle est positionnée

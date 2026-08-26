@@ -435,7 +435,7 @@ export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
 
   const handleMessage = (raw: string) => {
     try {
-      const d = JSON.parse(raw) as { event?: string; id?: string; lat?: number; lng?: number; zoom?: number; index?: number; mark?: Seamark; depth_zh_m?: number };
+      const d = JSON.parse(raw) as { event?: string; id?: string; lat?: number; lng?: number; zoom?: number; index?: number; mark?: Seamark; depth_zh_m?: number; danger?: RouteTapDanger };
       if (d.event === "marker" && d.id) onMarkerPress?.(d.id);
       else if (d.event === "move" && typeof d.lat === "number" && typeof d.lng === "number") {
         // 23/07/2026 (vidéos armateur, « sauts dans le Golfe ») — mémorise la
