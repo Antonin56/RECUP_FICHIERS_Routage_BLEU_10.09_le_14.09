@@ -1,5 +1,38 @@
 # SignalMar — PRD
 
+## ✅ ITER143 (26/08, GO armateur) — MOTEUR H + fin du refactor map.tsx
+- GO reçu : « Moteur H qui suit les routes officielles et corrige les faux
+  couples » + « termine le découpage de map.tsx sans rien changer ».
+- MOTEUR H (engine_h, algo signalmar.h, base Moteur F/v6, A-G INCHANGÉS) :
+  - core/safe_routes.py : réseau des routes officielles (safe_routes.json,
+    alignements écrêtés par bathy ≥0.5 m ZH, jonctions ≤300 m, composantes),
+    plan_tracks(start,end,attach,bias) : sélection par composante sur le
+    CORRIDOR (départ/milieu/arrivée + passe inversée côté arrivée), biais
+    hors-piste 1.4 (un mètre hors pointillé coûte 1.4 m).
+  - signalmar_h : legs raccord Moteur F + tronçons calés sur les pointillés,
+    profil/audits recalculés sur le tracé assemblé, res.official_tracks +
+    warning « Route calée sur la route officielle … ». Repli F intégral si
+    aucun track. dir_coherence FORCÉ (corrige faux couples Jument 186°→6°,
+    N°4 240°→60° — grâce à la grille 20 m). Params moteur ajustables sans
+    UI : chenal_radius_m=1000, track_attach_m=3000, track_bias=1.4.
+  - Règle latérales>cardinales : LATERAL_AUTHORITY_M (contextvar, 0=off,
+    H=1 km) → sidefix saute le DÉTOUR de frôlement d'une cardinale flanquée
+    d'une latérale fiable dans le rayon (l'audit continue d'avertir).
+  - Seed engine_h dans manager._BUILTIN_SEEDS (parent engine_f).
+  - RÉSULTATS : Lorient entrée engine_h = wrong_side VIDE (Jument+N°4
+    corrigés), calé sur Passe Ouest/Sud + Ligne B, 1.6 s. Belle-Île→Arradon
+    suit la Teignouse (18 km) + Port-Navalo + entrée Golfe. Connu/accepté :
+    les tracks OSM passent PARFOIS sur la position exacte d'une balise
+    (Grand Mouton à 0.1 m) → warnings « à vue » (l'armateur veut le calage
+    EXACT sur le pointillé). tests/test_iter143_moteur_h.py = 8/8.
+  - xfail (raison documentée) : iter139 e2e engine_f, iter139 n4 consensus,
+    iter140::wrong_side_empty — faux couples corrigés par H, F gelé.
+- REFACTOR map.tsx TERMINÉ : 4123 → 3730 lignes, déplacements PURS :
+  modals/SearchByCodeModal, modals/MapFilterSheet, modals/ConeConfigModal,
+  RouteBars.tsx (ManualRouteBar, RouteEditBar, RoutePickBar, PickPlaceBar) —
+  tous sous src/screens/map/, styles partagés map-styles inchangés. Lint OK,
+  erreurs tsc restantes = préexistantes (storage typings, theme.line…).
+
 ## ✅ ITER142 (26/08, ordre armateur) — MNT 20 m Lorient-Groix + routes sûres INGÉRÉS
 - Ordre : « télécharge le MNT 20 m baie de Lorient→Groix, ingère (dont routes
   sûres), confirme, puis RIEN sans mon GO » (suite = Moteur H + fin refactor
@@ -3249,3 +3282,8 @@ Mesures (API, engine_f) : Lorient→Golfe 16,2 s → 8,1-8,3 s ; Lorient→La
 Trinité 2,2 s → 1,3-1,6 s ; warm-up post-restart ~1,5 s.
 Non-régression : 26/26 balisage (iter136-139) + 40/40 moteurs gelés
 (iter124/129/130/133) + test perf dédié tests/test_iter140_perf_route_10s.py.
+
+## Tests ITER143 (agent de test, iteration_10.json) : TOUT VERT
+- Backend 15/15 (8 iter143 + 3 review extra + perf 4+1 xfail), frontend :
+  filtres/cône/barres extraits OK, aucune erreur console, moteurs A-G intacts.
+- Cosmétique non bloquant : warnings RN Web shadow*/pointerEvents (backlog).

@@ -123,6 +123,12 @@ SIDE_ABSOLUTE_V6 = contextvars.ContextVar("sm_side_absolute_v6", default=False)
 # héritage de voisinage). Armées UNIQUEMENT par les moteurs dont le document
 # porte ``params.dir_coherence`` (Moteur G) : F reste au comportement validé.
 DIR_COHERENCE_V6 = contextvars.ContextVar("sm_dir_coherence_v6", default=False)
+# 26/08/2026 (Moteur H, GO armateur) — PRIORITÉ AU BALISAGE DE CHENAL : en
+# présence d'une latérale FIABLE dans ce rayon (m), une cardinale ne détourne
+# plus la route (elle reste auditée : écart minimal, jamais traversée).
+# 0.0 = règle inactive (Moteurs A-G inchangés). Rayon ajustable par moteur
+# (params.chenal_radius_m), défaut 1 km côté Moteur H.
+LATERAL_AUTHORITY_M = contextvars.ContextVar("sm_lateral_authority_m", default=0.0)
 # Garde anti-récursion de l'héritage de direction (25/08).
 _DIR_INFER_GUARD = contextvars.ContextVar("sm_dir_infer_guard", default=False)
 # 27/08/2026 (perf Moteur F « route < 10 s ») — cache de ``rasterize_blocked``

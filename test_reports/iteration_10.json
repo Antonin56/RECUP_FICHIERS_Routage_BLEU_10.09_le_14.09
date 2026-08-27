@@ -1,0 +1,43 @@
+{
+  "summary": "ITER143 SignalMar — MOTEUR H (routes officielles OSM + faux couples) VERT + refactor map.tsx OK. Backend : (1) test_iter143_moteur_h.py 8/8 passed en 6.03s (réseau chargé >1000 nœuds, plan Lorient attache, plan Belle-Île/Arradon via Teignouse, plan large→large vide, direction Jument/N°4 corrigée dir_coherence, engine_h listé, route Lorient engine_h avec official_tracks non vide + wrong_side_marks=[] + distance 6-13 km, engine_f intact). (2) test_iter143_review_extra.py créé pour la review : params engine_h {chenal_radius_m:1000, track_attach_m:3000} exposés, warning 'Route calée sur la route officielle' présent, repli engine_h large→large SANS official_tracks — 3/3 passed. (3) test_iter140_perf_route_10s.py : PERF1 (Lorient→Golfe <10s) + PERF2 (Lorient→Trinité <5s) verts, test_iter139_lorient_wrong_side_empty XFAILED comme attendu, test_sanity_engine_e_200 vert (4 passed + 1 xfailed). Frontend web (viewport mobile 390x844) : login antoninlepinay@gmail.com/123454321 via login-mode-email OK → /map. Écran carte chargé sans crash, aucune erreur console, aucune 'Element type is invalid'. FILTRES : map-filter-trigger ouvre la feuille, 7 map-filter-type-* détectés + map-hide-fakes-toggle visible, clic sur un type + map-filter-apply ferme la feuille. CÔNE : map-nav-toggle puis map-cone-config ouvre la modale, map-cone-slider visible, map-cone-apply ferme la modale. Barres route-pick-bar / manual-route-bar / route-edit-bar : non visibles à l'ouverture (attendu, activées via flux création route) — composants extraits importés sans warning React. Total 11/12 backend passed + 1 xfailed attendu.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "styles shadow*/textShadow*/pointerEvents", "issue": "Warnings React Native Web : \"shadow*\" style props are deprecated. Use \"boxShadow\". / \"textShadow*\" deprecated. Use \"textShadow\". / props.pointerEvents is deprecated. Use style.pointerEvents. Non bloquant mais à migrer pour Expo/RN récent."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter143_moteur_h.py",
+    "/app/backend/tests/test_iter143_review_extra.py",
+    "/app/test_reports/pytest/iter143_moteur_h.xml",
+    "/app/test_reports/pytest/iter143_review_extra.xml"
+  ],
+  "action_items": [
+    "Optionnel : migrer les shadow*/textShadow*/pointerEvents dépréciés vers boxShadow/textShadow/style.pointerEvents (Expo/RN moderne, cosmétique)."
+  ],
+  "critical_code_review_comments": [
+    "safe_routes.py bien isolé : import via core.bathy, aucune référence dans les moteurs A-G. plan_tracks() OK pour Lorient (attache passe >3000 m), Belle-Île/Arradon (Teignouse + Golfe = 2 tracks), large→large ([]).",
+    "Moteur H params exposés au bon endroit dans /api/routing/engines (id=engine_h, chenal_radius_m=1000, track_attach_m=3000).",
+    "Faux couples Jument/N°4 corrigés via DIR_COHERENCE_V6 uniquement en Moteur H (cap ENTRANT ± 90° du nord). Moteur F conservé volontairement avec l'inférence historique (xfail iter139/140 = comportement gelé).",
+    "Refactor map.tsx : MapFilterSheet + ConeConfigModal + SearchByCodeModal + RouteBars extraits avec testIDs préservés (map-filter-close/apply, map-hide-fakes-toggle, map-cone-slider/apply, route-pick-bar/cancel/confirm, manual-route-bar/cancel/create, route-edit-bar/cancel/save). Aucun style modifié dans les composants extraits.",
+    "map.tsx reste volumineux (>3600 lignes). Recommandation future (non bloquant ITER143) : découper la logique des overlays cône/anchor/alerts + les banners en composants pour ramener sous 700 lignes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter143_review_extra.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11 passed + 1 xfailed attendu) — 8/8 iter143_moteur_h + 3/3 iter143_review_extra + 4 passed + 1 xfailed iter140_perf",
+    "frontend": "100% des critères frontend review — login, carte, filtres, cône ; barres non-triggerées (flux profond hors scope web, absence d'erreur console)"
+  },
+  "seed_data_creation": "Aucune. Compte QA seedé antoninlepinay@gmail.com/123454321 utilisé avec header X-RateLimit-Bypass:qa-bypass-signalmar-2026.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "ITER143 GO armateur validé. Moteur H (id=engine_h) : consomme /app/backend/data/bathy/safe_routes.json via core/safe_routes.py, corrige les faux couples Jument/N°4 (DIR_COHERENCE_V6 exclusif à H), warning 'Route calée sur la route officielle', repli sur Moteur F si pas de tracks — moteurs A-G intacts (xfail iter139/140 volontaire, NE PAS toucher). Backend URL publique https://signalmar-optimize.preview.emergentagent.com, header X-RateLimit-Bypass:qa-bypass-signalmar-2026, auth POST /api/auth/login {email,password}. Frontend : login via testID login-mode-email → login-email/login-password/login-email-submit ; carte /map avec map-filter-trigger → MapFilterSheet (map-filter-close/apply, map-filter-type-*, map-hide-fakes-toggle) ; map-nav-toggle → map-cone-config → ConeConfigModal (map-cone-slider/apply). Barres RouteBars (route-pick-bar/manual-route-bar/route-edit-bar) présentes dans le code, activation via flux création route (non triggerées ici). Tests réutilisables : /app/backend/tests/test_iter143_moteur_h.py + /app/backend/tests/test_iter143_review_extra.py + /app/backend/tests/test_iter140_perf_route_10s.py.",
+  "rca_of_issue": "N/A — pas de bug. Tous les critères backend et frontend de la review ITER143 sont satisfaits."
+}

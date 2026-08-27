@@ -120,6 +120,25 @@ _BUILTIN_SEEDS = [
         "built_in": True,
         "parent_id": None,
     },
+    # 26/08/2026 (GO armateur) — MOTEUR H : routes officielles prioritaires
+    # (pointillés des cartes), faux couples corrigés, latérales prioritaires
+    # sur les cardinales dans un rayon paramétrable (défaut 1 km, ajustable
+    # via params.chenal_radius_m — pas de bouton UI). Base Moteur F.
+    {
+        "id": "engine_h",
+        "name": "Moteur H routes officielles 26.08.26",
+        "description": (
+            "Base Moteur F + routes OFFICIELLES prioritaires (la route est "
+            "calée sur les pointillés des cartes quand ils existent, repli "
+            "Moteur F sinon), faux couples corrigés, latérales prioritaires "
+            "sur les cardinales (rayon params.chenal_radius_m, défaut 1 km)."
+        ),
+        "algo": "signalmar.h",
+        "params": {"chenal_radius_m": 1000, "track_attach_m": 3000},
+        "active": True,
+        "built_in": False,
+        "parent_id": "engine_f",
+    },
 ]
 
 

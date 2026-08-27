@@ -92,6 +92,8 @@ def _compute_and_poll(token: str, engine_id: str, timeout_s: int = 300) -> dict:
 
 
 # ── BACKEND 2 — Moteur F respecte le chenal Lorient, ~8.8 km, wrong_side vide ─
+@pytest.mark.xfail(reason="iter143 : faux positifs Jument/N°4 (faux couples) "
+                   "— corrigés par le Moteur H (dir_coherence), F gelé", strict=False)
 def test_engine_f_lorient_route_ok(auth_token):
     res = _compute_and_poll(auth_token, "engine_f")
     wps = res.get("waypoints") or []

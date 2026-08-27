@@ -46,7 +46,7 @@ from core.routing_engines.algos.signalmar_v2.standoff import (
     _best_insert_index, _closest_on, _d_m, _length_m,
 )
 from core.routing_engines.algos.signalmar_v4 import _audit_wrong_sides
-from core.seamarks import DIR_COHERENCE_V6, get_seamarks
+from core.seamarks import DIR_COHERENCE_V6, LATERAL_AUTHORITY_M, get_seamarks
 
 logger = logging.getLogger("signalmar.routing.v6.sidefix")
 
@@ -357,6 +357,32 @@ def _side_insert(
     return None
 
 
+def _cardinal_yields_to_lateral(sm, m_lat: float, m_lng: float) -> bool:
+    """26/08 (Moteur H) — True si la marque en (m_lat, m_lng) est une
+    CARDINALE avec une LATÉRALE fiable dans le rayon LATERAL_AUTHORITY_M
+    (le balisage de chenal prime : pas de détour imposé par la cardinale)."""
+    radius = LATERAL_AUTHORITY_M.get()
+    if radius <= 0.0:
+        return False
+    mark = None
+    for m in sm.marks:
+        if abs(m["lat"] - m_lat) < 1e-6 and abs(m["lng"] - m_lng) < 1e-6:
+            mark = m
+            break
+    if mark is None or mark.get("kind") != "cardinal":
+        return False
+    mlng = m_per_deg_lng(m_lat)
+    for o in sm.marks:
+        if o.get("kind") != "lateral" or o.get("category") not in ("port", "starboard"):
+            continue
+        if math.hypot((o["lat"] - m_lat) * v1.M_PER_DEG_LAT,
+                      (o["lng"] - m_lng) * mlng) > radius:
+            continue
+        if sm.mark_dir_confident(o) is not None:
+            return True
+    return False
+
+
 def _graze_insert(
     pts: list[Pt], m_lat: float, m_lng: float, target: float,
     val: _Validator, max_detour_m: float, mlng: float,
@@ -621,6 +647,12 @@ def enforce_mark_sides(
                 break
             progressed = False
             for (_d0, _seg_i, (m_lat, m_lng), r_std, name) in grz[:budget]:
+                # 26/08 (Moteur H, gated LATERAL_AUTHORITY_M) — priorité au
+                # balisage de chenal : une CARDINALE flanquée d'une latérale
+                # fiable dans le rayon ne DÉTOURNE plus la route (le
+                # frôlement reste signalé par l'audit, jamais traversée).
+                if _cardinal_yields_to_lateral(sm, m_lat, m_lng):
+                    continue
                 cand = _graze_insert(pts, m_lat, m_lng, r_std + pad, val,
                                      max_detour, mlng)
                 if cand is not None:

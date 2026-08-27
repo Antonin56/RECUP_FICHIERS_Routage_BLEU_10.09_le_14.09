@@ -1,27 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Platform,
-  Pressable,
   ScrollView,
-  Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import Slider from "@react-native-community/slider";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 
 import { MarineMap, type MarineMapHandle, type RouteTapDanger } from "@/src/components/MarineMap";
 import { api, type ComputedRoute, type ReportItem, type RouteErrorDetail, type SavedRoute, type Seamark } from "@/src/api/client";
-import { theme, spacing, radii } from "@/src/lib/theme";
+import { theme, spacing } from "@/src/lib/theme";
 import { showToast } from "@/src/components/Toast";
 import { REPORT_TYPES, TYPE_BY_ID, type ReportTypeId } from "@/src/lib/report-types";
 import { useAuth } from "@/src/auth/AuthContext";
@@ -34,7 +29,7 @@ import { vibrateAlert, stopAlertFeedback } from "@/src/lib/alert-vibration";
 import { playAlertHorn, playAnchorAlarmSound, playRouteDeviationSound, stopAlertHorn, stopAnchorAlarmSound, stopRouteDeviationSound } from "@/src/lib/alert-sound";
 import { useProximityConfirm } from "@/src/lib/proximity-confirm";
 import { ProximityConfirmCard } from "@/src/components/ProximityConfirmCard";
-import { AlertSettingsPanel, ZoneField, NAV_SLIDER_MAX_KM, NAV_INPUT_MAX_KM } from "@/src/components/AlertSettingsPanel";
+import { AlertSettingsPanel } from "@/src/components/AlertSettingsPanel";
 import { SpeedometerOverlay } from "@/src/components/SpeedometerOverlay";
 import { RouteCard } from "@/src/components/RouteCard";
 import { RouteCompareBar, BASE_COLOR, VARIANT_COLOR } from "@/src/components/RouteCompareBar";
@@ -95,6 +90,12 @@ import { SaferPreviewModal } from "@/src/screens/map/modals/SaferPreviewModal";
 import { SaveRouteNameModal } from "@/src/screens/map/modals/SaveRouteNameModal";
 import { SeamarkInfoModal } from "@/src/screens/map/modals/SeamarkInfoModal";
 import { UnitPickerModal } from "@/src/screens/map/modals/UnitPickerModal";
+// 26/08/2026 (fin du refactor map.tsx) — recherche, filtres, cône et barres
+// (manuelle / édition / départ / placement) : déplacements PURS.
+import { SearchByCodeModal } from "@/src/screens/map/modals/SearchByCodeModal";
+import { MapFilterSheet } from "@/src/screens/map/modals/MapFilterSheet";
+import { ConeConfigModal } from "@/src/screens/map/modals/ConeConfigModal";
+import { ManualRouteBar, PickPlaceBar, RouteEditBar, RoutePickBar } from "@/src/screens/map/RouteBars";
 
 // Phase 3c — Welcome banner is shown only ONCE per app boot (JS session).
 // The module-level flag is reset when the JS engine reloads, so a full
@@ -3265,90 +3266,28 @@ export default function MapScreen() {
 
       {/* 22/07 — barre de création de route MANUELLE (appui long = étape). */}
       {manualPoints != null && (
-        <View style={[styles.pickBar, { paddingBottom: insets.bottom + 12 }]} testID="manual-route-bar">
-          <View style={styles.pickTitleRow}>
-            <Ionicons name="create" size={20} color="#2EC4B6" />
-            <Text style={styles.pickTitle}>
-              Route manuelle — {manualPoints.length} point{manualPoints.length > 1 ? "s" : ""}. Appui long sur la carte pour ajouter une étape.
-            </Text>
-          </View>
-          <View style={styles.pickActions}>
-            <TouchableOpacity
-              style={styles.pickCancel}
-              onPress={() => setManualPoints(null)}
-              testID="manual-route-cancel"
-            >
-              <Ionicons name="close" size={20} color={theme.text} />
-              <Text style={styles.pickCancelText}>Annuler</Text>
-            </TouchableOpacity>
-            {manualPoints.length > 1 && (
-              <TouchableOpacity
-                style={styles.pickCancel}
-                onPress={() => setManualPoints((p) => (p && p.length > 1 ? p.slice(0, -1) : p))}
-                testID="manual-route-undo"
-              >
-                <Ionicons name="arrow-undo" size={20} color={theme.text} />
-                <Text style={styles.pickCancelText}>Retirer</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={[styles.pickContinue, (manualPoints.length < 2 || manualBusy) && { opacity: 0.5 }]}
-              onPress={() => void createManualRoute()}
-              disabled={manualPoints.length < 2 || manualBusy}
-              testID="manual-route-create"
-            >
-              {manualBusy ? (
-                <ActivityIndicator color={theme.bg} />
-              ) : (
-                <>
-                  <Ionicons name="checkmark" size={20} color={theme.bg} />
-                  <Text style={styles.pickContinueText}>Créer cette route</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+        <ManualRouteBar
+          insetsBottom={insets.bottom}
+          count={manualPoints.length}
+          busy={manualBusy}
+          onCancel={() => setManualPoints(null)}
+          onUndo={() => setManualPoints((p) => (p && p.length > 1 ? p.slice(0, -1) : p))}
+          onCreate={() => void createManualRoute()}
+        />
       )}
 
       {/* 26/07 — barre d'ÉDITION de route. 11/08 (règle armateur) : un seul
           waypoint éditable (le plus proche du toucher), recalcul complet
           après déplacement. */}
       {editPoints != null && (
-        <View style={[styles.pickBar, { paddingBottom: insets.bottom + 12 }]} testID="route-edit-bar">
-          <View style={styles.pickTitleRow}>
-            <Ionicons name="move" size={20} color="#2EC4B6" />
-            <Text style={styles.pickTitle}>
-              {editIdx != null
-                ? `Waypoint ${editIdx + 1} sélectionné — déplacez-le pour un ajustement fin (appui long ailleurs sur le tracé pour changer de waypoint).`
-                : "Appui long sur le tracé pour sélectionner le waypoint à ajuster."}
-            </Text>
-          </View>
-          <View style={styles.pickActions}>
-            <TouchableOpacity
-              style={styles.pickCancel}
-              onPress={closeEdit}
-              testID="route-edit-cancel"
-            >
-              <Ionicons name="close" size={20} color={theme.text} />
-              <Text style={styles.pickCancelText}>Annuler</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.pickContinue, (editBusy || !editMoved) && { opacity: 0.5 }]}
-              onPress={() => void commitEdit()}
-              disabled={editBusy || !editMoved}
-              testID="route-edit-save"
-            >
-              {editBusy ? (
-                <ActivityIndicator color={theme.bg} />
-              ) : (
-                <>
-                  <Ionicons name="refresh" size={20} color={theme.bg} />
-                  <Text style={styles.pickContinueText}>Recalculer la route</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+        <RouteEditBar
+          insetsBottom={insets.bottom}
+          editIdx={editIdx}
+          busy={editBusy}
+          moved={editMoved}
+          onCancel={closeEdit}
+          onSave={() => void commitEdit()}
+        />
       )}
 
       {/* 22/07 — nom de la route à ENREGISTRER (max 20 / compte). */}
@@ -3699,172 +3638,45 @@ export default function MapScreen() {
       )}
 
       {/* Modale de recherche par ID COURT. */}
-      <Modal
+      <SearchByCodeModal
         visible={searchOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSearchOpen(false)}
-      >
-        <Pressable style={styles.searchBackdrop} onPress={() => setSearchOpen(false)}>
-          <Pressable style={styles.searchSheet} onPress={() => {}}>
-            <View style={styles.searchTitleRow}>
-              <Ionicons name="search" size={18} color={theme.primary} />
-              <Text style={styles.searchTitle}>Rechercher un signalement</Text>
-            </View>
-            <Text style={styles.searchHint}>
-              Entrez le code affiché sur un post partagé (ex. K7M2PQ4X).
-            </Text>
-            <TextInput
-              style={styles.searchInput}
-              value={searchCode}
-              onChangeText={(v) => { setSearchCode(v.toUpperCase()); setSearchErr(null); }}
-              placeholder="CODE DU SIGNALEMENT"
-              placeholderTextColor={theme.textDim}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              maxLength={12}
-              autoFocus
-              returnKeyType="search"
-              onSubmitEditing={searchByCode}
-              testID="map-search-input"
-            />
-            {searchErr ? <Text style={styles.searchErr}>{searchErr}</Text> : null}
-            <TouchableOpacity
-              style={[styles.searchBtn, (searchBusy || searchCode.trim().length < 4) && { opacity: 0.5 }]}
-              onPress={searchByCode}
-              disabled={searchBusy || searchCode.trim().length < 4}
-              testID="map-search-submit"
-            >
-              {searchBusy ? (
-                <ActivityIndicator color={theme.bg} />
-              ) : (
-                <>
-                  <Ionicons name="search" size={18} color={theme.bg} />
-                  <Text style={styles.searchBtnTxt}>Rechercher</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        code={searchCode}
+        err={searchErr}
+        busy={searchBusy}
+        onChangeCode={(v) => { setSearchCode(v.toUpperCase()); setSearchErr(null); }}
+        onSubmit={searchByCode}
+        onClose={() => setSearchOpen(false)}
+      />
 
       {/* 20/07 — « Créer une route » : barre de choix du DÉPART. */}
       {routePickDest != null && (
-        <View style={[styles.pickBar, { paddingBottom: insets.bottom + 12 }]} testID="route-pick-bar">
-          <View style={styles.pickTitleRow}>
-            <Ionicons name="git-branch" size={20} color="#2EC4B6" />
-            <Text style={styles.pickTitle}>Glissez la carte pour placer le DÉPART de la route</Text>
-          </View>
-          <Text style={styles.pickCoords}>
-            {pickedPoint.lat.toFixed(5)}°, {pickedPoint.lng.toFixed(5)}°
-          </Text>
-          {/* 22/07 (GO armateur) — MARÉE à l'heure de départ : Sans = marée
-              basse (sécuritaire) ; sinon hauteur d'eau MINIMALE sur la durée
-              estimée du trajet à partir de l'heure choisie. */}
-          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-            <Ionicons name="water" size={14} color="#48CAE4" />
-            <Text style={{ color: theme.textMute, fontSize: 11, fontWeight: "800" }}>Marée :</Text>
-            {([
-              [null, "Sans"],
-              [0, "Départ maintenant"],
-              [2, "+2 h"],
-              [4, "+4 h"],
-              [6, "+6 h"],
-            ] as [number | null, string][]).map(([v, label]) => {
-              const active = tideChoice === v;
-              return (
-                <TouchableOpacity
-                  key={label}
-                  style={[
-                    styles.chip,
-                    { height: 30, paddingHorizontal: 10 },
-                    active && { backgroundColor: "#48CAE4", borderColor: "#48CAE4" },
-                  ]}
-                  onPress={() => setTideChoice(v)}
-                  testID={`route-tide-${v == null ? "off" : v}`}
-                >
-                  <Text style={[styles.chipText, { fontSize: 11 }, active && { color: "#0B132B" }]}>{label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={styles.pickActions}>
-            <TouchableOpacity
-              style={styles.pickCancel}
-              onPress={() => setRoutePickDest(null)}
-              testID="route-pick-cancel"
-            >
-              <Ionicons name="close" size={20} color={theme.text} />
-              <Text style={styles.pickCancelText}>Annuler</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.pickContinue}
-              onPress={() => {
-                const dest = routePickDest;
-                setRoutePickDest(null);
-                if (!dest) return;
-                void computeSafeRoute(dest, pickedPoint);
-              }}
-              testID="route-pick-confirm"
-            >
-              <Ionicons name="checkmark" size={20} color={theme.bg} />
-              <Text style={styles.pickContinueText}>Calculer la route</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <RoutePickBar
+          insetsBottom={insets.bottom}
+          pickedPoint={pickedPoint}
+          tideChoice={tideChoice}
+          onTideChoice={setTideChoice}
+          onCancel={() => setRoutePickDest(null)}
+          onConfirm={() => {
+            const dest = routePickDest;
+            setRoutePickDest(null);
+            if (!dest) return;
+            void computeSafeRoute(dest, pickedPoint);
+          }}
+        />
       )}
 
       {picking && (
-        <View style={[styles.pickBar, { paddingBottom: insets.bottom + 12 }]}>
-          <View style={styles.pickTitleRow}>
-            <Ionicons
-              name={shiftReportId ? "swap-horizontal" : "add-circle"}
-              size={20}
-              color={shiftReportId ? theme.warning : theme.danger}
-            />
-            <Text style={styles.pickTitle}>
-              {shiftReportId
-                ? (authorShiftMode
-                    ? "Glissez la carte pour repositionner votre signalement"
-                    : "Glissez la carte vers la vraie position")
-                : "Faites glisser la carte pour placer le point"}
-            </Text>
-          </View>
-          <Text style={styles.pickCoords}>
-            {pickedPoint.lat.toFixed(5)}°, {pickedPoint.lng.toFixed(5)}°
-          </Text>
-          <View style={styles.pickActions}>
-            <TouchableOpacity
-              style={styles.pickCancel}
-              onPress={cancelPick}
-              disabled={submittingShift}
-              testID="pick-cancel"
-            >
-              <Ionicons name="close" size={20} color={theme.text} />
-              <Text style={styles.pickCancelText}>Annuler</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.pickContinue, submittingShift && { opacity: 0.6 }]}
-              onPress={confirmPick}
-              disabled={submittingShift}
-              testID="pick-continue"
-            >
-              {submittingShift ? (
-                <ActivityIndicator color={theme.bg} />
-              ) : (
-                <>
-                  <Ionicons name="checkmark" size={20} color={theme.bg} />
-                  <Text style={styles.pickContinueText}>
-                    {shiftReportId
-                      ? (authorShiftMode ? "Modifier mon point" : "Proposer ce point")
-                      : "Signaler ici"}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+        <PickPlaceBar
+          insetsBottom={insets.bottom}
+          pickedPoint={pickedPoint}
+          shiftMode={!!shiftReportId}
+          authorShiftMode={authorShiftMode}
+          busy={submittingShift}
+          onCancel={cancelPick}
+          onConfirm={confirmPick}
+        />
       )}
+
 
       {loading && Platform.OS !== "web" && (
         <View style={styles.loading}>
@@ -3873,112 +3685,19 @@ export default function MapScreen() {
       )}
 
       {/* PHASE 4 — Filter bottom-sheet (multi-select). Lives above the map. */}
-      <Modal
+      <MapFilterSheet
         visible={filterSheetOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setFilterSheetOpen(false)}
-      >
-        <Pressable style={styles.sheetBackdrop} onPress={() => setFilterSheetOpen(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation?.()}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Affichage de la carte</Text>
-              <TouchableOpacity onPress={() => setFilterSheetOpen(false)} testID="map-filter-close">
-                <Ionicons name="close" size={22} color={theme.text} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.sheetSectionRow}>
-              <Text style={styles.sheetSection}>Types de signalements</Text>
-              <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                <TouchableOpacity
-                  onPress={() => setSelectedTypes(new Set())}
-                  testID="map-filter-select-all"
-                >
-                  <Text style={styles.sheetLink}>Tout afficher</Text>
-                </TouchableOpacity>
-                <Text style={styles.sheetLinkSep}>·</Text>
-                <TouchableOpacity
-                  onPress={() => setSelectedTypes(new Set(REPORT_TYPES.map((t) => t.id)))}
-                  testID="map-filter-invert"
-                >
-                  <Text style={styles.sheetLink}>Inverser</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={{ paddingBottom: spacing.sm }}>
-              {/* When the Set is empty we treat it as "all selected" for display purposes. */}
-              {REPORT_TYPES.map((t) => {
-                const isAll = selectedTypes.size === 0;
-                const on = isAll || selectedTypes.has(t.id);
-                return (
-                  <TouchableOpacity
-                    key={t.id}
-                    style={[styles.sheetRow, on && styles.sheetRowOn]}
-                    onPress={() => {
-                      // First explicit toggle when in "all" mode: keep ALL EXCEPT this one
-                      // (= unselect t). This matches the natural mental model.
-                      if (isAll) {
-                        const next = new Set(REPORT_TYPES.map((x) => x.id));
-                        next.delete(t.id);
-                        setSelectedTypes(next);
-                      } else {
-                        toggleType(t.id);
-                      }
-                    }}
-                    testID={`map-filter-type-${t.id}`}
-                  >
-                    <View style={[styles.sheetDot, { backgroundColor: t.color }]}>
-                      <Ionicons name={t.icon as never} size={16} color={theme.bg} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetRowLabel}>{t.label}</Text>
-                      <Text style={styles.sheetRowDesc}>{t.short}</Text>
-                    </View>
-                    <Ionicons
-                      name={on ? "checkbox" : "square-outline"}
-                      size={22}
-                      color={on ? theme.primary : theme.textMute}
-                    />
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.sheetDivider} />
-
-            <Text style={styles.sheetSection}>Préférences d&apos;affichage</Text>
-            <View style={styles.sheetTogglesRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowLabel}>Masquer les faux signalements</Text>
-                <Text style={styles.sheetRowDesc}>
-                  Cache les points marqués comme faux par la communauté.
-                </Text>
-              </View>
-              <Switch
-                value={hideFakes}
-                onValueChange={setHideFakes}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor={hideFakes ? theme.bg : theme.textDim}
-                testID="map-hide-fakes-toggle"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={styles.sheetApply}
-              onPress={() => {
-                setFilterSheetOpen(false);
-                fetchReports();
-              }}
-              testID="map-filter-apply"
-            >
-              <Text style={styles.sheetApplyText}>Appliquer</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        selectedTypes={selectedTypes}
+        setSelectedTypes={setSelectedTypes}
+        toggleType={toggleType}
+        hideFakes={hideFakes}
+        setHideFakes={setHideFakes}
+        onApply={() => {
+          setFilterSheetOpen(false);
+          fetchReports();
+        }}
+        onClose={() => setFilterSheetOpen(false)}
+      />
 
       <CoordsPopup
         visible={coordsPopupOpen}
@@ -3987,122 +3706,15 @@ export default function MapScreen() {
         onClose={() => setCoordsPopupOpen(false)}
       />
 
-      {/* Phase K — Cone config modal. Presets + slider (via chips of common
-          values) to keep it thumb-friendly. Live preview with a mini SVG-ish
-          cone illustration built out of rotated rectangles. */}
-      <Modal
+      {/* Phase K — Cone config modal (angle + distance, aperçu live). */}
+      <ConeConfigModal
         visible={coneModalOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setConeModalOpen(false)}
-      >
-        <Pressable style={styles.sheetBackdrop} onPress={() => setConeModalOpen(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation?.()}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Cône Navigation</Text>
-                <Text style={styles.sheetSubtitle}>
-                  Reste focus sur les signalements devant toi.
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setConeModalOpen(false)} testID="map-cone-close">
-                <Ionicons name="close" size={22} color={theme.text} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Phase K — Live preview of the double-cone shape (flare +
-                corridor). Boat is at the bottom apex; the shape opens
-                upward. The corridor rectangle above the flare uses the same
-                width as the flare's base, exactly like on the map. */}
-            {(() => {
-              const halfDeg = coneAngleDeg / 2;
-              // Flare = 40 px tall, its base width scales with tan(halfAngle).
-              const flareHeightPx = 40;
-              const halfWidthPx = Math.max(6, flareHeightPx * Math.tan((halfDeg * Math.PI) / 180));
-              const corridorWidthPx = halfWidthPx * 2;
-              const corridorHeightPx = 78;
-              return (
-                <View style={styles.conePreviewBox}>
-                  <View style={{ alignItems: "center", justifyContent: "flex-end", flex: 1, paddingBottom: 4 }}>
-                    <View style={[
-                      styles.conePreviewCorridor,
-                      { width: corridorWidthPx, height: corridorHeightPx },
-                    ]} />
-                    <View style={[
-                      styles.conePreviewFlare,
-                      {
-                        borderLeftWidth: halfWidthPx,
-                        borderRightWidth: halfWidthPx,
-                        borderTopWidth: flareHeightPx,
-                      },
-                    ]} />
-                    <View style={styles.conePreviewBoatDot} />
-                  </View>
-                  <Text style={styles.conePreviewLabel}>{coneAngleDeg}°</Text>
-                  <Text style={styles.conePreviewDim}>
-                    évasement 1.0 km · corridor {(2 * 1 * Math.sin((halfDeg * Math.PI) / 180)).toFixed(2)} km
-                  </Text>
-                </View>
-              );
-            })()}
-
-            <View style={styles.coneSliderRow}>
-              <Text style={styles.sheetSection}>Angle du cône</Text>
-              <Text style={styles.coneSliderValue}>{coneAngleDeg}°</Text>
-            </View>
-            <Slider
-              testID="map-cone-slider"
-              style={styles.coneSlider}
-              minimumValue={CONE_ANGLE_MIN}
-              maximumValue={CONE_ANGLE_MAX}
-              step={1}
-              value={coneAngleDeg}
-              onValueChange={(v) => setConeAngleDeg(Math.round(v))}
-              minimumTrackTintColor="#F4A261"
-              maximumTrackTintColor={theme.border}
-              thumbTintColor="#F4A261"
-            />
-            <View style={styles.coneSliderScale}>
-              <Text style={styles.coneSliderScaleText}>{CONE_ANGLE_MIN}°</Text>
-              <Text style={styles.coneSliderScaleText}>{CONE_ANGLE_MAX}°</Text>
-            </View>
-
-            {/* 15/07/2026 (demande user) — distance du cône réglable ICI,
-                sans passer par la page Réglages. Même réglage que « Zone de
-                veille — Navigation » (zoneNavM), mêmes bornes. */}
-            <View style={styles.coneDistanceBlock}>
-              <ZoneField
-                icon="navigate"
-                label="Distance du cône"
-                hint=""
-                valueM={voiceSettings.zoneNavM ?? 9260}
-                onCommitM={(m) => { void updateVoiceSettings({ zoneNavM: m }); }}
-                testIDPrefix="map-cone-distance"
-                showHint={false}
-                sliderMaxKm={NAV_SLIDER_MAX_KM}
-                inputMaxKm={NAV_INPUT_MAX_KM}
-              />
-            </View>
-
-            <View style={styles.coneInfoRow}>
-              <Ionicons name="information-circle-outline" size={16} color={theme.textDim} />
-              <Text style={styles.coneInfoText}>
-                Évasement fixe 1 km, puis corridor parallèle (largeur constante) jusqu&apos;à la distance choisie.{"\n"}
-                Signalements HORS corridor : grisés à 30 % (visibles mais non-alertants).
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.sheetApply}
-              onPress={() => setConeModalOpen(false)}
-              testID="map-cone-apply"
-            >
-              <Text style={styles.sheetApplyText}>Terminé</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        coneAngleDeg={coneAngleDeg}
+        setConeAngleDeg={setConeAngleDeg}
+        zoneNavM={voiceSettings.zoneNavM ?? 9260}
+        onCommitZoneNavM={(m) => { void updateVoiceSettings({ zoneNavM: m }); }}
+        onClose={() => setConeModalOpen(false)}
+      />
 
       {/* Compteur de vitesse agrandi — bande « Verre ». */}
       <SpeedometerOverlay
