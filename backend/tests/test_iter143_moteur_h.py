@@ -34,9 +34,14 @@ def test_plan_lorient_attaches_passes():
         (LORIENT_START["lat"], LORIENT_START["lng"]),
         (LORIENT_END["lat"], LORIENT_END["lng"]), 3000)
     assert len(plan) >= 1
+    # Longueur TOTALE calée sur les pointillés, et non celle du seul premier
+    # tronçon : depuis iter145 le réseau ne franchit plus une latérale pour
+    # raccorder deux tracés voisins, si bien que la même attache se répartit
+    # désormais sur 2 composantes (2128 + 2494 m) au lieu d'une seule
+    # (5773 m). Ce qui doit être garanti, c'est la longueur suivie au total.
     L = sum(safe_routes._d_m(a, b)
-            for a, b in zip(plan[0]["pts"], plan[0]["pts"][1:]))
-    assert L > 3000, f"chemin trop court: {L}"
+            for p in plan for a, b in zip(p["pts"], p["pts"][1:]))
+    assert L > 3000, f"attache trop courte: {L}"
 
 def test_plan_belle_ile_arradon_uses_teignouse():
     from core import safe_routes
@@ -46,6 +51,36 @@ def test_plan_belle_ile_arradon_uses_teignouse():
 def test_plan_open_sea_returns_empty():
     from core import safe_routes
     assert safe_routes.plan_tracks((47.40, -3.60), (47.30, -3.90), 3000) == []
+
+
+def test_network_respecte_le_balisage_lateral():
+    """iter145 — AUCUN nœud ni segment du réseau des routes officielles ne
+    passe du mauvais côté d'une latérale fiable, raccords synthétiques
+    (≤ 300 m) COMPRIS.
+
+    Régression du bug armateur « N° 3 / Banc du Turc franchis à contre-bord » :
+    seuls les alignements (navigation_line) étaient filtrés ; les tracés
+    chartés (recommended_track) et les jonctions entre extrémités ne
+    l'étaient pas, et réinjectaient le passage à contre-bord dans le réseau.
+    """
+    from core import safe_routes
+    from core.seamarks import get_seamarks
+    sm = get_seamarks()
+    net = safe_routes.get_network()
+    assert net is not None
+
+    bad_nodes = [n for n in net.nodes if safe_routes._wrong_side(sm, n)]
+    assert bad_nodes == [], f"nœuds du mauvais côté : {bad_nodes[:3]}"
+
+    bad_edges = []
+    for i, adjs in enumerate(net.adj):
+        for j, _w in adjs:
+            if j <= i:
+                continue
+            if any(safe_routes._wrong_side(sm, p)
+                   for p in safe_routes._sample([net.nodes[i], net.nodes[j]])):
+                bad_edges.append((net.nodes[i], net.nodes[j]))
+    assert bad_edges == [], f"segments du mauvais côté : {bad_edges[:3]}"
 
 
 # ── Unitaires : faux couples corrigés (Moteur H = dir_coherence) ──────────
