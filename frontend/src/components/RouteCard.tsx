@@ -185,6 +185,37 @@ export function RouteCard(props: {
         </View>
       ) : null}
 
+      {/* 27/08/2026 (demande armateur) — COORDONNÉES EXACTES du départ et de
+          l'arrivée du tracé (tap = copier). Elles sont aussi conservées à
+          l'enregistrement de la route (champs start/end en base). */}
+      {route.waypoints.length >= 2 ? (
+        <View style={styles.coordCol} testID="route-coords">
+          {([
+            ["Départ", route.waypoints[0], "flag-outline", "#80ED99"],
+            ["Arrivée", route.waypoints[route.waypoints.length - 1], "location-outline", "#E5383B"],
+          ] as const).map(([label, p, icon, color]) => (
+            <TouchableOpacity
+              key={label}
+              style={styles.coordChip}
+              onPress={async () => {
+                await Clipboard.setStringAsync(`${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+                showToast("success", `${label} copié : ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+              }}
+              activeOpacity={0.7}
+              hitSlop={6}
+              testID={`route-coord-${label === "Départ" ? "start" : "end"}`}
+            >
+              <Ionicons name={icon} size={12} color={color} />
+              <Text style={[styles.coordLabel, { color }]}>{label}</Text>
+              <Text style={styles.coordText} numberOfLines={1}>
+                {p.lat.toFixed(6)}, {p.lng.toFixed(6)}
+              </Text>
+              <Ionicons name="copy-outline" size={11} color={theme.textDim} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+
       {chart ? (
         <>
           <View
@@ -564,6 +595,19 @@ const styles = StyleSheet.create({
   },
   idChipText: {
     color: theme.textDim, fontSize: 10.5, fontWeight: "700",
+    fontVariant: ["tabular-nums"], letterSpacing: 0.3,
+  },
+  // 27/08 — coordonnées exactes départ/arrivée (tap = copier).
+  coordCol: { gap: 4 },
+  coordChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    alignSelf: "stretch", paddingVertical: 4, paddingHorizontal: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: theme.border, borderRadius: radii.sm,
+  },
+  coordLabel: { fontSize: 10.5, fontWeight: "900", width: 46 },
+  coordText: {
+    flex: 1, color: theme.textDim, fontSize: 11, fontWeight: "700",
     fontVariant: ["tabular-nums"], letterSpacing: 0.3,
   },
   chartWrap: {

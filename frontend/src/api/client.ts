@@ -367,6 +367,10 @@ export interface SavedRoute {
   depth_margin_m?: number | null;
   lateral_margin_m?: number | null;
   source_route_id?: string | null;
+  /** 27/08/2026 (demande armateur) — coordonnées EXACTES du départ et de
+   *  l'arrivée, conservées à l'enregistrement. */
+  start?: RouteWaypoint | null;
+  end?: RouteWaypoint | null;
 }
 
 /** 01/08/2026 — Moteur de routage (profil nommé). Cf. backend
