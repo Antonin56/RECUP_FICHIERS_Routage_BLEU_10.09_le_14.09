@@ -1,0 +1,175 @@
+bbox=(45.70,-5.45,49.00,-1.00) — 20 tuile(s)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tentative 2 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Time-out' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 20s
+  tentative 3 (https://overpass.kumi.systems/api/interpreter) : Server error '502 Bad Gateway' for url 'https://overpass.kumi.systems/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502 → pause 30s
+  tentative 4 (https://overpass.private.coffee/api/interpreter) : Server disconnected without sending a response. → pause 40s
+  tentative 5 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 50s
+  tuile 1/20 : 0 ways (0 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 2/20 : 0 ways (0 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tentative 2 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Timeout' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 20s
+  tentative 3 (https://overpass.kumi.systems/api/interpreter) : Server error '502 Bad Gateway' for url 'https://overpass.kumi.systems/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502 → pause 30s
+  tentative 4 (https://overpass.private.coffee/api/interpreter) : Server error '502 Bad Gateway' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502 → pause 40s
+  tentative 5 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 50s
+  tuile 3/20 : 0 ways (0 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tentative 2 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Time-out' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 20s
+  tentative 3 (https://overpass.kumi.systems/api/interpreter) : Server error '500 Internal Server Error' for url 'https://overpass.kumi.systems/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 → pause 30s
+  tentative 4 (https://overpass.private.coffee/api/interpreter) : Server error '500 Internal Server Error' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 → pause 40s
+  tentative 5 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 50s
+  tuile 4/20 : 0 ways (0 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 5/20 : 19 ways (19 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 6/20 : 0 ways (0 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 7/20 : 0 ways (0 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 8/20 : 2 ways (2 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 9/20 : 25 ways (25 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tentative 2 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Timeout' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 20s
+  tentative 3 (https://overpass.kumi.systems/api/interpreter) : Server error '500 Internal Server Error' for url 'https://overpass.kumi.systems/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 → pause 30s
+  tentative 4 (https://overpass.private.coffee/api/interpreter) : peer closed connection without sending complete message body (incomplete chunked read) → pause 40s
+  tentative 5 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 50s
+  tentative 6 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Time-out' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 60s
+  tentative 7 (https://overpass.kumi.systems/api/interpreter) : Server disconnected without sending a response. → pause 70s
+  tentative 8 (https://overpass.private.coffee/api/interpreter) : Server error '502 Bad Gateway' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502 → pause 80s
+Traceback (most recent call last):
+  File "/app/backend/scripts/ingest_safe_routes.py", line 89, in <module>
+    main()
+  File "/app/backend/scripts/ingest_safe_routes.py", line 53, in main
+    els = overpass_fetch(q, f"safe_routes_{i}")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/scripts/overpass.py", line 88, in fetch
+    raise last  # type: ignore[misc]
+    ^^^^^^^^^^
+  File "/app/backend/scripts/overpass.py", line 76, in fetch
+    r.raise_for_status()
+  File "/root/.venv/lib/python3.11/site-packages/httpx/_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Server error '502 Bad Gateway' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502
+bbox=(45.70,-5.45,49.00,-1.00) — 20 tuile(s)
+  tuile 1/20 : 0 ways (0 nouveaux)
+  tuile 2/20 : 0 ways (0 nouveaux)
+  tuile 3/20 : 0 ways (0 nouveaux)
+  tuile 4/20 : 0 ways (0 nouveaux)
+  tuile 5/20 : 19 ways (19 nouveaux)
+  tuile 6/20 : 0 ways (0 nouveaux)
+  tuile 7/20 : 0 ways (0 nouveaux)
+  tuile 8/20 : 2 ways (2 nouveaux)
+  tuile 9/20 : 25 ways (25 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 10/20 : 6 ways (6 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tentative 2 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Timeout' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 20s
+  tentative 3 (https://overpass.kumi.systems/api/interpreter) : Server error '502 Bad Gateway' for url 'https://overpass.kumi.systems/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502 → pause 30s
+  tentative 4 (https://overpass.private.coffee/api/interpreter) : Server error '502 Bad Gateway' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502 → pause 40s
+  tentative 5 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 50s
+  tuile 11/20 : 6 ways (6 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tentative 2 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Time-out' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 20s
+  tentative 3 (https://overpass.kumi.systems/api/interpreter) : Server error '500 Internal Server Error' for url 'https://overpass.kumi.systems/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 → pause 30s
+  tentative 4 (https://overpass.private.coffee/api/interpreter) : Server error '500 Internal Server Error' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 → pause 40s
+  tentative 5 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 50s
+  tentative 6 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Timeout' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 60s
+  tentative 7 (https://overpass.kumi.systems/api/interpreter) : Server error '502 Bad Gateway' for url 'https://overpass.kumi.systems/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502 → pause 70s
+  tentative 8 (https://overpass.private.coffee/api/interpreter) : Server error '500 Internal Server Error' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 → pause 80s
+Traceback (most recent call last):
+  File "/app/backend/scripts/ingest_safe_routes.py", line 89, in <module>
+    main()
+  File "/app/backend/scripts/ingest_safe_routes.py", line 53, in main
+    els = overpass_fetch(q, f"safe_routes_{i}")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/scripts/overpass.py", line 88, in fetch
+    raise last  # type: ignore[misc]
+    ^^^^^^^^^^
+  File "/app/backend/scripts/overpass.py", line 76, in fetch
+    r.raise_for_status()
+  File "/root/.venv/lib/python3.11/site-packages/httpx/_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Server error '500 Internal Server Error' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500
+bbox=(45.70,-5.45,49.00,-1.00) — 20 tuile(s)
+  tuile 1/20 : 0 ways (0 nouveaux)
+  tuile 2/20 : 0 ways (0 nouveaux)
+  tuile 3/20 : 0 ways (0 nouveaux)
+  tuile 4/20 : 0 ways (0 nouveaux)
+  tuile 5/20 : 19 ways (19 nouveaux)
+  tuile 6/20 : 0 ways (0 nouveaux)
+  tuile 7/20 : 0 ways (0 nouveaux)
+  tuile 8/20 : 2 ways (2 nouveaux)
+  tuile 9/20 : 25 ways (25 nouveaux)
+  tuile 10/20 : 6 ways (6 nouveaux)
+  tuile 11/20 : 6 ways (6 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 12/20 : 29 ways (29 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 13/20 : 36 ways (34 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 14/20 : 10 ways (10 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 15/20 : 0 ways (0 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 16/20 : 6 ways (6 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 17/20 : 4 ways (1 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 18/20 : 1 ways (1 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 19/20 : 35 ways (35 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tentative 2 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Timeout' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 20s
+bbox=(45.70,-5.45,49.00,-1.00) — 20 tuile(s)
+  tuile 1/20 : 0 ways (0 nouveaux)
+  tuile 2/20 : 0 ways (0 nouveaux)
+  tuile 3/20 : 0 ways (0 nouveaux)
+  tuile 4/20 : 0 ways (0 nouveaux)
+  tuile 5/20 : 19 ways (19 nouveaux)
+  tuile 6/20 : 0 ways (0 nouveaux)
+  tuile 7/20 : 0 ways (0 nouveaux)
+  tuile 8/20 : 2 ways (2 nouveaux)
+  tuile 9/20 : 25 ways (25 nouveaux)
+  tuile 10/20 : 6 ways (6 nouveaux)
+  tuile 11/20 : 6 ways (6 nouveaux)
+  tuile 12/20 : 29 ways (29 nouveaux)
+  tuile 13/20 : 36 ways (34 nouveaux)
+  tuile 14/20 : 10 ways (10 nouveaux)
+  tuile 15/20 : 0 ways (0 nouveaux)
+  tuile 16/20 : 6 ways (6 nouveaux)
+  tuile 17/20 : 4 ways (1 nouveaux)
+  tuile 18/20 : 1 ways (1 nouveaux)
+  tuile 19/20 : 35 ways (35 nouveaux)
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tuile 20/20 : 6 ways (6 nouveaux)
+OK safe_routes.json : 180 ways {'fairway': 16, 'navigation_line': 90, 'recommended_track': 74}
+  tentative 3 (https://overpass.kumi.systems/api/interpreter) : Server disconnected without sending a response. → pause 30s
+  tentative 4 (https://overpass.private.coffee/api/interpreter) : peer closed connection without sending complete message body (incomplete chunked read) → pause 40s
+  tentative 5 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 50s
+  tuile 20/20 : 6 ways (6 nouveaux)
+OK safe_routes.json : 180 ways {'fairway': 16, 'navigation_line': 90, 'recommended_track': 74}

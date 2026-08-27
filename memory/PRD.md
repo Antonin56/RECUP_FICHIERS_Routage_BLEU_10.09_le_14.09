@@ -3287,3 +3287,47 @@ Non-régression : 26/26 balisage (iter136-139) + 40/40 moteurs gelés
 - Backend 15/15 (8 iter143 + 3 review extra + perf 4+1 xfail), frontend :
   filtres/cône/barres extraits OK, aucune erreur console, moteurs A-G intacts.
 - Cosmétique non bloquant : warnings RN Web shadow*/pointerEvents (backlog).
+
+## ✅ ITER144 (27/08) — nettoyage FAUSSES SURFACES lidar (GO armateur, données uniquement)
+- Bug « Passage impossible » à la Jument (tirant 1.5, marée 0) : cause = lidar
+  « fausse surface » (cellules natives 0.4-1.1 m dans des passes à 10-20 m,
+  confirmées ATL100) + lacunes bloquées par la protection assèche ≤2 cellules.
+- Fix ingestion (scripts/ingest_litto3d_lorient.py, moteurs INTACTS) :
+  1) natif ∈ [−0.5, 3 m) & ATL100 ≥ 6 m → valeur ATL100 (1 068 cellules) ;
+  2) rebouchage lacunes aussi quand ATL100 ≥ 6 m (passes étroites flanquées
+  de bancs réels). Puis rm bathy_lorient_orig.npy + re-bake îles.
+- Résultat : chenal Jument↔Citadelle CONTINU à seuil 2 m (carte vérifiée),
+  Kernével↔Larmor OK (3 555 m), Kernével↔grand chenal OK, large→port OK.
+- RESTE (moteur, PAS touché sans GO) : routes longues (>~10 km) via Lorient
+  échouent encore (fenêtre grossière min-pool ferme le chenal 100-250 m à la
+  passe décimée, ex. Kergroise→SE Groix bloqué 47.7099,-3.3686) ; extrémités
+  réellement asséchantes à ZH (anse Port-Louis/Locmalo) = comportement normal
+  (marée requise). Diagnostic complet livré à l armateur (fichiers npy,
+  land_mask cuit à l ingestion jamais lu au runtime, log des rejets).
+
+## ✅ ITER145 (27/08) — CORRECTIF BALISAGE LATÉRAL (GO armateur, données uniquement)
+- Régression iter144 (wrong_side N° 3 / Banc du Turc à draft 1.0) : cause = le
+  nettoyage « fausse surface » écrasait de VRAIES sondes de banc (natif
+  1.5-2.9 m remplacé par ATL100 lissé ≥ 6 m, maille 100 m moyennant banc et
+  chenal) au bord du balisage → l'A* et l'audit ne voyaient plus le banc.
+- Fix ARMATEUR (aucun code moteur touché) :
+  1) ``bathy_lorient_orig.npy`` (bake original 26/08) RESTAURÉ comme base ;
+  2) ``scripts/patch_bathy_lorient_fausses_surfaces.py`` : patch CHIRURGICAL
+     de 228 cellules explicites (fausses surfaces + lacunes d'axe du chenal,
+     valeur = ATL100), IGNORANT tout ce qui est à < 200 m des bouées N° 3 et
+     Banc du Turc, signature vérifiée (base NaN ou ∈ [−0.5, 3 m)), idempotent,
+     re-cuit le masque terre → ``bathy_lorient.npy`` ;
+  3) ``ingest_litto3d_lorient.py`` garde la règle générale équivalente pour
+     toute future ré-ingestion (portes de chenal balisé : correction « eau
+     profonde » licite uniquement ENTRE une latérale bâbord et sa tribord la
+     plus proche, appariement au plus proche, couloir ± 200 m, cœur hors 25 m
+     des bouées) — a produit exactement les mêmes 228 cellules.
+- Tests : iter143 Moteur H 8/8 ✓ (calage pointillés + wrong_side vide),
+  iter144 passes 5/6 ✓, îles 22/22 ✓, perf 4+1 xfail ✓.
+- RESTE (PRÉ-EXISTANT, prouvé identique sur la grille 26/08 donc PAS une
+  régression bathy) : ``test_bug_c_engine_h_official_tracks`` (draft 1.5)
+  échoue — l'alignement OSM 711666732 traverse le banc du Turc (sondes
+  réelles 1.4-2.3 m ≥ seuil d'écrêtage 0.5 m de core/safe_routes.py) et le
+  Moteur H insère les pointillés tels quels → passage à l'EST des tribord.
+  Correction possible côté moteur uniquement (écrêtage fonction du tirant
+  d'eau) : EN ATTENTE DU GO ARMATEUR.

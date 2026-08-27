@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="6" time="9.761" timestamp="2026-08-27T07:18:10.546616+00:00" hostname="agent-env-756a8a72-38dd-47e0-be80-ff71949739dd"><testcase classname="tests.test_iter144_bathy_lorient_passes" name="test_bug_a_kernevel_marina_to_larmor" time="2.239" /><testcase classname="tests.test_iter144_bathy_lorient_passes" name="test_bug_b_kernevel_entree_grand_chenal" time="2.009" /><testcase classname="tests.test_iter144_bathy_lorient_passes" name="test_bug_c_large_to_port_lorient" time="2.009" /><testcase classname="tests.test_iter144_bathy_lorient_passes" name="test_bug_c_engine_h_official_tracks" time="2.058"><failure message="AssertionError: wrong_side_marks non vide : [{'name': 'N° 3', 'kind': 'lateral', 'category': 'starboard', 'dist_m': 110.1, 'side_required': 'à tribord'}, {'name': 'Banc du Turc', 'kind': 'lateral', 'category': 'starboard', 'dist_m': 113.7, 'side_required': 'à tribord'}]&#10;assert [{'name': 'N°...: 113.7, ...}] == []&#10;  &#10;  Left contains 2 more items, first extra item: {'name': 'N° 3', 'kind': 'lateral', 'category': 'starboard', 'dist_m': 110.1, ...}&#10;  &#10;  Full diff:&#10;  - []&#10;  + [&#10;  +     {...&#10;  &#10;  ...Full output truncated (14 lines hidden), use '-vv' to show">backend/tests/test_iter144_bathy_lorient_passes.py:141: in test_bug_c_engine_h_official_tracks
+    assert wsm == [], f"wrong_side_marks non vide : {wsm[:3]}"
+E   AssertionError: wrong_side_marks non vide : [{'name': 'N° 3', 'kind': 'lateral', 'category': 'starboard', 'dist_m': 110.1, 'side_required': 'à tribord'}, {'name': 'Banc du Turc', 'kind': 'lateral', 'category': 'starboard', 'dist_m': 113.7, 'side_required': 'à tribord'}]
+E   assert [{'name': 'N°...: 113.7, ...}] == []
+E     
+E     Left contains 2 more items, first extra item: {'name': 'N° 3', 'kind': 'lateral', 'category': 'starboard', 'dist_m': 110.1, ...}
+E     
+E     Full diff:
+E     - []
+E     + [
+E     +     {...
+E     
+E     ...Full output truncated (14 lines hidden), use '-vv' to show</failure></testcase><testcase classname="tests.test_iter144_bathy_lorient_passes" name="test_bathy_axe_passe_jument_citadelle_ok" time="1.118" /><testcase classname="tests.test_iter144_bathy_lorient_passes" name="test_bathy_pengarne_danger_preserve" time="0.002" /></testsuite></testsuites>

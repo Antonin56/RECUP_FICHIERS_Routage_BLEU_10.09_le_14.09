@@ -366,3 +366,23 @@ agent_communication:
           iter139 wrong_side vide ✓, Moteur E OK ✓, warm-up 1,47 s.
           Non-régression : 26/26 balisage + 40/40 moteurs gelés (série).
           Échecs OTP 410 en xdist parallèle = artefact env connu.
+
+  - task: "ITER145 — Correctif balisage latéral (patch chirurgical bathy Lorient)"
+    implemented: true
+    working: true
+    file: "backend/scripts/patch_bathy_lorient_fausses_surfaces.py"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: >
+          Ordre armateur : bathy_lorient_orig.npy (26/08) restauré comme base ;
+          patch chirurgical de 228 cellules explicites (fausses surfaces +
+          lacunes du chenal, valeur ATL100), exclusion < 200 m des bouées
+          N° 3 / Banc du Turc, signature vérifiée, idempotent, masque terre
+          re-cuit. Grille résultante bit-identique au bake « portes de chenal »
+          validé. Tests : iter143 8/8, iter144 5/6, îles 22/22, perf OK.
+          Seul échec restant = test_bug_c_engine_h_official_tracks (draft 1.5),
+          PRÉ-EXISTANT (reproduit à l'identique sur la grille 26/08) :
+          l'alignement OSM 711666732 traverse le banc du Turc (sondes réelles
+          1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
+          uniquement, en attente GO armateur.

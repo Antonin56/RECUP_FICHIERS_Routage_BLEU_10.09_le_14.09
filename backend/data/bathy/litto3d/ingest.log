@@ -1,0 +1,79 @@
+zone L93 : X 205000-235000  Y 6735000-6765000  mosaïque 1500x1500
+29 paquets : ['0205_6750', '0205_6755', '0210_6745', '0210_6750', '0210_6755', '0210_6760', '0210_6765', '0215_6740', '0215_6745', '0215_6750', '0215_6755', '0215_6760', '0220_6740', '0220_6745', '0220_6750', '0220_6755', '0220_6760', '0220_6765', '0225_6745', '0225_6750', '0225_6755', '0225_6760', '0225_6765', '0230_6740', '0230_6745', '0230_6750', '0230_6755', '0230_6760', '0230_6765']
+Traceback (most recent call last):
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 262, in <module>
+    main()
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 187, in main
+    n = integrate_pack(pack, mosaic)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 146, in integrate_pack
+    with py7zr.SevenZipFile(arc) as z:
+         ^^^^^^^^^^^^^^^^^^^[6/29] 0210_6760 : 765,106 cellules 5 m (318 s)
+  téléchargement 0210_6765…
+[7/29] 0210_6765 : 443,242 cellules 5 m (103 s)
+  téléchargement 0215_6740…
+[8/29] 0215_6740 : 33,352 cellules 5 m (9 s)
+  téléchargement 0215_6745…
+[9/29] 0215_6745 : 829,608 cellules 5 m (410 s)
+  téléchargement 0215_6750…
+[10/29] 0215_6750 : 650,054 cellules 5 m (220 s)
+  téléchargement 0215_6755…
+[11/29] 0215_6755 : 651,081 cellules 5 m (419 s)
+  téléchargement 0215_6760…
+[12/29] 0215_6760 : 202,687 cellules 5 m (67 s)
+  téléchargement 0220_6740…
+[13/29] 0220_6740 : 16,536 cellules 5 m (5 s)
+  téléchargement 0220_6745…
+[14/29] 0220_6745 : 744,025 cellules 5 m (172 s)
+[15/29] 0220_6750 : 971,761 cellules 5 m (1 s)
+  téléchargement 0220_6755…
+[16/29] 0220_6755 : 926,256 cellules 5 m (881 s)
+  téléchargement 0220_6760…
+[17/29] 0220_6760 : 714,624 cellules 5 m (153 s)
+  téléchargement 0220_6765…
+[18/29] 0220_6765 : 766,420 cellules 5 m (171 s)
+  téléchargement 0225_6745…
+[19/29] 0225_6745 : 91,398 cellules 5 m (16 s)
+  téléchargement 0225_6750…
+[20/29] 0225_6750 : 946,411 cellules 5 m (222 s)
+  téléchargement 0225_6755…
+  retry 1 0225_6755: peer closed connection without sending complete message body (received 549154176 bytes, expected 2368093504)
+  retry 2 0225_6755: peer closed connection without sending complete message body (received 21654935 bytes, expected 2368093504)
+  retry 3 0225_6755: peer closed connection without sending complete message body (received 19864047 bytes, expected 2368093504)
+  retry 4 0225_6755: peer closed connection without sending complete message body (received 8743543 bytes, expected 2368093504)
+Traceback (most recent call last):
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 262, in <module>
+    main()
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 187, in main
+    n = integrate_pack(pack, mosaic)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 145, in integrate_pack
+    download(pack, arc)
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 112, in download
+    raise RuntimeError(f"téléchargement impossible : {pack}")
+RuntimeError: téléchargement impossible : 0225_6755
+zone L93 : X 205000-235000  Y 6735000-6765000  mosaïque 1500x1500
+29 paquets : ['0205_6750', '0205_6755', '0210_6745', '0210_6750', '0210_6755', '0210_6760', '0210_6765', '0215_6740', '0215_6745', '0215_6750', '0215_6755', '0215_6760', '0220_6740', '0220_6745', '0220_6750', '0220_6755', '0220_6760', '0220_6765', '0225_6745', '0225_6750', '0225_6755', '0225_6760', '0225_6765', '0230_6740', '0230_6745', '0230_6750', '0230_6755', '0230_6760', '0230_6765']
+Traceback (most recent call last):
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 262, in <module>
+    main()
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 187, in main
+    n = integrate_pack(pack, mosaic)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/scripts/ingest_litto3d_lorient.py", line 146, in integrate_pack
+    with py7zr.SevenZipFile(arc) as z:
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/py7zr/py7zr.py", line 451, in __init__
+    raise e
+  File "/root/.venv/lib/python3.11/site-packages/py7zr/py7zr.py", line 432, in __init__
+    self._real_get_contents(password)
+  File "/root/.venv/lib/python3.11/site-packages/py7zr/py7zr.py", line 474, in _real_get_contents
+    raise Bad7zFile("invalid header data")
+py7zr.exceptions.Bad7zFile: invalid header data
+zone L93 : X 205000-235000  Y 6735000-6765000  mosaïque 1500x1500
+29 paquets : ['0205_6750', '0205_6755', '0210_6745', '0210_6750', '0210_6755', '0210_6760', '0210_6765', '0215_6740', '0215_6745', '0215_6750', '0215_6755', '0215_6760', '0220_6740', '0220_6745', '0220_6750', '0220_6755', '0220_6760', '0220_6765', '0225_6745', '0225_6750', '0225_6755', '0225_6760', '0225_6765', '0230_6740', '0230_6745', '0230_6750', '0230_6755', '0230_6760', '0230_6765']
+  téléchargement 0225_6755…
+  retry 1 0225_6755 (9,437,184o) : peer closed connection without sending complete message body (received 10172751 bytes, expected 2368093504)
+  retry 2 0225_6755 (18,874,368o) : peer closed connection without sending complete message body (received 9479468 bytes, expected 2358656320)
+  retry 3 0225_6755 (25,165,824o) : peer closed connection without sending complete message body (received 7187819 bytes, expected 2349219136)
+  retry 4 0225_6755 (32,505,856o) : peer closed connection without sending complete message body (received 7995499 bytes, expected 2342927680)

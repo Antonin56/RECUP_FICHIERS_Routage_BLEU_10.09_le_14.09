@@ -144,6 +144,88 @@ def download(pack: str, dest: Path) -> None:
     part.replace(dest)
 
 
+# ── PORTES DE CHENAL BALISÉ (27/08, GO armateur « correctif bathymétrie ») ──
+# Le nettoyage 27/08 écrasait aussi de VRAIES sondes de banc au bord du
+# balisage (Banc du Turc : natif 1.5-2.9 m remplacé par un ATL100 lissé
+# ≥ 6 m, la maille 100 m moyennant banc et chenal) → le moteur ne « voyait »
+# plus le danger que marquent les latérales N° 3 / Banc du Turc. Règle :
+# une correction « eau profonde » n'est légitime que DANS LE CHENAL BALISÉ,
+# c.-à-d. entre une latérale bâbord et sa latérale tribord la plus proche
+# (porte ≤ 600 m). Hors porte = côté danger du balisage : le lidar fait foi.
+GATE_MAX_M = 600.0     # largeur max d'une porte bâbord↔tribord
+GATE_END_M = 25.0      # cœur de porte : abords immédiats des bouées exclus
+GATE_HALF_M = 200.0    # demi-couloir le long de l'axe du chenal
+
+
+def lateral_gate_mask(lats: np.ndarray, lngs: np.ndarray) -> np.ndarray:
+    """True = cellule DANS une porte de chenal balisé.
+
+    Portes = chaque latérale appariée à la latérale OPPOSÉE la plus proche
+    (≤ GATE_MAX_M) — l'appariement au plus proche évite les fausses portes
+    diagonales le long du chenal (ex. N° 4↔Banc du Turc) qui recouvriraient
+    le banc lui-même. Couloir : cœur de porte (t ∈ [25 m, L−25 m]) élargi de
+    ± 200 m perpendiculairement (le chenal continue entre deux portes)."""
+    from core.bathy import M_PER_DEG_LAT, m_per_deg_lng
+    from core.seamarks import get_seamarks
+    la0, la1 = float(lats.min()), float(lats.max())
+    lo0, lo1 = float(lngs.min()), float(lngs.max())
+    sel = [m for m in get_seamarks().marks
+           if m.get("kind") == "lateral"
+           and m.get("category") in ("port", "starboard")
+           and la0 - 0.01 <= m["lat"] <= la1 + 0.01
+           and lo0 - 0.01 <= m["lng"] <= lo1 + 0.01]
+    ports = [(m["lat"], m["lng"]) for m in sel if m["category"] == "port"]
+    stbds = [(m["lat"], m["lng"]) for m in sel if m["category"] == "starboard"]
+
+    def _nearest(p, cands):
+        best, bd = None, GATE_MAX_M
+        for q in cands:
+            d = math.hypot((p[0] - q[0]) * M_PER_DEG_LAT,
+                           (p[1] - q[1]) * m_per_deg_lng(p[0]))
+            if d <= bd:
+                best, bd = q, d
+        return best
+
+    gates: set[tuple] = set()
+    for p in ports:
+        s = _nearest(p, stbds)
+        if s is not None:
+            gates.add((p, s))
+    for s in stbds:
+        p = _nearest(s, ports)
+        if p is not None:
+            gates.add((p, s))
+
+    mask = np.zeros((lats.size, lngs.size), dtype=bool)
+    for p, s in gates:
+        mlng = m_per_deg_lng(p[0])
+        pad_la = (GATE_HALF_M + GATE_END_M) / M_PER_DEG_LAT
+        pad_lo = (GATE_HALF_M + GATE_END_M) / mlng
+        la_lo, la_hi = min(p[0], s[0]) - pad_la, max(p[0], s[0]) + pad_la
+        lo_lo, lo_hi = min(p[1], s[1]) - pad_lo, max(p[1], s[1]) + pad_lo
+        r0 = max(int(np.searchsorted(-lats, -la_hi)), 0)          # lats ↓
+        r1 = min(int(np.searchsorted(-lats, -la_lo)) + 1, lats.size)
+        c0 = max(int(np.searchsorted(lngs, lo_lo)), 0)
+        c1 = min(int(np.searchsorted(lngs, lo_hi)) + 1, lngs.size)
+        if r0 >= r1 or c0 >= c1:
+            continue
+        gl, gn = np.meshgrid(lats[r0:r1], lngs[c0:c1], indexing="ij")
+        px = (gn - p[1]) * mlng
+        py = (gl - p[0]) * M_PER_DEG_LAT
+        sx = (s[1] - p[1]) * mlng
+        sy = (s[0] - p[0]) * M_PER_DEG_LAT
+        L2 = max(sx * sx + sy * sy, 1e-9)
+        L = math.sqrt(L2)
+        t = (px * sx + py * sy) / L2
+        perp = np.abs(px * sy - py * sx) / L
+        tb = GATE_END_M / L
+        mask[r0:r1, c0:c1] |= (t >= tb) & (t <= 1.0 - tb) & (perp <= GATE_HALF_M)
+    print(f"portes de chenal balisé : {len(gates)} portes "
+          f"({len(ports)} bâbord / {len(stbds)} tribord), "
+          f"{int(mask.sum()):,} cellules en chenal", flush=True)
+    return mask
+
+
 def parse_asc(text: str) -> tuple[np.ndarray, float, float, float]:
     """→ (alt[nrows,ncols] NaN=nodata, xllcenter, yllcenter, cellsize)."""
     lines = text.splitlines()
@@ -304,6 +386,24 @@ def main() -> None:
                       f"{len(ghosts)} composantes, {int(gm.sum()):,} cellules",
                       flush=True)
 
+    # ── Nettoyage des FAUSSES SURFACES lidar (27/08, GO armateur) ─────────
+    # En eau turbide/agitée le lidar rend le NIVEAU D'EAU au lieu du fond :
+    # cellules natives 0-3 m au beau milieu de passes à 10-20 m (ex. passe
+    # Jument↔Citadelle), qui ferment la passe ET bloquent le rebouchage.
+    # Règle validée armateur : natif ∈ [−0.5, 3 m) contredit par ATL100
+    # (sondeur SHOM, autorité en eau profonde) ≥ 6 m → valeur ATL100,
+    # UNIQUEMENT dans une porte de chenal balisé (correctif 27/08 : le
+    # balisage latéral prime — hors porte, une sonde native peu profonde est
+    # un vrai banc, ex. Banc du Turc, jamais « nettoyée »).
+    in_gate = lateral_gate_mask(lats, lngs)
+    valid = np.isfinite(depth)
+    fake_surf = valid & (depth >= -0.5) & (depth < 3.0) \
+        & np.isfinite(d_atl) & (d_atl >= 6.0) & in_gate
+    if fake_surf.any():
+        depth[fake_surf] = d_atl[fake_surf]
+        print(f"fausses surfaces lidar nettoyées : {int(fake_surf.sum()):,} "
+              f"cellules", flush=True)
+
     # ── Rebouchage des LACUNES LIDAR par l'ATL100 ──────────────────────────
     # Le lidar bathy ne pénètre pas les eaux profondes/turbides : le chenal
     # de la rade (10-20 m) est SANS donnée Litto3D. Règle : NaN comblé par
@@ -314,7 +414,14 @@ def main() -> None:
     valid = np.isfinite(depth)
     litto_dry = valid & (depth < 0.0)
     dist_dry = distance_transform_edt(~litto_dry)
-    fill = (~valid) & np.isfinite(d_atl) & (dist_dry > 2.0)
+    # 27/08 : dans les passes ÉTROITES flanquées de bancs réels (Jument↔
+    # Citadelle), les lacunes de l'AXE étaient à ≤ 2 cellules d'une assèche
+    # → jamais comblées → passe fermée. L'ATL100 ≥ 6 m fait autorité en eau
+    # profonde (règle validée armateur) : on comble aussi dans ce cas — mais
+    # UNIQUEMENT dans une porte de chenal balisé (même garde-fou que les
+    # fausses surfaces : hors balisage, on ne creuse jamais près d'un banc).
+    fill = (~valid) & np.isfinite(d_atl) \
+        & ((dist_dry > 2.0) | ((d_atl >= 6.0) & in_gate))
     depth[fill] = d_atl[fill]
     print(f"lacunes rebouchées par ATL100 : {int(fill.sum()):,} cellules "
           f"({fill.mean():.2%})", flush=True)

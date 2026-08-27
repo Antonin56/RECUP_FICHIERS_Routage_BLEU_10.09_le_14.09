@@ -1,0 +1,46 @@
+{
+  "summary": "ITER144 SignalMar — Fix bathy_lorient.npy (nettoyage artefacts lidar + rebouchage lacunes via ATL100 ≥ 6 m) : bug armateur « Passage impossible » à La Petite Jument RÉSOLU sur tirant 1.5 m + marge 0.5 m sans marée. Backend testé (frontend skippé, review backend only). RÉSULTATS : (1) Nouveau test_iter144_bathy_lorient_passes.py 5/6 passed — (a) Kernével marina→Larmor : done, dist=~3.3 km, waypoints présents ; (b) Kernével entrée→grand chenal : done ; (c) large→port : done, dist=~8.6 km, depth_profile min ≥ 1.9 m ; (bathy) axe passe Jument↔Citadelle depth_zh_m=17.3 m (≥ 6, était 0.45/NaN avant fix) ; (bathy) tourelle Pengarne water=false (vrai danger préservé). (2) NON-RÉGRESSION : test_iter143_moteur_h.py 7/8 passed — 1 FAILED : test_engine_h_lorient_tracks_et_zero_mauvais_cote (draft=1.0, route large→Lorient) rend maintenant wrong_side_marks=[{N° 3, starboard, 110 m}, {Banc du Turc, starboard, 114 m}] au lieu de []. Même faille reproduite avec draft=1.5 sur le même trajet dans mon nouveau test (5/6). Cause probable : le rebouchage des lacunes bathy (natif ≥ 3 m ou ATL100 ≥ 6 m) a ouvert des cellules dans l'axe de passe qui étaient précédemment interdites, permettant à engine_h de générer une trajectoire passant à moins de ~110 m des balises latérales tribord N° 3 et Banc du Turc du mauvais bord (le radius track_attach_m=3000 m ne recolle plus la route dans l'axe strict des pointillés officiels sur ce segment). (3) test_iter140_perf_route_10s.py : 4 passed + 1 xfailed attendu — PERF1 (Lorient→Golfe) OK, PERF2 (Lorient→Trinité) OK, engine_e sanity OK. (4) test_island_land_mask.py : 22/22 passed — masque terre + traversées Er Lannic/Île d'Arz/Houat/Groix/Belle-Île/Yeu tous verts. TOTAL 35 passed + 1 xfailed + 1 FAILED sur 37 exécutés (94.6%). Le fix atteint son objectif principal (« Passage impossible » supprimé) mais introduit une régression sur engine_h wrong_side_marks (route non recalée sur les pointillés officiels sur le segment N°3/Banc du Turc).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/routes/compute/async engine_h large→Lorient",
+        "issue": "RÉGRESSION ITER144 : wrong_side_marks non vide sur la route large→Lorient tirant 1.5 m + marge 0.5 m sans marée (et aussi tirant 1.0 m — reproduit par test_iter143_moteur_h.py::test_engine_h_lorient_tracks_et_zero_mauvais_cote). Réponse : [{name:'N° 3', starboard, dist_m:110.1, side_required:'à tribord'}, {name:'Banc du Turc', starboard, dist_m:113.7, side_required:'à tribord'}]. Attendu par la review : wrong_side_marks == []. Le fix bathy a ouvert des cellules dans l'axe de passe qui décollent la route des pointillés officiels près de ces deux latérales tribord. official_tracks=3 non vide (donc engine_h attache toujours 3 tracks), distance 8660 m dans les bornes 6-13 km — c'est bien la validation lateral qui casse.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter144_bathy_lorient_passes.py",
+    "/app/test_reports/pytest/iter144_bathy.xml",
+    "/app/test_reports/pytest/iter144_regression.xml"
+  ],
+  "action_items": [
+    "Décider (armateur/routing) si le fix ITER144 doit être resserré : soit rétrécir le rebouchage ATL100≥6 m autour des latérales N° 3 et Banc du Turc (garder les cellules 'peu profondes' natives qui contraignaient la route dans l'axe), soit ajuster le paramètre track_attach_m / chenal_radius_m de engine_h pour recoller la route sur les pointillés officiels sur ce segment, soit accepter la régression et mettre à jour l'attendu wrong_side_marks du test iter143. INTERDICTION ABSOLUE modifiée le code moteur, donc l'option 1 (données) est probablement la voie officielle. À valider avec l'armateur.",
+    "Ne PAS relancer d'ingestion sans GO armateur (interdiction expresse review)."
+  ],
+  "critical_code_review_comments": [
+    "Le fix données ITER144 atteint son objectif : depth_zh_m=17.3 m au centre de la passe Jument↔Citadelle (vs 0.45/NaN avant), et le vrai danger tourelle Pengarne est préservé (water=false). Les 3 routes de la review (a/b/c) passent maintenant sans « Passage impossible ».",
+    "MAIS : l'ouverture de cellules bathy dans la rade a modifié l'A* de engine_f/engine_h. Sur engine_h, la nouvelle trajectoire quitte les pointillés officiels près de N° 3 et Banc du Turc, provoquant wrong_side_marks=[N° 3, Banc du Turc]. Ceci est reproductible à draft=1.0 (test iter143 pré-existant) ET draft=1.5 (nouveau test iter144).",
+    "engine_f (route (c)) reste OK côté distance et fond mini (≥ 1.9 m), pas de « Passage impossible » — objectif principal atteint.",
+    "Le xfail iter139 (test_iter139_lorient_wrong_side_empty sur engine_f) reste xfailed comme attendu (gel du moteur F documenté)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter144_bathy_lorient_passes.py"
+  ],
+  "success_rate": {
+    "backend": "94.6% (35 passed + 1 xfailed + 1 failed sur 37) — bug armateur RÉSOLU, bathy validée, mais régression engine_h wrong_side_marks",
+    "frontend": "N/A — review backend only"
+  },
+  "seed_data_creation": "Aucune. Compte QA seedé antoninlepinay@gmail.com/123454321 utilisé avec header X-RateLimit-Bypass:qa-bypass-signalmar-2026.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "ITER144 : fix bathy_lorient.npy validé sur son objectif (bug « Passage impossible » supprimé, axe passe ≥ 6 m, dangers préservés). MAIS régression sur engine_h wrong_side_marks pour la route large→Lorient (N° 3 + Banc du Turc détectés à ~110-114 m). Reproduction : POST /api/routes/compute/async engine_h start{47.6776,-3.4288} end{47.7299,-3.3568} draft_m={1.0 ou 1.5} depth_margin_m:0.5 use_tide:false → wrong_side_marks non vide. Tests réutilisables : /app/backend/tests/test_iter144_bathy_lorient_passes.py (6 tests, 5 passent), /app/backend/tests/test_iter143_moteur_h.py (1 failed sur engine_h wrong_side), /app/backend/tests/test_iter140_perf_route_10s.py (OK), /app/backend/tests/test_island_land_mask.py (OK).",
+  "rca_of_issue": "Bug principal (Passage impossible à La Petite Jument) : les cellules 0.4-1.1 m natives du lidar dans l'axe de passe (artefacts « fausse surface ») étaient interprétées comme des hauts-fonds infranchissables à tirant 1.5 m + marge 0.5 m = besoin 2.0 m. Le fix données (natif ∈ [-0.5, 3 m) contredit par ATL100 ≥ 6 m + rebouchage ATL100 ≥ 6 m) supprime ces artefacts et libère la passe (fond ≥ 6 m confirmé à 47.71,-3.367). Régression engine_h : l'A* ayant maintenant plus de cellules 'water' navigables autour du chenal, la trajectoire optimisée quitte les pointillés officiels sur le segment N° 3/Banc du Turc (radius track_attach_m=3000 m insuffisant à ce niveau), et le check lateral 'wrong side' déclenche à 110-114 m. Mitigation possible (données) : reboucher plus prudemment autour des latérales tribord de la passe extérieure, ou (paramètre non-code) élargir chenal_radius_m côté engine_h. Autre option : mettre à jour l'attendu du test iter143 si l'armateur juge le nouveau comportement acceptable (les balises sont détectées comme wrong-side à cause de la distance, pas d'un vrai passage du mauvais bord — à confirmer visuellement)."
+}

@@ -1,0 +1,15 @@
+zone=lorient bbox=(47.550,-3.600,47.790,-3.250) — 1 tuile(s) Overpass…
+  tentative 1 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 10s
+  tentative 2 (https://maps.mail.ru/osm/tools/overpass/api/interpreter) : Server error '504 Gateway Time-out' for url 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504 → pause 20s
+  tentative 3 (https://overpass.kumi.systems/api/interpreter) : Server error '500 Internal Server Error' for url 'https://overpass.kumi.systems/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 → pause 30s
+  tentative 4 (https://overpass.private.coffee/api/interpreter) : Server error '500 Internal Server Error' for url 'https://overpass.private.coffee/api/interpreter'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 → pause 40s
+  tentative 5 (https://overpass-api.de/api/interpreter) : [Errno 111] Connection refused → pause 50s
+  tuile 1/1 : 34 éléments (34 nouveaux)
+34 éléments OSM → 34 anneaux fermés
+land_mask_lorient.npy : (1200, 1750), 46801 cellules terre (15.5 km²)
+vérification : 15 îles nommées, 0 échec(s) BLOQUANT(S) (> 200 m), 0 petit(s) îlot(s) non résolus (< 200 m)
+sauvegarde originale → bathy_lorient_orig.npy
+bathy_lorient.npy : 46792 cellules « eau » passées à NaN (terre OSM). Redémarrer le backend pour recharger.
