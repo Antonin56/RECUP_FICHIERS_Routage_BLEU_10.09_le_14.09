@@ -7,9 +7,11 @@
  * Deux actions : adopter la variante (elle devient la route active) ou fermer
  * la comparaison (la route de référence reste affichée).
  */
+import * as Clipboard from "expo-clipboard";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { showToast } from "@/src/components/Toast";
 import { radii, spacing, theme } from "@/src/lib/theme";
 
 export const BASE_COLOR = "#e034de";
@@ -33,12 +35,16 @@ export function RouteCompareBar(props: {
   maxDevM: number;
   zones: number;
   identical: boolean;
+  /** 27/08/2026 (demande armateur) — coordonnées EXACTES du départ et de
+   *  l'arrivée comparés (communes aux deux tracés). Tap = copier. */
+  start?: { lat: number; lng: number } | null;
+  end?: { lat: number; lng: number } | null;
   /** Recentre la carte sur la zone de plus grand écart. */
   onFocusDiff?: () => void;
   onKeepVariant: () => void;
   onClose: () => void;
 }) {
-  const { unit, base, variant, maxDevM, zones, identical, onFocusDiff, onKeepVariant, onClose } = props;
+  const { unit, base, variant, maxDevM, zones, identical, start, end, onFocusDiff, onKeepVariant, onClose } = props;
   const dDist = variant.distanceM - base.distanceM;
   return (
     <View style={styles.card} testID="route-compare-bar">
@@ -68,6 +74,36 @@ export function RouteCompareBar(props: {
           {variant.minDepthM != null ? ` · ${variant.minDepthM.toFixed(1)} m` : ""}
         </Text>
       </View>
+
+      {/* 27/08/2026 (demande armateur) — coordonnées exactes du trajet
+          comparé (mêmes départ/arrivée pour les deux moteurs). */}
+      {start && end ? (
+        <View style={styles.coordCol} testID="compare-coords">
+          {([
+            ["Départ", start, "flag-outline", "#80ED99"],
+            ["Arrivée", end, "location-outline", "#E5383B"],
+          ] as const).map(([label, p, icon, color]) => (
+            <TouchableOpacity
+              key={label}
+              style={styles.coordChip}
+              onPress={async () => {
+                await Clipboard.setStringAsync(`${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+                showToast("success", `${label} copié : ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+              }}
+              activeOpacity={0.7}
+              hitSlop={6}
+              testID={`compare-coord-${label === "Départ" ? "start" : "end"}`}
+            >
+              <Ionicons name={icon} size={12} color={color} />
+              <Text style={[styles.coordLabel, { color }]}>{label}</Text>
+              <Text style={styles.coordText} numberOfLines={1}>
+                {p.lat.toFixed(6)}, {p.lng.toFixed(6)}
+              </Text>
+              <Ionicons name="copy-outline" size={11} color={theme.textDim} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
 
       <Text style={styles.summary}>
         {identical
@@ -128,6 +164,19 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   val: { color: theme.text, fontSize: 11.5, fontWeight: "800" },
+  // 27/08 — coordonnées exactes départ/arrivée (tap = copier).
+  coordCol: { gap: 4 },
+  coordChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    alignSelf: "stretch", paddingVertical: 4, paddingHorizontal: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: theme.border, borderRadius: radii.sm,
+  },
+  coordLabel: { fontSize: 10.5, fontWeight: "900", width: 46 },
+  coordText: {
+    flex: 1, color: theme.textDim, fontSize: 11, fontWeight: "700",
+    fontVariant: ["tabular-nums"], letterSpacing: 0.3,
+  },
   summary: { color: theme.textDim, fontSize: 11, lineHeight: 15 },
   zoomBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,

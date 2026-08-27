@@ -23,6 +23,13 @@ import { showToast } from "@/src/components/Toast";
 
 const CHART_H = 64;
 
+// 27/08/2026 (ordre armateur) — PROFIL DE PROFONDEUR MASQUÉ dans la fiche de
+// détail : la courbe bleue de la colonne d'eau le long du tracé, le seuil
+// rouge en pointillés ET la légende « Fond mini / Seuil » ne sont plus
+// affichés. TOUT LE CODE EST CONSERVÉ (calcul + rendu) : repasser ce drapeau
+// à true pour réafficher le graphe à l'identique.
+const SHOW_DEPTH_PROFILE = false;
+
 /** 26/07 — « HH:MM » (+ « demain » si autre jour) pour les fenêtres de marée. */
 function fmtTideTs(ts: number): string {
   const d = new Date(ts * 1000);
@@ -91,6 +98,7 @@ export function RouteCard(props: {
   };
 
   const chart = useMemo(() => {
+    if (!SHOW_DEPTH_PROFILE) return null;   // 27/08 — profil masqué (ordre armateur)
     const pts = route.depth_profile.filter((p) => p.depth_m != null);
     if (pts.length < 2) return null;
     const W = 1000; // viewBox — étiré à la largeur réelle

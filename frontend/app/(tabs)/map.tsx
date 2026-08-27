@@ -3002,6 +3002,9 @@ export default function MapScreen() {
             maxDevM={compare.diff.maxDevM}
             zones={diffCount(compare.diff)}
             identical={compare.diff.identical}
+            // 27/08 (demande armateur) — coordonnées exactes du trajet comparé.
+            start={compare.base.waypoints[0] ?? null}
+            end={compare.base.waypoints[compare.base.waypoints.length - 1] ?? null}
             onFocusDiff={() => {
               const a = compare.diff.anchorVariant ?? compare.diff.anchorBase;
               if (!a) return;
