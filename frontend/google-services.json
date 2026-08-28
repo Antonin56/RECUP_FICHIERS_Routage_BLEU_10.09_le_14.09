@@ -1,7 +1,29 @@
 {
-  "_comment": "Placeholder google-services.json — replace with your Firebase project file before generating the Android build.",
   "project_info": {
-    "project_id": "signmar-placeholder"
+    "project_number": "1070955574902",
+    "project_id": "signalmar-d3f8d",
+    "storage_bucket": "signalmar-d3f8d.firebasestorage.app"
   },
-  "client": []
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1070955574902:android:7310891722b0c2e3171157",
+        "android_client_info": {
+          "package_name": "com.emergent.signmarwazemer.sa5b3v"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDG3VR6PKlNg2qw9ViE-oMhqMQ8xNAG8yU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
 }
