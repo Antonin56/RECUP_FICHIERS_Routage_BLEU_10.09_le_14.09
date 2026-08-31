@@ -1,5 +1,47 @@
 # SignalMar — PRD
 
+## ✅ ITER147 (31/08, GO armateur) — MOTEUR I : écrêtage des routes officielles au TIRANT D'EAU + doublon « Les Errants »
+- Ordre : « écrêtage des pointillés selon le tirant d'eau réel (cible banc du
+  Turc), analyse d'abord le doublon Les Errants, ne touche QU'À engine_i.py ».
+  Respecté : SEUL core/nav/engine_i.py modifié (+ test iter147).
+- MOTEUR I (signalmar.i 7.0.0) = logique Moteur H (routes officielles
+  prioritaires, faux couples corrigés, latérales > cardinales 1 km) MAIS :
+  · réseau des pointillés construit PAR BESOIN D'EAU (tirant + marge − marée,
+    plancher 0,5 m au ZH, cache par pas de 0,1 m — _network_i/_plan_tracks_i,
+    copies gated de safe_routes qui reste INTACT pour H) ;
+  · mesuré façade entière : ~20 km d'alignements à fond < 2 m conservés par
+    H (clip 0,5) sont RETIRÉS chez I à besoin 2 m — ex. Passe Ouest Lorient
+    (way 711666736, fond 0,65-1,96 m sur ~240 m) : 3878 → 3636 m ; Douarnenez
+    718869417/420 ≈ 1,5 km chacun ; St-Malo 953941110 1,6 km. Banc du Turc
+    (way 711666732) : le franchissement du banc était déjà exclu depuis le
+    patch bathy iter145 (256 m profonds restants, identiques aux 2 clips) —
+    la protection I est GÉNÉRALE (tout tirant, toute zone) ;
+  · warning API : « … écrêtée à votre besoin d'eau (X m au zéro hydro) ».
+- DOUBLON « LES ERRANTS » (analyse mesurée AVANT code, demande armateur) :
+  2 latérales bâbord HOMONYMES à 351 m — tourelle BLANCHE id 1421434210
+  (couleur white CONTREDIT la catégorie) + bouée ROUGE id 1421434206. En
+  mode v6 leurs côtés requis divergent de ~82° (blanche→EST, rouge→NORD) =
+  conflit réel : détour mesuré ~2× (1690 m vs ~900 m) pour contourner les
+  deux, et risque de faux wrong_side/écrêtage contradictoire des pointillés.
+  RÈGLE MOTEUR I : latérale de couleur EXPLICITEMENT contradictoire doublée
+  d'une homonyme de couleur conforme à ≤ 600 m → plus AUCUNE règle de côté
+  (écrêtage des pointillés + jonctions + audit final filtré) ; son écart
+  minimal 60 m est conservé (jamais traversée). Couleur VIDE = inconnu OSM,
+  jamais neutralisée (perches génériques de Douarnenez = faux positifs
+  écartés). Seule la blanche est détectée sur toute la façade.
+- ⚠️ LIMITE (périmètre engine_i.py) : le DÉTOUR du tracé causé par le
+  demi-disque rasterisé de la blanche vient de seamarks.py (partagé A-H) —
+  non corrigeable sans toucher ce fichier. Si l'armateur veut supprimer le
+  détour : patch gated (contextvar armé par le Moteur I seul) dans
+  seamarks.py, EN ATTENTE DE SON GO.
+- FIX import circulaire : safe_routes → signalmar_v4 → algos/__init__ →
+  engine_i ; tous les accès aux attributs de safe_routes différés dans les
+  corps de fonctions (_MIN_CLIP_M littéral 0,5, _join_endpoints_i libre).
+- Tests : tests/test_iter147_moteur_i_ecretage.py 6/6 (suspects, réseau
+  écrêté, e2e API engine_i tracks+wrong_side vide, strip unit, gel H,
+  mesure doublon) ; régressions : iter143 8/8, iter144 6/6, iter140/136
+  14/14, iter137/139/133/îles 53 verts. AUCUN moteur A-H modifié.
+
 ## ✅ ITER143 (26/08, GO armateur) — MOTEUR H + fin du refactor map.tsx
 - GO reçu : « Moteur H qui suit les routes officielles et corrige les faux
   couples » + « termine le découpage de map.tsx sans rien changer ».

@@ -16,7 +16,7 @@ import pytest
 import requests
 
 BASE = os.environ["EXPO_BACKEND_URL"].rstrip("/") if os.environ.get("EXPO_BACKEND_URL") else \
-    "https://signalmar-optimize.preview.emergentagent.com"
+    "https://nav-engine-i.preview.emergentagent.com"
 API = f"{BASE}/api"
 BYPASS = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 

@@ -19,7 +19,7 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get("EXPO_BACKEND_URL") or os.environ.get(
-    "EXPO_PUBLIC_BACKEND_URL", "https://signalmar-optimize.preview.emergentagent.com"
+    "EXPO_PUBLIC_BACKEND_URL", "https://nav-engine-i.preview.emergentagent.com"
 ).rstrip("/")
 
 HEADERS_BASE = {

@@ -1,0 +1,30 @@
+{
+  "summary": "ITER147 backend-only validation (Moteur I : routes officielles ÉCRÊTÉES au tirant d'eau + doublon « Les Errants » neutralisé). Tous les tests demandés passent : iter147 6/6, iter143 8/8 (gel Moteur H), iter144 6/6 (bathy Lorient), iter136 10/10 + iter137 5/5 + iter139 5/5 + iter140 5/5 (moteurs A-H gelés, perf < 10 s), soit 45 passed + 2 xfailed + 1 xpassed (xfail/xpass connus et tolérés). L'e2e API direct (POST /api/routes/compute/async engine_i, draft 1.5, use_tide=false, large → port Lorient) répond en ~5 s : official_tracks=['recommended_track 711666735','navigation_line 711666736','recommended_track 711666731'], wrong_side_marks=[], distance_m=8922.2 (∈[6000,13000]), warning « écrêtée à votre besoin d'eau » présent. GET /api/routing/engines liste bien engine_i aux côtés de engine_a..engine_h. Aucun bug détecté, aucune régression sur les moteurs gelés. Périmètre respecté : seul core/nav/engine_i.py touché (rien d'autre modifié par cette itération).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iter147.xml",
+    "/app/test_reports/pytest/iter143_144_regr.xml",
+    "/app/test_reports/pytest/iter136_140_137_139.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Limite documentée par le main agent (hors périmètre autorisé cette itération) : le détour du tracé imposé par la rasterisation du demi-disque de la tourelle blanche « Les Errants » (id 1421434210) persiste car seamarks.py reste gelé. À traiter dans une future itération avec GO armateur explicite si l'armateur souhaite un tracé rectifié à cet endroit.",
+    "Rappel : les échecs OTP/429 en suite complète parallèle (xdist) sont des artefacts environnementaux préexistants au fork ; ils ne concernent pas ITER147 et ont été confirmés hors périmètre par exécution ciblée des seules suites demandées."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "seed_data_creation": "Aucune donnée seed créée ; auth via compte existant antoninlepinay@gmail.com (mdp 123454321) + header X-RateLimit-Bypass: qa-bypass-signalmar-2026.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "ITER147 validé. Moteur I : engine_id='engine_i', accessible via POST /api/routes/compute/async → job_id → GET /api/routes/job/{id}. Job en warm ~5 s. Le premier appel après restart backend peut prendre ~15-30 s (numba JIT). Tests iter147 (6) importent core.routing_engines.algos AVANT core.nav.engine_i pour éviter l'import circulaire — respecter cet ordre. Ne JAMAIS modifier engine_f_frozen.py, signalmar_v1..v6, signalmar_h, safe_routes.py, seamarks.py (moteurs gelés, ordre armateur). Auth : POST /api/auth/login retourne le champ 'token' (pas 'access_token'). URL publique : EXPO_PUBLIC_BACKEND_URL dans frontend/.env (https://nav-engine-i.preview.emergentagent.com).",
+  "rca_of_issue": "N/A — aucun bug détecté. Les résultats attendus (écrêtage au besoin d'eau, wrong_side_marks vide, distance dans les bornes, warning présent, engine_i listé, moteurs A-H inchangés) sont tous confirmés côté API publique et pytest local."
+}

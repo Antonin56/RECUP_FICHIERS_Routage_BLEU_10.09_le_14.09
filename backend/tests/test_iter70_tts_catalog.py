@@ -13,7 +13,7 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get("EXPO_BACKEND_URL", "").rstrip("/") or \
-    "https://signalmar-optimize.preview.emergentagent.com"
+    "https://nav-engine-i.preview.emergentagent.com"
 
 PERIM = "dans votre périmètre d'alerte."
 

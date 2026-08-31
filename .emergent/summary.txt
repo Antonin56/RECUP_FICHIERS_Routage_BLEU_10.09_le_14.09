@@ -1,105 +1,122 @@
+Projet de navigation maritime Morbihan. Le Moteur F est gelé dans engine_f_frozen.py et ne doit jamais être modifié. Le Moteur I dans engine_i.py est notre nouvelle base de travail pour toutes les futures améliorations.
+
 <analysis>**original_problem_statement**: 
-The user requested bug fixes for the maritime navigation routing engine (Moteur F / SignalMar v6) to properly respect primary vs. secondary channel marks at Lorient, Croisic, and Kerpenhir. During the session, the user also requested UI behavior changes (clicking red shallow zones should display water height info AND open route options), refactoring of the massive  file for maintainability, and backend performance optimization to bring routing calculation times down to under 10 seconds.
+The user requested several critical modifications and updates:
+1. Fix the Engine H 110m route deviation regression by creating a surgical data patch on the Lorient bathymetry grid (reverting to the original grid and patching only 228 specific cells, ignoring those within 200m of specific buoys). Engine H code must remain untouched.
+2. Add exact start and end coordinates to the route details popup, route comparison popup, and ensure they are recorded when saving a route. 
+3. Comment out the depth profile graph (Fond mini / Seuil) from the route details popup.
+4. Integrate the user's real Firebase  for Android and verify  configuration.
+5. Provide a technical feasibility analysis for moving routing Engine A to the mobile frontend for offline use.
+6. **CRITICAL ARCHITECTURE MANDATE**: Freeze Moteur F permanently by copying it into a new file . Duplicate this to create Moteur I in  which will serve as the new active working engine for all future modifications.
 
-**User's preferred language**: French (You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in French only).
+PRODUCT REQUIREMENTS: 
+-  must never be modified. It is an immutable reference.
+- Engine I must yield 100% identical outputs to Engine F at the time of creation.
+- Start and end coordinates must be easily visible and copyable on the UI.
 
-**what currently exists?**: 
-A full-stack mobile application for maritime routing. It includes an Expo React Native frontend and a FastAPI backend with MongoDB. The app features user authentication, a custom routing engine (SignalMar, up to Moteur F/v6), a map interface with community reporting, and A* pathfinding. 
+**User's preferred language**: French (INSTRUCT NEXT AGENT: You MUST automatically detect the user's primary language from their messages and respond in **French** only).
 
-**Last working item**:
-- **Last item agent was working**: Optimizing the backend routing performance for Moteur F. The agent installed numba: error: the following arguments are required: filename for A* JIT compilation, implemented a rasterization cache (), and parallelized low tide (ZH) and specific tide calculations. Route calculation time for the heaviest route (Lorient to Golfe) was successfully reduced from ~30s to ~8.1s.
-- **Status**: USER VERIFICATION PENDING
-- **Agent Testing Done**: Y
-- **Which testing method agent to use?**: backend testing agent
-- **User Testing Done**: N
+**what currently exists?** 
+A full-stack Expo (React Native) + FastAPI (Python) + MongoDB application. The bathymetry grid regression has been successfully patched, restoring Engine H accuracy. The frontend UI correctly displays route coordinates and hides the depth profile. Firebase push notifications are properly configured for Android native builds. The backend engine architecture has been refactored to permanently freeze Engine F as a reference, with Engine I registered and active as the new baseline for ongoing development.
 
-**All Pending/In progress Issue list**:
-*None actively broken or pending. All current features and bug fixes have been verified by the testing agent.*
+**Last working item**: 
+- **Last item agent was working:** Freezing Engine F and creating Engine I. The agent duplicated the logic, created  and , updated the MongoDB engine registry, and ran parallel route tests verifying that Engine F and Engine I compute identical routes.
+- **Status:** COMPLETED
+- **Agent Testing Done:** Y
+- **Which testing method agent to use?** python -c / pytest (backend parity check).
+- **User Testing Done:** N
 
-**In progress Task List**:
-*None*
+**All Pending/In progress Issue list**: 
+None. All current issues were resolved.
 
-**Upcoming and Future Tasks**:
-- **Task 1**: Password recovery by email (Requires 3rd party integration like Resend). (Priority: P1 - Postponed by user)
-- **Task 2**: Europe coverage (routing outside French Atlantic coast) requiring new bathymetric data ingestion from EMODnet. (Priority: P2 - Postponed by user)
+**In progress Task List**: 
+None.
 
-**Completed work in this session**:
-- Fixed Moteur F routing logic regarding channel marks (Lorient, Croisic, Kerpenhir) by updating  and . All tests passing. (DONE)
-- Added UI feature where clicking red shallow zones on the route opens both water height info and route options in  and . (DONE)
-- Refactored  by splitting it from 4774 lines to 4125 lines, extracting 12 modals and 2 helpers into a new  directory. (DONE)
-- Optimised A* routing algorithm speed (installed numba: error: the following arguments are required: filename, added , parallelised async API requests) bringing calculation time under 10 seconds for worst-case routes. (DONE)
+**Upcoming and Future Tasks**
+- **Upcoming Tasks:**
+  - **P1: Phase 1 of Offline Routing:** If the user greenlights the feasibility study proposed by the agent, begin implementing offline bathymetry packs (download/storage management via ) for mobile offline routing. 
 
-**Earlier issues found/mentioned but not fixed**:
-*None. Minor test failures related to OTP rate limiting were bypassed via QA headers and were environmentally specific to parallel test runs.*
+**Completed work in this session**
+- Surgical bathymetry patch applied to 228 specific cells in Lorient grid to fix Engine H bug without touching engine code () (DONE).
+- Start/End coordinates added to  and , depth profile graph hidden (DONE).
+- Start/End coordinates saved to database during route saving flow ( updated) (DONE).
+- User's real  installed and  package names verified (DONE).
+- Engine F logic extracted and frozen into  (DONE).
+- Engine I created as a working copy in  and registered in the database (DONE).
 
-**Known issue recurrence from previous fork**:
-- Recurrence count: 0
-- Status: RESOLVED
+**Earlier issues found/mentioned but not fixed**
+- None.
 
-**Code Architecture**:
-- : Expo React Native app.
-- : Extracted components and modals for the map view.
-- : FastAPI server.
-- : Routing algorithms (SignalMar v1 to v6).
-- : Seamarks parsing and interaction.
+**Known issue recurrence from previous fork**
+- Issue recurrence in previous fork: Rate limits/429 errors from Open-Meteo API when running the full test suite rapidly.
+- Recurrence count: >3
+- Status: RESOLVED (Artifact of parallel testing; handled by agent).
 
-**Key Technical Concepts**:
-React Native, Expo, FastAPI, MongoDB, A* Pathfinding (now Numba JIT optimized), GeoJSON, Pytest, React Modals.
+**Code Architecture**
+- Frontend: Expo / React Native (). UI uses standard mobile-first components.
+- Backend: FastAPI / Python ().
+- Routing Engines: Legacy algorithms in . **New architectural pattern**: Moteur F is in  (IMMUTABLE), and Moteur I is in  (ACTIVE).
+- Database: MongoDB.
 
-**key DB schema**:
-- : {route_id, engine_id, waypoints, distance_m, min_depth_m, ...}
-- : {report_id, lat, lng, type, user_id, status, ...}
+**Key Technical Concepts**
+- A* Pathfinding on 2D NumPy arrays representing sea depth.
+- FastAPI backend routing engine registry (dynamic loading via DB configuration).
+- Expo File System / Native Firebase Integrations.
 
-**changes in tech stack**:
-- **Added numba: error: the following arguments are required: filename and ** to the backend environment for JIT compilation of the Python A* routing algorithm, drastically reducing pathfinding execution times.
+**key DB schema**
+- : {route_id, user_id, engine_id, request, waypoints, created_at}
+- : updated to include  and  coordinate objects.
 
-**All files of reference**:
--  (Updated channel marks logic & raster cache)
--  (Updated penalty/violation logic)
--  (Parallelized tide/ZH computation via )
--  (Refactored heavily, extracted components)
--  (New folder with 12 extracted modals like , , etc.)
--  (UI click interaction modifications)
+**changes in tech stack**
+- None.
 
-**Areas that need refactoring**:
-* was successfully refactored in this session. The codebase is currently clean.*
+**All files of reference**
+1.  (Newly created. IMMUTABLE Engine F logic).
+2.  (Newly created. Active Engine I logic for all future work).
+3.  (Updated to register the new engines).
+4.  &  (UI for route details and comparisons).
+5.  (Real Firebase credentials file).
 
-**key api endpoints**:
-- 
-- 
+**Areas that need refactoring**: 
+- The routing engine directory structure is partially split between  (legacy v1-v6, H) and  (F_frozen, I). The agent successfully followed user orders to put new engines in . Maintain this convention unless instructed otherwise.
 
-**Critical Info for New Agent**:
-- **CRITICAL**: Engines A, B, C, D, and E are strictly FROZEN. DO NOT modify their logic. All routing algorithm fixes must be applied strictly to  ().
-- **Numba Optimization**: numba: error: the following arguments are required: filename is now installed and active for A* pathfinding. Do not remove it or revert it.
-- **Frontend Modals**:  now relies on separated modal components located in .
-- **Parallel Routing**: Routing is now executed in parallel (Zero Hydro / Tide) using  inside .
+**key api endpoints**
+-  
+-  (Fetches available engines for frontend UI).
 
-**documents and test reports created in this job**:
--  (Updated)
--  (Frontend refactor verification)
-- Backend test reports generated and evaluated in memory.
+**Critical Info for New Agent**
+- **CRITICAL:**  MUST NEVER BE MODIFIED. The user explicitly stated this is a frozen reference point. All future feature requests, bug fixes, or algorithm tweaks MUST be performed on  (Moteur I). 
+- **CRITICAL:** The user is highly technical and provides strict, exact instructions (e.g., Do not touch engine code, apply surgical data patch). Always follow their instructions literally and avoid unsolicited refactoring or smart modifications.
+- The  has been updated with real credentials. Native features utilizing this (like push notifications) can only be tested on a real device via a generated build, not in Expo Go.
 
-**Last 10 User Messages and any pending HUMAN messages**:
-- **Message 220**: User asked why  refactoring is needed and why routing takes 30s. (Answered)
-- **Message 222**: User asked what A* is, and instructed the agent to perform the  refactoring. (Completed)
-- **Message 273**: User requested to optimize the routing calculation to under 10 seconds without losing seamark accuracy. (Completed)
-*Status: All user prompts and tasks have been completely satisfied. Awaiting new instructions.*
+**documents and test reports created in this job** 
+- None. (Older test reports like  are no longer the immediate focus as the regression was fixed).
 
-**Project Health Check**:
-- Broken: None (All 40 backend routing tests and frontend E2E tests are GREEN)
-- Mocked: SMS OTP is mocked ().
+**Last 10 User Messages and any pending HUMAN messages** 
+- User: Ordered a surgical data patch to bathymetry to fix a route deviation without touching Engine H code. -> (Agent completed and tested).
+- User: Requested adding start/end coords to route details popup and saving them. -> (Agent implemented).
+- User: Requested adding coords to the comparison popup and removing the depth profile graph from the detail popup. -> (Agent implemented).
+- User: Provided real  and requested Android configuration verification. -> (Agent replaced placeholder and verified package match).
+- User: Asked for feasibility and credit cost to move routing Engine A to the mobile frontend for offline use. -> (Agent responded with a 3-phase plan and cost logic).
+- User: Mandated freezing Engine F () and creating Engine I () as the new active working engine. -> (Agent executed, verified strict 100% output parity, and finished).
+- *Pending Human Action*: The user has not yet given the next instruction following the freezing of Engine F. Wait for their prompt (likely starting on Moteur I optimizations or Phase 1 of Offline routing).
 
-**3rd Party Integrations**:
-*None actively manipulated in this session.*
+**Project Health Check:**
+- Broken: None. (All tests passing after data patch).
+- Mocked: None.
 
-**Testing status**:
-- Testing agent used after significant changes: YES
-- Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: Handled implicitly in pytest suites by testing agent ().
+**3rd Party Integrations**
+- Firebase (Push Notifications) — User provided real . Requires Native Build.
+- Open-Meteo (Tide/Weather data) - No auth required.
+
+**Testing status**
+- Testing agent used after significant changes: NO (Tested via direct Python/pytest scripts and Playwright screenshot automation).
+- Troubleshoot agent used after agent stuck in loop: NO.
+- Test files created: None.
 - Known regressions: None.
 
-**Credentials to test flow**:
-Check  (Email: , Pass: ).
+**Credentials to test flow:**
+See .
 
-**What agent forgot to execute**:
-Nothing. The agent successfully addressed all bugs, UI enhancements, the massive frontend refactoring, and backend speed optimizations requested by the user.</analysis>
+**What agent forgot to execute**
+- Nothing. The agent successfully handled all requests exactly as commanded.</analysis>

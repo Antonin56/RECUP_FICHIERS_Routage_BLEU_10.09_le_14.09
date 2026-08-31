@@ -134,6 +134,18 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: >
+      ITER147 (31/08) : tester UNIQUEMENT le backend (routing). Nouveau :
+      Moteur I (engine_i) = routes officielles écrêtées au tirant d'eau +
+      doublon « Les Errants » neutralisé. Fichier modifié : SEUL
+      backend/core/nav/engine_i.py. Lancer pytest
+      tests/test_iter147_moteur_i_ecretage.py + régressions
+      iter143/144/140/136 (gel moteurs A-H). Auth : email
+      antoninlepinay@gmail.com / mdp 123454321 (ou OTP 0760071445 / 123456) ;
+      header X-RateLimit-Bypass: qa-bypass-signalmar-2026. Les calculs de
+      route peuvent prendre 1-3 min (timeout large). NE PAS modifier
+      engine_f_frozen.py ni les algos signalmar_v1..v6/h (moteurs gelés).
+  - agent: "main"
+    message: >
       Tester UNIQUEMENT le backend (routing). Auth : OTP phone 0760071445 /
       code 123456 (dev bypass) ou password 123454321 ; header
       X-RateLimit-Bypass: qa-bypass-signalmar-2026 pour éviter le rate-limit.
@@ -387,7 +399,40 @@ agent_communication:
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
 
-  - task: "ITER146 — Gel du Moteur F (core/nav/engine_f_frozen.py) + Moteur I (core/nav/engine_i.py)"
+  - task: "ITER147 — Moteur I : routes officielles ÉCRÊTÉES AU TIRANT D'EAU + doublon « Les Errants » neutralisé (engine_i.py UNIQUEMENT)"
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py (seul fichier modifié), backend/tests/test_iter147_moteur_i_ecretage.py (nouveau)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          GO armateur 31/08 : le Moteur I gagne le suivi des routes
+          officielles (logique Moteur H copiée, H INCHANGÉ) mais le réseau
+          des pointillés est écrêté au BESOIN D'EAU RÉEL (tirant + marge −
+          marée, plancher 0,5 m, cache par pas de 0,1 m) — mesuré : ~20 km
+          d'alignements < 2 m de fond conservés par H sont retirés chez I
+          (ex. Passe Ouest Lorient way 736 : 3878 → 3636 m, fond 0,65 m).
+          Doublon « Les Errants » ANALYSÉ : tourelle blanche id 1421434210
+          (couleur contredit la catégorie bâbord) + bouée rouge id
+          1421434206 à 351 m, côtés requis v6 divergents de ~82° → règle
+          Moteur I : latérale de couleur contradictoire doublée d'une
+          homonyme conforme ≤ 600 m = plus de règle de CÔTÉ (écrêtage +
+          audit wrong_side filtré), écart minimal 60 m conservé. Les
+          perches génériques sans couleur ne sont PAS neutralisées (faux
+          positifs écartés). LIMITE documentée : le détour du tracé imposé
+          par le demi-disque rasterisé de la blanche (seamarks.py) reste —
+          correction possible uniquement hors périmètre (GO armateur
+          requis). Import circulaire safe_routes→v4→algos→engine_i corrigé
+          (accès attributs différés). Local : iter147 6/6, iter143 8/8,
+          iter144 6/6, iter140+136 14/14+xfail, iter137/139/133/îles 53
+          verts. Moteurs A-H strictement inchangés (aucun autre fichier
+          touché).
+
+
     implemented: true
     working: true
     file: "backend/core/nav/engine_f_frozen.py, backend/core/nav/engine_i.py, backend/routers/routing.py, backend/core/routing_engines/manager.py"
