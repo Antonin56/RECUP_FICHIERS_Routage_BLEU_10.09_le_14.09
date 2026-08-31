@@ -590,3 +590,109 @@
 2026-08-27T10:06:15.722+0000	done dumping `test_database.computed_routes` (1252 documents)
 [2026-08-27 10:06:17] backup OK → mongo_20260827_1006.tar.gz (22M)
 [2026-08-27 10:06:17] rotation: supprimé mongo_20260816_0826.tar.gz
+[2026-08-28 11:53:40] backup start → mongo_20260828_1153 (db=test_database)
+2026-08-28T11:53:40.588+0000	writing `test_database.notifications` to `/app/backups/mongo_20260828_1153/test_database/notifications.bson`
+2026-08-28T11:53:40.588+0000	writing `test_database.computed_routes` to `/app/backups/mongo_20260828_1153/test_database/computed_routes.bson`
+2026-08-28T11:53:40.588+0000	writing `test_database.users` to `/app/backups/mongo_20260828_1153/test_database/users.bson`
+2026-08-28T11:53:40.589+0000	writing `test_database.points_history` to `/app/backups/mongo_20260828_1153/test_database/points_history.bson`
+2026-08-28T11:53:40.591+0000	done dumping `test_database.users` (203 documents)
+2026-08-28T11:53:40.591+0000	writing `test_database.tts_cache` to `/app/backups/mongo_20260828_1153/test_database/tts_cache.bson`
+2026-08-28T11:53:40.592+0000	done dumping `test_database.points_history` (459 documents)
+2026-08-28T11:53:40.592+0000	writing `test_database.support_screenshots` to `/app/backups/mongo_20260828_1153/test_database/support_screenshots.bson`
+2026-08-28T11:53:40.596+0000	done dumping `test_database.notifications` (1905 documents)
+2026-08-28T11:53:40.596+0000	writing `test_database.group_invitations` to `/app/backups/mongo_20260828_1153/test_database/group_invitations.bson`
+2026-08-28T11:53:40.601+0000	done dumping `test_database.group_invitations` (25 documents)
+2026-08-28T11:53:40.601+0000	writing `test_database.support_upload_sessions` to `/app/backups/mongo_20260828_1153/test_database/support_upload_sessions.bson`
+2026-08-28T11:53:40.602+0000	done dumping `test_database.support_upload_sessions` (20 documents)
+2026-08-28T11:53:40.602+0000	writing `test_database.sea_cache` to `/app/backups/mongo_20260828_1153/test_database/sea_cache.bson`
+2026-08-28T11:53:40.603+0000	done dumping `test_database.sea_cache` (18 documents)
+2026-08-28T11:53:40.603+0000	writing `test_database.diagnostics` to `/app/backups/mongo_20260828_1153/test_database/diagnostics.bson`
+2026-08-28T11:53:40.604+0000	done dumping `test_database.diagnostics` (14 documents)
+2026-08-28T11:53:40.604+0000	writing `test_database.report_messages` to `/app/backups/mongo_20260828_1153/test_database/report_messages.bson`
+2026-08-28T11:53:40.605+0000	done dumping `test_database.report_messages` (9 documents)
+2026-08-28T11:53:40.605+0000	writing `test_database.coast_cache` to `/app/backups/mongo_20260828_1153/test_database/coast_cache.bson`
+2026-08-28T11:53:40.606+0000	done dumping `test_database.tts_cache` (69 documents)
+2026-08-28T11:53:40.606+0000	writing `test_database.engines` to `/app/backups/mongo_20260828_1153/test_database/engines.bson`
+2026-08-28T11:53:40.606+0000	done dumping `test_database.coast_cache` (8 documents)
+2026-08-28T11:53:40.606+0000	writing `test_database.mark_reports` to `/app/backups/mongo_20260828_1153/test_database/mark_reports.bson`
+2026-08-28T11:53:40.606+0000	done dumping `test_database.engines` (8 documents)
+2026-08-28T11:53:40.606+0000	writing `test_database.saved_routes` to `/app/backups/mongo_20260828_1153/test_database/saved_routes.bson`
+2026-08-28T11:53:40.607+0000	done dumping `test_database.mark_reports` (8 documents)
+2026-08-28T11:53:40.607+0000	writing `test_database.reports` to `/app/backups/mongo_20260828_1153/test_database/reports.bson`
+2026-08-28T11:53:40.608+0000	done dumping `test_database.saved_routes` (7 documents)
+2026-08-28T11:53:40.608+0000	writing `test_database.group_members` to `/app/backups/mongo_20260828_1153/test_database/group_members.bson`
+2026-08-28T11:53:40.608+0000	done dumping `test_database.reports` (2 documents)
+2026-08-28T11:53:40.608+0000	writing `test_database.beta_testers` to `/app/backups/mongo_20260828_1153/test_database/beta_testers.bson`
+2026-08-28T11:53:40.608+0000	done dumping `test_database.group_members` (1 document)
+2026-08-28T11:53:40.608+0000	writing `test_database.groups` to `/app/backups/mongo_20260828_1153/test_database/groups.bson`
+2026-08-28T11:53:40.610+0000	done dumping `test_database.beta_testers` (1 document)
+2026-08-28T11:53:40.610+0000	writing `test_database.friend_requests` to `/app/backups/mongo_20260828_1153/test_database/friend_requests.bson`
+2026-08-28T11:53:40.610+0000	done dumping `test_database.groups` (1 document)
+2026-08-28T11:53:40.610+0000	writing `test_database.referrals` to `/app/backups/mongo_20260828_1153/test_database/referrals.bson`
+2026-08-28T11:53:40.611+0000	done dumping `test_database.friend_requests` (0 documents)
+2026-08-28T11:53:40.611+0000	writing `test_database.user_sessions` to `/app/backups/mongo_20260828_1153/test_database/user_sessions.bson`
+2026-08-28T11:53:40.612+0000	done dumping `test_database.user_sessions` (0 documents)
+2026-08-28T11:53:40.612+0000	writing `test_database.otp_codes` to `/app/backups/mongo_20260828_1153/test_database/otp_codes.bson`
+2026-08-28T11:53:40.612+0000	done dumping `test_database.referrals` (0 documents)
+2026-08-28T11:53:40.612+0000	writing `test_database.support_uploads` to `/app/backups/mongo_20260828_1153/test_database/support_uploads.bson`
+2026-08-28T11:53:40.612+0000	done dumping `test_database.support_uploads` (0 documents)
+2026-08-28T11:53:40.612+0000	writing `test_database.wind_cache` to `/app/backups/mongo_20260828_1153/test_database/wind_cache.bson`
+2026-08-28T11:53:40.613+0000	done dumping `test_database.otp_codes` (0 documents)
+2026-08-28T11:53:40.613+0000	done dumping `test_database.wind_cache` (0 documents)
+2026-08-28T11:53:40.621+0000	done dumping `test_database.support_screenshots` (37 documents)
+2026-08-28T11:53:40.652+0000	done dumping `test_database.computed_routes` (1440 documents)
+[2026-08-28 11:53:42] backup OK → mongo_20260828_1153.tar.gz (23M)
+[2026-08-28 11:53:42] rotation: supprimé mongo_20260818_1109.tar.gz
+[2026-08-31 07:06:42] backup start → mongo_20260831_0706 (db=test_database)
+2026-08-31T07:06:42.580+0000	writing `test_database.notifications` to `/app/backups/mongo_20260831_0706/test_database/notifications.bson`
+2026-08-31T07:06:42.580+0000	writing `test_database.computed_routes` to `/app/backups/mongo_20260831_0706/test_database/computed_routes.bson`
+2026-08-31T07:06:42.580+0000	writing `test_database.points_history` to `/app/backups/mongo_20260831_0706/test_database/points_history.bson`
+2026-08-31T07:06:42.581+0000	writing `test_database.users` to `/app/backups/mongo_20260831_0706/test_database/users.bson`
+2026-08-31T07:06:42.583+0000	done dumping `test_database.users` (203 documents)
+2026-08-31T07:06:42.583+0000	writing `test_database.tts_cache` to `/app/backups/mongo_20260831_0706/test_database/tts_cache.bson`
+2026-08-31T07:06:42.584+0000	done dumping `test_database.points_history` (460 documents)
+2026-08-31T07:06:42.584+0000	writing `test_database.support_screenshots` to `/app/backups/mongo_20260831_0706/test_database/support_screenshots.bson`
+2026-08-31T07:06:42.587+0000	done dumping `test_database.notifications` (1905 documents)
+2026-08-31T07:06:42.587+0000	writing `test_database.group_invitations` to `/app/backups/mongo_20260831_0706/test_database/group_invitations.bson`
+2026-08-31T07:06:42.593+0000	done dumping `test_database.group_invitations` (25 documents)
+2026-08-31T07:06:42.593+0000	writing `test_database.support_upload_sessions` to `/app/backups/mongo_20260831_0706/test_database/support_upload_sessions.bson`
+2026-08-31T07:06:42.594+0000	done dumping `test_database.support_upload_sessions` (20 documents)
+2026-08-31T07:06:42.594+0000	writing `test_database.sea_cache` to `/app/backups/mongo_20260831_0706/test_database/sea_cache.bson`
+2026-08-31T07:06:42.595+0000	done dumping `test_database.sea_cache` (18 documents)
+2026-08-31T07:06:42.595+0000	writing `test_database.diagnostics` to `/app/backups/mongo_20260831_0706/test_database/diagnostics.bson`
+2026-08-31T07:06:42.596+0000	done dumping `test_database.diagnostics` (14 documents)
+2026-08-31T07:06:42.596+0000	writing `test_database.report_messages` to `/app/backups/mongo_20260831_0706/test_database/report_messages.bson`
+2026-08-31T07:06:42.597+0000	done dumping `test_database.tts_cache` (69 documents)
+2026-08-31T07:06:42.597+0000	writing `test_database.coast_cache` to `/app/backups/mongo_20260831_0706/test_database/coast_cache.bson`
+2026-08-31T07:06:42.598+0000	done dumping `test_database.coast_cache` (8 documents)
+2026-08-31T07:06:42.598+0000	writing `test_database.engines` to `/app/backups/mongo_20260831_0706/test_database/engines.bson`
+2026-08-31T07:06:42.598+0000	done dumping `test_database.report_messages` (9 documents)
+2026-08-31T07:06:42.598+0000	writing `test_database.mark_reports` to `/app/backups/mongo_20260831_0706/test_database/mark_reports.bson`
+2026-08-31T07:06:42.599+0000	done dumping `test_database.engines` (8 documents)
+2026-08-31T07:06:42.599+0000	writing `test_database.saved_routes` to `/app/backups/mongo_20260831_0706/test_database/saved_routes.bson`
+2026-08-31T07:06:42.599+0000	done dumping `test_database.mark_reports` (8 documents)
+2026-08-31T07:06:42.599+0000	writing `test_database.group_members` to `/app/backups/mongo_20260831_0706/test_database/group_members.bson`
+2026-08-31T07:06:42.600+0000	done dumping `test_database.saved_routes` (7 documents)
+2026-08-31T07:06:42.600+0000	writing `test_database.beta_testers` to `/app/backups/mongo_20260831_0706/test_database/beta_testers.bson`
+2026-08-31T07:06:42.601+0000	done dumping `test_database.group_members` (1 document)
+2026-08-31T07:06:42.601+0000	writing `test_database.groups` to `/app/backups/mongo_20260831_0706/test_database/groups.bson`
+2026-08-31T07:06:42.601+0000	done dumping `test_database.beta_testers` (1 document)
+2026-08-31T07:06:42.601+0000	writing `test_database.friend_requests` to `/app/backups/mongo_20260831_0706/test_database/friend_requests.bson`
+2026-08-31T07:06:42.602+0000	done dumping `test_database.friend_requests` (0 documents)
+2026-08-31T07:06:42.602+0000	writing `test_database.reports` to `/app/backups/mongo_20260831_0706/test_database/reports.bson`
+2026-08-31T07:06:42.603+0000	done dumping `test_database.reports` (0 documents)
+2026-08-31T07:06:42.603+0000	writing `test_database.referrals` to `/app/backups/mongo_20260831_0706/test_database/referrals.bson`
+2026-08-31T07:06:42.604+0000	done dumping `test_database.groups` (1 document)
+2026-08-31T07:06:42.604+0000	writing `test_database.user_sessions` to `/app/backups/mongo_20260831_0706/test_database/user_sessions.bson`
+2026-08-31T07:06:42.604+0000	done dumping `test_database.referrals` (0 documents)
+2026-08-31T07:06:42.604+0000	writing `test_database.otp_codes` to `/app/backups/mongo_20260831_0706/test_database/otp_codes.bson`
+2026-08-31T07:06:42.605+0000	done dumping `test_database.user_sessions` (0 documents)
+2026-08-31T07:06:42.605+0000	writing `test_database.support_uploads` to `/app/backups/mongo_20260831_0706/test_database/support_uploads.bson`
+2026-08-31T07:06:42.605+0000	done dumping `test_database.otp_codes` (0 documents)
+2026-08-31T07:06:42.605+0000	writing `test_database.wind_cache` to `/app/backups/mongo_20260831_0706/test_database/wind_cache.bson`
+2026-08-31T07:06:42.606+0000	done dumping `test_database.support_uploads` (0 documents)
+2026-08-31T07:06:42.606+0000	done dumping `test_database.wind_cache` (0 documents)
+2026-08-31T07:06:42.611+0000	done dumping `test_database.support_screenshots` (37 documents)
+2026-08-31T07:06:42.638+0000	done dumping `test_database.computed_routes` (1440 documents)
+[2026-08-31 07:06:44] backup OK → mongo_20260831_0706.tar.gz (23M)
+[2026-08-31 07:06:44] rotation: supprimé mongo_20260820_0738.tar.gz

@@ -3331,3 +3331,23 @@ Non-régression : 26/26 balisage (iter136-139) + 40/40 moteurs gelés
   Moteur H insère les pointillés tels quels → passage à l'EST des tribord.
   Correction possible côté moteur uniquement (écrêtage fonction du tirant
   d'eau) : EN ATTENTE DU GO ARMATEUR.
+
+## ✅ ITER146 (27/08) — GEL DU MOTEUR F + CRÉATION DU MOTEUR I (ordre armateur)
+- ⛔ RÈGLE ABSOLUE PERMANENTE : ``core/nav/engine_f_frozen.py`` NE DOIT PLUS
+  JAMAIS ÊTRE MODIFIÉ (Moteur F = référence immuable validée support).
+  Idem pour les modules figés A-E (signalmar_v1..v5) et signalmar_v6
+  (base des Moteurs G/H — toute évolution v6 casserait le gel implicite).
+- ``core/nav/engine_f_frozen.py`` : copie intégrale de la logique Moteur F
+  (sidefix.py + signalmar_v6/__init__.py fusionnés, classe ``EngineFFrozen``,
+  algo ``signalmar.f_frozen``). ``routers/routing.py`` (_resolve_algo local)
+  force engine_f → algo gelé quel que soit le binding DB ; engine_f ajouté à
+  FROZEN_ENGINE_IDS + rebind seed (algo signalmar.f_frozen en base).
+- ``core/nav/engine_i.py`` : Moteur I (``EngineI``, algo ``signalmar.i``,
+  doc ``engine_i`` « Moteur I travail 27.08.26 ») = duplicata exact du gelé.
+  TOUTES LES FUTURES AMÉLIORATIONS/CORRECTIONS DE ROUTAGE SE FONT SUR
+  ``core/nav/engine_i.py`` (jamais sur F ni sur v1-v6).
+- Sélecteur mobile : dynamique (GET /api/routing/engines) → Moteur I visible.
+- VÉRIFIÉ : 2 routes de référence (Lorient large→port 8862,5 m ;
+  Arradon→La Trinité 22084 m) — résultats F gelé ≡ Moteur I ≡ ancien v6,
+  100 % identiques hors ``compute_s`` (temps de calcul, volatil).
+  Suites iter140/143/144 : 19 passed + 1 xfailed.

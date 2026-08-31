@@ -14,6 +14,12 @@ from core.routing_engines.algos.signalmar_v4 import SignalmarV4
 from core.routing_engines.algos.signalmar_v5 import SignalmarV5
 from core.routing_engines.algos.signalmar_v6 import SignalmarV6
 from core.routing_engines.algos.signalmar_h import SignalmarH
+# 27/08/2026 (ordre armateur — maintenance critique) : Moteur F GELÉ dans
+# core/nav/engine_f_frozen.py (référence immuable) et Moteur I (copie de
+# travail) dans core/nav/engine_i.py. Imports APRÈS les algos v1-h (leurs
+# modules doivent déjà être initialisés — pas de circularité).
+from core.nav.engine_f_frozen import EngineFFrozen
+from core.nav.engine_i import EngineI
 
 #: Clé stable → instance singleton de l'algo (les algos SignalMar sont
 #: stateless au niveau instance — la vraie « state » est le module ``core``
@@ -26,6 +32,8 @@ ALGO_REGISTRY: dict[str, BaseAlgo] = {
     SignalmarV5.id: SignalmarV5(),
     SignalmarV6.id: SignalmarV6(),
     SignalmarH.id: SignalmarH(),
+    EngineFFrozen.id: EngineFFrozen(),
+    EngineI.id: EngineI(),
 }
 
 

@@ -27,8 +27,9 @@ from core.routing_engines import (
     bump_usage as _engine_bump_usage,
     get_engine as _get_engine,
     get_engine_or_default as _get_engine_or_default,
-    resolve_algo as _resolve_algo,
+    resolve_algo as _resolve_algo_db,
 )
+from core.routing_engines.algos import get_algo as _get_algo
 from core.seamarks import MOORINGS_OPEN, SIDE_RULES_OPEN
 from core.support_admin import is_signalmar_admin
 from core.tides import _haversine_km, tide_crossings, tide_window
@@ -38,6 +39,17 @@ logger = logging.getLogger("signalmar.routing")
 router = APIRouter(prefix="/routes", tags=["routes"])
 
 _PARIS = ZoneInfo("Europe/Paris")
+
+
+def _resolve_algo(engine_doc: dict):
+    """27/08/2026 (ordre armateur — MAINTENANCE CRITIQUE) : le Moteur F
+    (``engine_f``) pointe EXCLUSIVEMENT vers la copie GELÉE
+    ``core/nav/engine_f_frozen.py`` (algo ``signalmar.f_frozen``), quel que
+    soit son binding en base. Le Moteur F est une référence IMMUABLE — toute
+    évolution se fait sur le Moteur I (``core/nav/engine_i.py``)."""
+    if (engine_doc or {}).get("id") == "engine_f":
+        return _get_algo("signalmar.f_frozen")
+    return _resolve_algo_db(engine_doc)
 
 
 # ── 31/07/2026 — ID PUBLIC DE ROUTE (support armateur) ─────────────────────

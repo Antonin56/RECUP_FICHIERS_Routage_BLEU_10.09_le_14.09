@@ -386,3 +386,20 @@ agent_communication:
           l'alignement OSM 711666732 traverse le banc du Turc (sondes réelles
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
+
+  - task: "ITER146 — Gel du Moteur F (core/nav/engine_f_frozen.py) + Moteur I (core/nav/engine_i.py)"
+    implemented: true
+    working: true
+    file: "backend/core/nav/engine_f_frozen.py, backend/core/nav/engine_i.py, backend/routers/routing.py, backend/core/routing_engines/manager.py"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: >
+          Moteur F gelé (copie intégrale sidefix+v6, algo signalmar.f_frozen,
+          engine_f forcé vers le fichier gelé dans routing.py + frozen=True en
+          base). Moteur I créé (duplicata exact, algo signalmar.i, doc
+          engine_i), visible dans le sélecteur mobile (liste dynamique).
+          RÈGLE ABSOLUE : ne plus jamais modifier engine_f_frozen.py ; toutes
+          les évolutions de routage sur engine_i.py. Vérifié : 2 routes de
+          référence F≡I≡ancien v6 100% identiques (hors compute_s volatil) ;
+          iter140/143/144 : 19 passed + 1 xfailed.

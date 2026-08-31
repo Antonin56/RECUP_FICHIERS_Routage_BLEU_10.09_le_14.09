@@ -69,8 +69,12 @@ DEFAULT_ALGO = "signalmar.v1"
 DEFAULT_ENGINE_ID = "engine_a"
 
 # 14/08/2026 (audit QA) — moteurs de RÉFÉRENCE figés : A (historique),
-# B (02/08), C (03/08), D (10/08), E (13/08). Seul le Moteur F est modifiable.
-FROZEN_ENGINE_IDS = ("engine_a", "engine_b", "engine_c", "engine_d", "engine_e")
+# B (02/08), C (03/08), D (10/08), E (13/08).
+# 27/08/2026 (ordre armateur — maintenance critique) — le Moteur F rejoint
+# les références FIGÉES : sa logique est gelée dans core/nav/engine_f_frozen.py
+# (immuable). Le moteur de TRAVAIL est désormais le Moteur I (engine_i).
+FROZEN_ENGINE_IDS = ("engine_a", "engine_b", "engine_c", "engine_d",
+                     "engine_e", "engine_f")
 
 _BUILTIN_SEEDS = [
     {
@@ -135,6 +139,41 @@ _BUILTIN_SEEDS = [
         ),
         "algo": "signalmar.h",
         "params": {"chenal_radius_m": 1000, "track_attach_m": 3000},
+        "active": True,
+        "built_in": False,
+        "parent_id": "engine_f",
+    },
+    # 27/08/2026 (ordre armateur — maintenance critique) — GEL DU MOTEUR F :
+    # rebind vers l'algo ``signalmar.f_frozen`` (copie immuable dans
+    # core/nav/engine_f_frozen.py). Le seed ne sert qu'au rebind/bootstrap —
+    # le doc existant garde son nom.
+    {
+        "id": "engine_f",
+        "name": "Moteur F base E 13.08.26",
+        "description": (
+            "Moteur F GELÉ le 27/08/26 (référence immuable, validée support) : "
+            "logique figée dans core/nav/engine_f_frozen.py. "
+            "Les évolutions se font sur le Moteur I."
+        ),
+        "algo": "signalmar.f_frozen",
+        "params": {},
+        "active": True,
+        "built_in": False,
+        "parent_id": "engine_e",
+    },
+    # 27/08/2026 (ordre armateur) — MOTEUR I : moteur de TRAVAIL, duplicata
+    # à l'identique du Moteur F gelé (core/nav/engine_i.py). Toutes les
+    # nouvelles améliorations/corrections de routage se font ici.
+    {
+        "id": "engine_i",
+        "name": "Moteur I travail 27.08.26",
+        "description": (
+            "Moteur de TRAVAIL (copie exacte du Moteur F gelé au 27/08/26) : "
+            "toutes les améliorations et corrections se font sur ce moteur. "
+            "Résultats identiques au Moteur F à sa création."
+        ),
+        "algo": "signalmar.i",
+        "params": {},
         "active": True,
         "built_in": False,
         "parent_id": "engine_f",
