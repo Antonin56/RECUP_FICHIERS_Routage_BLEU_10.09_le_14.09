@@ -1,5 +1,19 @@
 # SignalMar — PRD
 
+## ✅ ITER149 (31/08, ordre armateur) — jobs de routage en base : fix « Calcul introuvable (expiré) »
+- Cause (donnée par l'armateur, confirmée) : _JOBS en mémoire de process
+  dans routers/routing.py → en production multi-instances, le POST crée le
+  job sur une instance, le GET poll une autre → 404.
+- Fix : collection MongoDB ``route_jobs`` partagée (_id=job_id hex, uid,
+  status pending/done/error, ts datetime UTC, result/status_code/detail),
+  index TTL ``ts`` expireAfterSeconds=900 (créé idempotent au 1er usage,
+  purge par Mongo — même durée de relecture 15 min qu'avant, FND-012).
+  _job_start (await insert), _job_run (update_one à l'issue, ts rafraîchi),
+  routes_job (find_one + contrôle uid → 404 sinon). _JOBS/_jobs_gc/
+  _JOBS_MAX supprimés ; _JOB_TASKS (réfs fortes asyncio) conservé.
+  Concerne /compute/async ET /manual/async. Aucun changement de contrat
+  API. engine_i.py et moteurs non touchés.
+
 ## ✅ ITER148 (31/08, GO armateur) — MOTEUR I : détour fantôme « Les Errants » supprimé, baseline = MOTEUR F GELÉ, comparaison F/I Lorient
 - RÈGLE CONFIRMÉE PAR L'ARMATEUR : référence = Moteur F gelé (PAS H) ;
   toutes les modifications EXCLUSIVEMENT dans core/nav/engine_i.py.

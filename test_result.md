@@ -399,7 +399,34 @@ agent_communication:
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
 
-  - task: "ITER148 — Moteur I : détour fantôme Les Errants supprimé (bypass validé), baseline F pur déterministe, écrêtage étendu aux tracés chartés + jonctions, filtre lacunes NaN (engine_i.py UNIQUEMENT)"
+  - task: "ITER149 — Jobs de routage en MongoDB (collection route_jobs, TTL 900 s) — fix « Calcul introuvable (expiré) » multi-instances"
+    implemented: true
+    working: "NA"
+    file: "backend/routers/routing.py (bloc jobs uniquement)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Bug armateur en production : le dict _JOBS vivait en mémoire de
+          process → avec plusieurs instances backend, le GET /api/routes/job
+          tombait sur une autre instance que le POST → 404 « Calcul
+          introuvable (expiré) ». Fix : jobs dans la collection Mongo
+          route_jobs (_id=job_id, uid, status, ts datetime UTC, result/
+          detail), index TTL ts 900 s (créé idempotent au 1er usage), _job_
+          start/_job_run/routes_job réécrits en lecture/écriture base ;
+          _JOBS/_jobs_gc/_JOBS_MAX supprimés ; _JOB_TASKS (réfs fortes
+          asyncio) conservé. Smoke local : POST async → done dist 8922,2 ;
+          relecture OK (FND-012) ; job inconnu → 404 ; index TTL vérifié en
+          base. Moteurs et engine_i.py NON touchés. POST-VALIDATION :
+          await manquant sur _job_start dans recompute_saved_route_async
+          (signalé par le testing agent) corrigé puis vérifié e2e
+          (recompute async → done). Validé testing agent
+          (iteration_14 : 5/5 + régression iter147 8/8).
+
+
     implemented: true
     working: "NA"
     file: "backend/core/nav/engine_i.py (seul fichier code), backend/tests/test_iter147_moteur_i_ecretage.py (2 tests ajoutés)"

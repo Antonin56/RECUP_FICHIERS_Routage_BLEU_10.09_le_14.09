@@ -1,0 +1,39 @@
+{
+  "summary": "ITER149 backend-only : fix « Calcul introuvable (expiré) » validé. Nouveau suite pytest test_iter149_jobs_db_persistence.py (5/5 verts, dont le test cœur SURVIE DU JOB AU RESTART BACKEND) + régression test_iter147_moteur_i_ecretage.py (8/8 verts). Jobs bien stockés dans MongoDB.route_jobs avec index TTL ts_1 expireAfterSeconds=900 ; POST /compute/async → job_id, poll done avec distance_m ≈ 8922 m sans aucun 404 pendant le calcul ; POST /manual/async → done ; job_id inconnu → 404 « Calcul introuvable (expiré) » ; persistance vérifiée après sudo supervisorctl restart backend (relecture du même job_id → done, même result). Bug latent identifié HORS PÉRIMÈTRE ITER149 dans le même fichier : line 1196 `_job_start(uid)` manque un `await` (recompute_saved_route_async), à corriger séparément.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/routes/saved/{id}/recompute/async",
+       "issue": "backend/routers/routing.py L1196 : `job_id = _job_start(uid)` sans `await` (fonction async devenue awaitable dans le fix ITER149). Bug latent — la route recompute/async renverra une coroutine au lieu d'un job_id et plantera au premier appel. HORS scope ITER149 mais introduit par la même vague de modifs."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter149_jobs_db_persistence.py",
+    "/app/test_reports/pytest/iter149.xml",
+    "/app/test_reports/pytest/iter149_regression147.xml"
+  ],
+  "action_items": [
+    "Corriger backend/routers/routing.py L1196 : `job_id = await _job_start(uid)` (manquant, cassera /routes/saved/{id}/recompute/async au premier usage).",
+    "Aucune autre action requise pour ITER149 : fix validé de bout en bout."
+  ],
+  "critical_code_review_comments": [
+    "routing.py:1196 — `_job_start` est désormais `async` (retourne une coroutine) : l'appel dans recompute_saved_route_async doit être `await`é.",
+    "routing.py:794 — `_JOB_TASKS: set` sert de référence forte aux tâches asyncio pour éviter le GC ; l'exécution en tâche de fond continue même après restart… non, elle est perdue au restart. Point important : après restart, un job qui était `pending` reste `pending` en base ad vitam (jusqu'au TTL 900 s). Le fix ITER149 rend le RÉSULTAT survivant, pas la tâche elle-même — comportement attendu selon la description mais mérite d'être documenté côté front (retry / recompute côté client si toujours pending > 30 s après reprise).",
+    "routing.py:800 — création de l'index TTL au premier appel (idempotent) : OK. Verrou global `_jobs_index_ready` non-partagé entre instances mais MongoDB dédoublonne l'index par nom : safe."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter149_jobs_db_persistence.py (nouveau)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped par consigne)"},
+  "seed_data_creation": "Aucune. Utilise le compte seedé antoninlepinay@gmail.com / 123454321.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "ITER149 (jobs persistés en base) validé. Régression ITER147 stable (8/8). Pytest à lancer en mode série (`-n 0`) pour la suite ITER149 car TestPersistenceAcrossRestart dépend d'un état partagé (job_id) entre classes ; en xdist défaut (loadscope) le test se skip proprement mais ne prouve rien. Bug L1196 (`await` manquant) NON corrigé — hors scope du review request. Backend redémarré une fois pendant le test (survie job vérifiée) — état actuel : nominal.",
+  "rca_of_issue": "Bug pré-fix : dict `_JOBS` en mémoire de process → en multi-instances derrière l'ingress, POST /compute/async créait le job sur instance A, poll GET /job/{id} tombait sur instance B → 404 « Calcul introuvable (expiré) ». Fix : jobs migrés vers collection MongoDB `route_jobs` (partagée) avec index TTL ts=900 s. Reproduction du bug historique impossible en préview mono-instance, mais l'équivalent (kill/restart backend puis re-GET du job) valide la même propriété : la persistance des jobs SURVIT au process, condition suffisante pour le multi-instances."
+}

@@ -782,46 +782,70 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
 # interroge un GET très court. Un 429 sur une interrogation est SANS
 # CONSÉQUENCE : le calcul continue côté serveur et l'app le récupère au coup
 # suivant. Le point de départ n'est donc plus jamais perdu.
-_JOBS: dict[str, dict] = {}
+#
+# 31/08/2026 (armateur : « Calcul introuvable (expiré) » en production) —
+# JOBS EN BASE, PLUS EN MÉMOIRE. L'ancien dictionnaire _JOBS vivait dans le
+# process : avec PLUSIEURS instances backend derrière l'ingress, le POST
+# créait le job sur une instance et le GET tombait sur une autre → 404
+# « Calcul introuvable (expiré) » alors que le calcul tournait. Les jobs
+# vivent désormais dans la collection MongoDB ``route_jobs`` (partagée par
+# toutes les instances) avec un index TTL de 900 s : même durée de vie
+# qu'avant (résultat relisible 15 min — audit QA FND-012), purge par Mongo.
 _JOB_TASKS: set = set()
 _JOB_TTL_S = 900
-_JOBS_MAX = 200
+_jobs_index_ready = False
 
 
-def _jobs_gc() -> None:
-    now = time.time()
-    stale = [k for k, v in _JOBS.items() if now - v["ts"] > _JOB_TTL_S]
-    for k in stale:
-        _JOBS.pop(k, None)
-    if len(_JOBS) > _JOBS_MAX:  # garde-fou mémoire
-        for k in sorted(_JOBS, key=lambda k: _JOBS[k]["ts"])[: len(_JOBS) - _JOBS_MAX]:
-            _JOBS.pop(k, None)
+async def _jobs_col():
+    """Collection ``route_jobs`` avec index TTL garanti (créé une fois par
+    process, idempotent côté Mongo)."""
+    global _jobs_index_ready
+    col = srv.db.route_jobs
+    if not _jobs_index_ready:
+        try:
+            await col.create_index("ts", expireAfterSeconds=_JOB_TTL_S)
+            _jobs_index_ready = True
+        except Exception:  # noqa: BLE001 — l'index existe déjà ou Mongo répond mal
+            logger.exception("route_jobs: création de l'index TTL en échec")
+    return col
 
 
-def _job_start(uid: str) -> str:
-    _jobs_gc()
+async def _job_start(uid: str) -> str:
     job_id = uuid.uuid4().hex
-    _JOBS[job_id] = {"status": "pending", "ts": time.time(), "uid": uid}
+    col = await _jobs_col()
+    await col.insert_one({
+        "_id": job_id, "status": "pending", "uid": uid,
+        "ts": datetime.now(timezone.utc),
+    })
     return job_id
 
 
 def _job_run(job_id: str, uid: str, coro):
-    """Exécute ``coro`` en tâche de fond et stocke son issue dans le job."""
+    """Exécute ``coro`` en tâche de fond et stocke son issue dans le job
+    (en base : toutes les instances voient le résultat)."""
+    async def _finish(doc: dict) -> None:
+        doc["ts"] = datetime.now(timezone.utc)   # le TTL court depuis l'issue
+        try:
+            col = await _jobs_col()
+            await col.update_one({"_id": job_id}, {"$set": doc})
+        except Exception:  # noqa: BLE001
+            logger.exception("route job %s : écriture du résultat en échec", job_id)
+
     async def _wrap() -> None:
         try:
             res = await coro
-            _JOBS[job_id] = {"status": "done", "ts": time.time(), "uid": uid, "result": res}
+            await _finish({"status": "done", "result": res})
         except HTTPException as exc:
-            _JOBS[job_id] = {
-                "status": "error", "ts": time.time(), "uid": uid,
+            await _finish({
+                "status": "error",
                 "status_code": exc.status_code, "detail": exc.detail,
-            }
+            })
         except Exception as exc:  # noqa: BLE001
             logger.exception("route job %s failed", job_id)
-            _JOBS[job_id] = {
-                "status": "error", "ts": time.time(), "uid": uid,
+            await _finish({
+                "status": "error",
                 "status_code": 500, "detail": str(exc) or "Calcul impossible.",
-            }
+            })
         finally:
             _JOB_TASKS.discard(task)
 
@@ -841,7 +865,7 @@ async def routes_compute_async(body: RouteIn, user: dict = Depends(current_user)
                 status_code=404,
                 detail=f"Moteur « {body.engine_id} » introuvable ou désactivé.")
     uid = str(user.get("user_id") or user.get("id") or "")
-    job_id = _job_start(uid)
+    job_id = await _job_start(uid)
     _job_run(job_id, uid, routes_compute(body, user))
     return {"job_id": job_id, "status": "pending"}
 
@@ -849,7 +873,8 @@ async def routes_compute_async(body: RouteIn, user: dict = Depends(current_user)
 @router.get("/job/{job_id}")
 async def routes_job(job_id: str, user: dict = Depends(current_user)):
     uid = str(user.get("user_id") or user.get("id") or "")
-    job = _JOBS.get(job_id)
+    col = await _jobs_col()
+    job = await col.find_one({"_id": job_id})
     if job is None or job.get("uid") != uid:
         raise HTTPException(status_code=404, detail="Calcul introuvable (expiré).")
     if job["status"] == "pending":
@@ -994,7 +1019,7 @@ class SavedRouteIn(BaseModel):
 @router.post("/manual/async")
 async def routes_manual_async(body: ManualRouteIn, user: dict = Depends(current_user)):
     uid = str(user.get("user_id") or user.get("id") or "")
-    job_id = _job_start(uid)
+    job_id = await _job_start(uid)
     _job_run(job_id, uid, routes_manual(body, user))
     return {"job_id": job_id, "status": "pending"}
 
@@ -1168,7 +1193,7 @@ async def recompute_saved_route_async(
     if exists is None:
         raise HTTPException(404, "Route enregistrée introuvable.")
     uid = str(user.get("user_id") or user.get("id") or "")
-    job_id = _job_start(uid)
+    job_id = await _job_start(uid)
     _job_run(job_id, uid, recompute_saved_route(route_id, body, user))
     return {"job_id": job_id, "status": "pending"}
 
