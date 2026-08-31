@@ -206,6 +206,75 @@ def test_engine_h_gel_implicite(h):
     assert 6000 <= dist <= 13000, dist
 
 
+# ── 6. Baseline F : jamais pire, détour fantôme supprimé ─────────────────
+
+def test_fallback_jamais_pire_que_f(h):
+    """Route complexe Arradon → port de Lorient (66 km) : aucun pointillé
+    raccordable → le Moteur I doit calculer en MODE F PUR et rendre un
+    tracé IDENTIQUE au Moteur F gelé (avant fix : cascade « eau peu
+    profonde », fond −0,27 m, 8 tronçons rouges)."""
+    start = {"lat": 47.610, "lng": -2.825}
+    res_f = _route_async(h, "engine_f", start=start, end=END, timeout=260)
+    res_i = _route_async(h, "engine_i", start=start, end=END, timeout=260)
+
+    def _min_depth(res):
+        ds = [p.get("depth_m") for p in (res.get("depth_profile") or [])
+              if isinstance(p, dict) and isinstance(p.get("depth_m"), (int, float))]
+        return min(ds) if ds else None
+
+    d_f, d_i = res_f.get("distance_m") or 0, res_i.get("distance_m") or 0
+    m_f, m_i = _min_depth(res_f), _min_depth(res_i)
+    comp_f = res_f.get("compromised_legs") or []
+    comp_i = res_i.get("compromised_legs") or []
+    print(f"fallback F : F dist={d_f} min={m_f} rouges={len(comp_f)} / "
+          f"I dist={d_i} min={m_i} rouges={len(comp_i)}")
+    # INVARIANT armateur : hors routes officielles, I ≡ F (jamais pire).
+    assert abs(d_f - d_i) < 1.0, f"tracés F/I divergents : {d_f} vs {d_i}"
+    assert m_f is not None and m_i is not None and abs(m_f - m_i) < 0.01, (m_f, m_i)
+    assert comp_i == comp_f, f"tronçons rouges ≠ F : {comp_i[:5]} vs {comp_f[:5]}"
+    assert bool(res_i.get("risk")) == bool(res_f.get("risk"))
+    wsm_f = [(v.get("name"), v.get("dist_m"))
+             for v in (res_f.get("wrong_side_marks") or [])]
+    wsm_i = [(v.get("name"), v.get("dist_m"))
+             for v in (res_i.get("wrong_side_marks") or [])]
+    assert wsm_i == wsm_f, f"audit balises ≠ F : {wsm_i} vs {wsm_f}"
+
+
+def test_errants_detour_fantome_supprime(h):
+    """Cas armateur : route passant à l'ouest de la tourelle blanche.
+    F fait un détour ~1 690 m (zigzag fantôme) ; le Moteur I supprime le
+    zigzag (≈ 1 625 m) SANS dégrader le fond (3,23 m) ni approcher les
+    marques à moins de 60 m. Les VRAIES roches des Errants (0,3 m à
+    l'ouest) restent contournées (le plein ouest ~900 m est refusé)."""
+    start = {"lat": 47.6815, "lng": -3.3800}
+    end = {"lat": 47.6893, "lng": -3.3798}
+    res_f = _route_async(h, "engine_f", start=start, end=end)
+    res_i = _route_async(h, "engine_i", start=start, end=end)
+    d_f = res_f.get("distance_m") or 0
+    d_i = res_i.get("distance_m") or 0
+    print(f"errants : F={d_f} m, I={d_i} m")
+    assert d_i < d_f - 30, f"détour non supprimé : F={d_f}, I={d_i}"
+    assert d_i > 1200, f"raccourci trop agressif (roches ?) : {d_i}"
+    assert any("détour fantôme supprimé" in w
+               for w in (res_i.get("warnings") or [])), res_i.get("warnings")
+    # fond jamais dégradé
+    def _min_depth(res):
+        ds = [p.get("depth_m") for p in (res.get("depth_profile") or [])
+              if isinstance(p, dict) and isinstance(p.get("depth_m"), (int, float))]
+        return min(ds) if ds else None
+    mf, mi = _min_depth(res_f), _min_depth(res_i)
+    assert mi is not None and mf is not None and mi >= mf - 0.05, (mf, mi)
+    # écart minimal 60 m aux deux marques du doublon conservé
+    sm_pts = [(47.6855753, -3.3774229), (47.685025, -3.3728058)]
+    mlng = 111_320.0 * math.cos(math.radians(47.685))
+    for (mla, mlo) in sm_pts:
+        dmin = min(math.hypot((w["lat"] - mla) * 110_574.0,
+                              (w["lng"] - mlo) * mlng)
+                   for w in res_i["waypoints"])
+        assert dmin >= 60.0, f"écart minimal violé : {dmin:.0f} m"
+    assert (res_i.get("wrong_side_marks") or []) == []
+
+
 def test_errants_doublon_mesure():
     """Documente le conflit mesuré (analyse armateur 31/08) : les deux
     homonymes « Les Errants » ont des côtés requis divergents en mode v6.

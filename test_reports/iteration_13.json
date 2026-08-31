@@ -1,0 +1,41 @@
+{
+  "summary": "ITER148 backend-only : Moteur I livré (fallback pur F hors routes officielles, bypass doublon « Les Errants », écrêtage au tirant étendu à TOUS les pointillés, faux tronçons rouges éliminés). Résultats pytest : iter147 8/8 verts (dont les 2 NOUVEAUX tests test_fallback_jamais_pire_que_f et test_errants_detour_fantome_supprime), iter136 7/7, iter140 5/5 + 1 xfail attendu, iter144 6/6. e2e API ARMATEUR (POST /api/routes/compute/async engine_i, start 47.6775,-3.4287 → end 47.7298,-3.3567, draft 1.5, margin 0.5, use_tide=false) : done ≈ 5 s, official_tracks non vide, wrong_side_marks=[], compromised_legs absent, risk absent, fond mini du depth_profile ≥ 7.0, distance_m dans [8800; 9100], warnings contient bien « écrêtée à votre besoin d'eau » et « Lacunes de données bathy ». GET /api/routing/engines : engine_i ET engine_f listés. Régression iter143 : 8/9, seule échoue le test PRÉ-FLAGGÉ flaky test_engine_h_lorient_tracks_et_zero_mauvais_cote (moteur H FROZEN → hors périmètre iter148, non corrigeable). Aucune régression sur engine_i.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "pytest tests/test_iter143_moteur_h.py::test_engine_h_lorient_tracks_et_zero_mauvais_cote",
+        "issue": "Test PRÉ-FLAGGÉ flaky par le main agent : sur cette exécution il échoue de manière déterministe (même seul, après restart backend) avec wrong_side_marks=[{'name':'latérale port','category':'port','dist_m':119.2}]. Le review request stipule explicitement que ce test est un artefact environnemental connu et que engine_h/signalmar_h/safe_routes/seamarks sont FROZEN — donc NON corrigeable dans le périmètre iter148 (seul engine_i.py autorisé). À signaler à l'armateur pour un GO explicite dans une future itération si besoin."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iter148_iter147.xml",
+    "/app/test_reports/pytest/iter148_regression.xml",
+    "/app/test_reports/pytest/iter148_e2e.xml",
+    "/app/backend/tests/test_iter148_e2e_armateur.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "engine_i.py fait 1750 lignes (> seuil 700 lignes conseillé) — envisager un split par sous-module (network, écrêtage, bypass Errants, audits) dans une future itération, avec accord armateur, sans toucher aux moteurs gelés.",
+    "Test flaky iter143 : le test engine_h Lorient a été prévalidé flaky par le main agent (moteur H frozen). Sur cette itération il échoue de manière reproductible même seul. La cause vraisemblable est un état bathy/seamark environnemental de cette forkée (constaté avec 119.2 m sur latérale port). Aucune régression Moteur I liée : le e2e engine_i sur le MÊME couloir Lorient est parfaitement propre (0 wrong_side)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter148_e2e_armateur.py (nouveau — e2e armateur, 2 tests, verts)"
+  ],
+  "success_rate": {
+    "backend": "97% (30/31 tests demandés — seul le flaky iter143 pré-flaggé engine_h échoue, hors périmètre iter148)",
+    "frontend": "N/A (skipped per request)"
+  },
+  "seed_data_creation": "Aucune. Auth via compte antoninlepinay@gmail.com (mdp 123454321) + header X-RateLimit-Bypass: qa-bypass-signalmar-2026.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "ITER148 validée côté engine_i. Endpoints : POST /api/routes/compute/async {start:{lat,lng}, end:{lat,lng}, draft_m, depth_margin_m, use_tide, engine_id} → job_id ; poll GET /api/routes/job/{jid} jusqu'à status=done. IMPORTANT : payload attend clé 'lng' PAS 'lon' (Pydantic 422 sinon). Login POST /api/auth/login renvoie 'token'. Tests iter147 doivent importer core.routing_engines.algos AVANT core.nav.engine_i (import circulaire). Test flaky iter143::test_engine_h_lorient_tracks_et_zero_mauvais_cote : sur cet env, échoue reproductiblement même seul avec latérale port à 119.2 m ; MAIS engine_h/signalmar_h/safe_routes/seamarks sont GELÉS par ordre armateur — ne rien toucher tant que pas de GO explicite. Backend chaud : les calculs de route prennent 2-5 s après warm-up JIT numba (15-30 s au 1er hit après restart).",
+  "rca_of_issue": "Test iter143 test_engine_h_lorient_tracks_et_zero_mauvais_cote (flaky pré-existant) : le moteur H rend, sur la route Lorient large → port, une latérale port catégorisée 'faux couple' à 119.2 m côté requis à bâbord. Le moteur H et son pipeline (seamarks.py, safe_routes.py, signalmar_h) sont EXPLICITEMENT gelés dans le périmètre iter148 → correctif interdit ici. Reproduction : cd /app/backend && python -m pytest tests/test_iter143_moteur_h.py::test_engine_h_lorient_tracks_et_zero_mauvais_cote -o addopts= -v (échoue de manière déterministe). Mitigation : escalader à l'armateur pour GO explicite sur seamarks/moteur H dans une future itération."
+}

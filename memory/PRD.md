@@ -1,5 +1,60 @@
 # SignalMar — PRD
 
+## ✅ ITER148 (31/08, GO armateur) — MOTEUR I : détour fantôme « Les Errants » supprimé, baseline = MOTEUR F GELÉ, comparaison F/I Lorient
+- RÈGLE CONFIRMÉE PAR L'ARMATEUR : référence = Moteur F gelé (PAS H) ;
+  toutes les modifications EXCLUSIVEMENT dans core/nav/engine_i.py.
+- MOTEUR I restructuré, déterministe :
+  · routes officielles trouvées → assemblage calé sur les pointillés
+    écrêtés au besoin d'eau (contextvars cohérence armées, comme avant) ;
+  · SINON → MODE F PUR direct (aucune contextvar « cohérence » armée,
+    dir_coherence off) : tracé STRICTEMENT identique au F gelé, vérifié
+    Arradon → Lorient 66 km (distance/fond/rouges/wrong_side égaux au
+    décimètre). L'ancien essai « cohérence puis repli » donnait des
+    résultats variables selon l'état des caches → supprimé ;
+  · un assemblage refusé (RouteError) ne remonte JAMAIS → repli F pur
+    (avant : cascade API « eau peu profonde », route ROUGE −0,27 m).
+- DÉTOUR FANTÔME (doublon « Les Errants ») : post-correction géométrique
+  _bypass_suspect_detours — recherche de la meilleure corde i→j (≤ 3 km,
+  fenêtre 1,5 km autour du doublon, gain ≥ 40 m, tri par gain) adoptée
+  UNIQUEMENT si : fond ≥ seuil couloir ±15 m + portes (_Validator), aucun
+  frôlement (écart 60 m du doublon inclus), aucun mauvais côté d'une
+  latérale fiable, mouillages/dangers OK (_seg_marks_ok), fond du profil
+  JAMAIS dégradé. Mesuré : 1 690 → 1 625 m (zigzag fantôme supprimé), les
+  VRAIES roches des Errants (0,3 m à l'ouest) restent contournées (le
+  plein ouest ~900 m est refusé par la bathy — comportement correct).
+  Warning : « Balisage en doublon … détour fantôme supprimé ».
+  IMPORTANT (pollution inter-moteurs) : le bypass du repli F pur tourne
+  sous les MÊMES contextvars que le mode v6 (sinon caches _dir_conf_*
+  alimentés sur une mauvaise base → audit H variable, mesuré).
+- ÉCRÊTAGE ÉTENDU : TOUS les pointillés (alignements ET tracés chartés)
+  écrêtés au besoin d'eau chez I (un recommended_track passait sur des
+  cellules à −0,67 m devant Kernével). Jonctions synthétiques ≤ 300 m
+  désormais contrôlées AUSSI par la bathy (_join_endpoints_i(net, wet)).
+- LACUNES NaN : la grille fine garde des trous 1-3 cellules en pleine eau
+  (10-22 m mesurés autour) → 4 faux « tronçons rouges » sur le tracé
+  officiel. Filtre _data_gap_only (tronçon acquitté si AUCUNE sonde
+  mesurée < seuil et trous ≤ 60 m ; terre = NaN long/sonde < seuil →
+  reste rouge) + warning honnête « Lacunes de données bathy … vérifiez À
+  VUE ». Aussi : risk/compromised de l'assemblage REJOUÉS sur le tracé
+  final (les index des legs ne survivent pas à la fusion — 4 faux rouges).
+- COMPARAISON F/I (large → port de Lorient, draft 1,5, sans marée) :
+  F : 8 862,5 m, fond mini 3,07 m, 0 rouge, 2 MAUVAIS CÔTÉS (Petite
+  Jument ~51 m, N° 4 ~108 m). I : 8 922,2 m (+60 m), fond mini 7,38 m,
+  0 rouge, 0 mauvais côté, calé sur 735/736/731 écrêtés à 2,0 m. JSON
+  complets : /app/memory/comparaison_F_I_lorient_3108.json et
+  route_I_lorient_3108.json.
+- Tests iter147 étendus (8/8) : + test_fallback_jamais_pire_que_f
+  (I ≡ F sur Arradon→Lorient : dist/fond/rouges/wrong_side égaux) et
+  + test_errants_detour_fantome_supprime (I < F−30 m, warning, fond non
+  dégradé, écart ≥ 60 m aux 2 marques, wrong_side vide).
+- NOTE (préexistant, pas Moteur I) : les résultats F via API varient
+  légèrement selon l'état du process (66663/2,74 vs 67204/2,2 sur
+  Arradon→Lorient) — sensibilité aux caches partagés, déjà présente ;
+  l'invariant testé est l'ÉGALITÉ I ≡ F dans les mêmes conditions.
+  Flakiness résiduelle : test_iter143 engine_h Lorient échoue PARFOIS en
+  suite (latérale port 119 m) selon l'ordre des tests — les sondes API
+  directes H restent propres dans tous les scénarios mesurés.
+
 ## ✅ ITER147 (31/08, GO armateur) — MOTEUR I : écrêtage des routes officielles au TIRANT D'EAU + doublon « Les Errants »
 - Ordre : « écrêtage des pointillés selon le tirant d'eau réel (cible banc du
   Turc), analyse d'abord le doublon Les Errants, ne touche QU'À engine_i.py ».

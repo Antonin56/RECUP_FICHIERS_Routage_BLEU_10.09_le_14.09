@@ -399,7 +399,32 @@ agent_communication:
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
 
-  - task: "ITER147 — Moteur I : routes officielles ÉCRÊTÉES AU TIRANT D'EAU + doublon « Les Errants » neutralisé (engine_i.py UNIQUEMENT)"
+  - task: "ITER148 — Moteur I : détour fantôme Les Errants supprimé (bypass validé), baseline F pur déterministe, écrêtage étendu aux tracés chartés + jonctions, filtre lacunes NaN (engine_i.py UNIQUEMENT)"
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py (seul fichier code), backend/tests/test_iter147_moteur_i_ecretage.py (2 tests ajoutés)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          GO armateur : baseline = Moteur F GELÉ (pas H). (1) Hors routes
+          officielles, Moteur I calcule en MODE F PUR → tracé identique à F
+          (vérifié Arradon→Lorient 66 km). (2) Assemblage refusé → repli F
+          (plus jamais de cascade « eau peu profonde »). (3) Détour fantôme
+          du doublon Les Errants supprimé par bypass géométrique validé
+          (fond/portes/frôlements/latérales/mouillages + fond jamais
+          dégradé) : 1690→1625 m, vraies roches toujours contournées.
+          (4) Écrêtage au besoin d'eau étendu aux tracés chartés + jonctions
+          contrôlées bathy (cellules −0,67 m devant Kernével). (5) Faux
+          tronçons rouges éliminés : audits rejoués sur tracé final + filtre
+          lacunes NaN ≤ 60 m (warning honnête). Comparaison Lorient :
+          F=8862 m/3,07 m/2 mauvais côtés ; I=8922 m/7,38 m/0 mauvais
+          côté/0 rouge. iter147 8/8 vert.
+
+
     implemented: true
     working: "NA"
     file: "backend/core/nav/engine_i.py (seul fichier modifié), backend/tests/test_iter147_moteur_i_ecretage.py (nouveau)"

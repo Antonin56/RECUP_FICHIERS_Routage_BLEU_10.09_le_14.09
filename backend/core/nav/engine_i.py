@@ -858,24 +858,61 @@ class EngineI(SignalmarV5):
                         plan, start_lat, start_lng, end_lat, end_lng,
                         draft_m, depth_margin_m, lateral_margin_m,
                         tide_m, clip, p)
+                    _bypass_suspect_detours(
+                        res, start=(start_lat, start_lng),
+                        requested_end=(end_lat, end_lng),
+                        draft_m=draft_m, depth_margin_m=depth_margin_m,
+                        lateral_margin_m=lateral_margin_m, tide_m=tide_m)
                     _strip_suspect_wrong_sides(res)
                     return res
-                except _v1.RouteError:
-                    raise
+                except _v1.RouteError as e:
+                    # 31/08 (GO armateur — BASELINE = MOTEUR F GELÉ) : un
+                    # assemblage refusé ne remonte JAMAIS (sinon la cascade
+                    # API bascule en « eau peu profonde », route ROUGE,
+                    # mesuré −0,27 m sur Arradon → Lorient) : repli F pur.
+                    logger.warning(
+                        "i: assemblage routes officielles refusé (%s) — repli F", e)
                 except Exception:                    # noqa: BLE001
                     logger.exception(
                         "i: assemblage routes officielles en échec — repli F")
-            res = self._compute_base(
-                start_lat, start_lng, end_lat, end_lng,
-                draft_m, depth_margin_m, lateral_margin_m,
-                tide_m=tide_m, params=p)
-            _strip_suspect_wrong_sides(res)
-            return res
         finally:
             DIR_COHERENCE_V6.reset(tokdv)
             SIDE_ABSOLUTE_V6.reset(tok6v)
             SIDE_ABSOLUTE.reset(tok5)
             LATERAL_AUTHORITY_M.reset(tokl)
+        # ── REPLI = MODE F PUR, DÉTERMINISTE (31/08, GO armateur) ─────────
+        # Hors routes officielles, le Moteur I calcule EXACTEMENT comme le
+        # Moteur F gelé (aucune contextvar « cohérence chenaux » armée,
+        # autorité latérale 0, dir_coherence off) : tracé, warnings et
+        # audits identiques à F au mètre près — JAMAIS PIRE QUE F. Seul le
+        # bypass des doublons douteux (validé fond/écart/balises, fond
+        # jamais dégradé) peut ensuite RACCOURCIR le tracé.
+        p2 = dict(p)
+        p2["dir_coherence"] = False
+        res = self._compute_base(
+            start_lat, start_lng, end_lat, end_lng,
+            draft_m, depth_margin_m, lateral_margin_m,
+            tide_m=tide_m, params=p2)
+        # Le bypass et le filtrage tournent sous les MÊMES gardes que le
+        # mode routes officielles : les caches de direction partagés
+        # (_dir_conf_v5/_dir_conf_v6) ne sont JAMAIS alimentés depuis un
+        # état de contextvars différent de celui des moteurs v6/H (sinon
+        # pollution inter-moteurs mesurée : audit H variable).
+        tok5b = SIDE_ABSOLUTE.set(True)
+        tok6b = SIDE_ABSOLUTE_V6.set(True)
+        tokdb = DIR_COHERENCE_V6.set(True)
+        try:
+            _bypass_suspect_detours(
+                res, start=(start_lat, start_lng),
+                requested_end=(end_lat, end_lng),
+                draft_m=draft_m, depth_margin_m=depth_margin_m,
+                lateral_margin_m=lateral_margin_m, tide_m=tide_m)
+            _strip_suspect_wrong_sides(res)
+        finally:
+            DIR_COHERENCE_V6.reset(tokdb)
+            SIDE_ABSOLUTE_V6.reset(tok6b)
+            SIDE_ABSOLUTE.reset(tok5b)
+        return res
 
     # ── Assemblage : raccords _compute_base + tronçons « route officielle »
     def _compute_with_tracks(
@@ -890,8 +927,6 @@ class EngineI(SignalmarV5):
         audits) recalculé sur le tracé assemblé."""
         merged: list[dict] = []
         warnings: list[str] = []
-        risk = False
-        compromised: list[int] = []
         used_names: list[str] = []
 
         def _extend(wps: list[dict]) -> None:
@@ -915,20 +950,14 @@ class EngineI(SignalmarV5):
             entry = path["pts"][0]
             leg = _leg(cur, entry)
             if leg:
-                n0 = len(merged)
                 _extend(leg.get("waypoints") or [])
-                risk |= bool(leg.get("risk"))
-                compromised += [n0 + i for i in (leg.get("compromised_legs") or [])]
             _extend([{"lat": q[0], "lng": q[1]} for q in path["pts"]])
             used_names += [n for n in path["names"] if n not in used_names]
             cur = path["pts"][-1]
         leg = _leg(cur, (end_lat, end_lng))
         end_snapped = None
         if leg:
-            n0 = len(merged)
             _extend(leg.get("waypoints") or [])
-            risk |= bool(leg.get("risk"))
-            compromised += [n0 + i for i in (leg.get("compromised_legs") or [])]
             if leg.get("end_snapped"):
                 end_snapped = leg["end_snapped"]
             for w in (leg.get("warnings") or []):
@@ -940,18 +969,41 @@ class EngineI(SignalmarV5):
             raise _v1.RouteError("Route officielle inexploitable.")
 
         # Résultat complet recalculé sur le tracé assemblé (profil, distance,
-        # tronçons rouges) + audits balises du tracé FINAL.
+        # tronçons rouges) + audits balises du tracé FINAL. Le flag ``risk``
+        # est REJOUÉ sur le tracé final : un risque de leg dont les tronçons
+        # rouges ont disparu à l'assemblage ne marque plus la route (31/08 —
+        # F n'affiche pas de risque sans tronçon rouge, I non plus).
         need = max(draft_m + depth_margin_m - tide_m, -2.5)
         grid = _v1.get_grid()
         res: dict[str, Any] = {"waypoints": merged}
         if grid is not None:
             res.update(_v1._result_for(grid, merged, need))
-        comp = sorted(set(compromised)
-                      | set(_v1.shallow_legs(merged, need) if grid is not None else []))
+        # 31/08 — les index « compromis » remontés par les legs ne survivent
+        # pas à la fusion/déduplication (4 faux tronçons rouges mesurés sur
+        # une route à fond mini 7,38 m) : seuls comptent les tronçons
+        # RÉELLEMENT sous le seuil sur le tracé assemblé.
+        comp = sorted(set(_v1.shallow_legs(merged, need) if grid is not None else []))
+        # 31/08 — LACUNES DE DONNÉES sur le pointillé : la grille fine garde
+        # des trous NaN de 1-3 cellules en pleine eau (mesuré : 4 « rouges »
+        # sur une route à fond mini 7,4 m, sondes voisines 10-22 m). Un
+        # tronçon flagué est ACQUITTÉ si AUCUNE sonde mesurée n'y est sous
+        # le seuil ET si ses trous font ≤ 60 m (une terre = NaN long ou
+        # sonde négative → reste rouge). Warning honnête à la place.
+        if comp and grid is not None:
+            real, gaps = [], 0
+            for i in comp:
+                if _data_gap_only(grid, merged[i], merged[i + 1], need):
+                    gaps += 1
+                else:
+                    real.append(i)
+            comp = real
+            if gaps:
+                warnings.append(
+                    f"Lacunes de données bathy traversées sur la route "
+                    f"officielle ({gaps} tronçon(s), sondes voisines au-dessus "
+                    f"du seuil) — vérifiez À VUE.")
         if comp:
             res["compromised_legs"] = comp
-            risk = True
-        if risk:
             res["risk"] = True
         if end_snapped:
             res["end_snapped"] = end_snapped
@@ -1371,10 +1423,12 @@ def _wrong_side_i(sm, p) -> bool:
     return False
 
 
-def _join_endpoints_i(net) -> None:
+def _join_endpoints_i(net, wet) -> None:
     """Jonctions synthétiques du réseau (mêmes règles que
     TrackNetwork._join_endpoints, Moteur H inchangé) mais contrôlées avec
-    ``_wrong_side_i`` (doublons douteux ignorés)."""
+    ``_wrong_side_i`` (doublons douteux ignorés) ET par la bathy au BESOIN
+    D'EAU (31/08 : une jonction ≤ 300 m traversait un banc à −0,67 m devant
+    Kernével → tronçons rouges sur une route à fond mini 7,4 m)."""
     sm = get_seamarks()
     eps = net._endpoints
     for i, e in enumerate(eps):
@@ -1384,9 +1438,8 @@ def _join_endpoints_i(net) -> None:
             w = _sr._d_m(net.nodes[e], net.nodes[f])
             if w > _sr._JOIN_M:
                 continue
-            if sm is not None and any(
-                    _wrong_side_i(sm, p)
-                    for p in _sr._sample([net.nodes[e], net.nodes[f]])):
+            if not all(wet(p)
+                       for p in _sr._sample([net.nodes[e], net.nodes[f]])):
                 continue
             net.adj[e].append((f, w))
             net.adj[f].append((e, w))
@@ -1421,17 +1474,21 @@ def _network_i(clip_m: float):
         if len(pts) < 2 or f.get("closed"):
             continue
         name = f.get("name") or f"{kind} {f.get('id')}"
-        if kind == "navigation_line":
-            # Alignement : écrêté par la bathy AU BESOIN D'EAU du bateau.
-            runs = _sr._split_runs(pts, _wet) if grid is not None else [pts]
-        elif all(_ok(p) for p in _sr._sample(pts)):
-            # Tracé charté entièrement conforme : renvoyé INTACT.
-            runs = [pts]
+        # 31/08 (GO armateur) — écrêtage AU BESOIN D'EAU pour TOUS les
+        # pointillés, alignements ET tracés chartés : un recommended_track
+        # qui traverse des cellules sous le seuil (mesuré : −0,67 m au ZH
+        # devant Kernével) est coupé — le raccord contourne par le calcul
+        # classique (chez H, seul l'alignement est écrêté, à 0,5 m).
+        if grid is None:
+            runs = ([pts] if all(_ok(p) for p in _sr._sample(pts))
+                    else _sr._split_runs(pts, _ok))
+        elif kind != "navigation_line" and all(_wet(p) for p in _sr._sample(pts)):
+            runs = [pts]          # tracé charté entièrement sain : INTACT
         else:
-            runs = _sr._split_runs(pts, _ok)
+            runs = _sr._split_runs(pts, _wet)
         for run in runs:
             net._add_polyline(run, name)
-    _join_endpoints_i(net)
+    _join_endpoints_i(net, _wet if grid is not None else _ok)
     if len(_net_cache_i) >= 8:
         _net_cache_i.clear()
     _net_cache_i[key] = net
@@ -1474,6 +1531,181 @@ def _plan_tracks_i(start, end, attach_m: float, bias: float,
             idxs, comp = found
             _emit(idxs[::-1], comp)
     return out
+
+
+_BYPASS_REACH_M = 450.0    # rayon du raccourci autour d'un doublon douteux
+_BYPASS_MIN_GAIN_M = 40.0  # gain minimal : en deçà, pas un détour significatif
+
+
+def _bypass_suspect_detours(
+    res: dict, *, start: Pt, requested_end: Pt,
+    draft_m: float, depth_margin_m: float, lateral_margin_m: float,
+    tide_m: float,
+) -> None:
+    """31/08 (GO armateur) — DÉTOUR FANTÔME des doublons douteux SUPPRIMÉ.
+
+    Le demi-disque rasterisé de la tourelle blanche « Les Errants »
+    (seamarks.py, PARTAGÉ par les moteurs A-H, hors périmètre autorisé)
+    impose au tracé un détour mesuré ~2× (1 690 m au lieu de ~900 m).
+    Post-correction GÉOMÉTRIQUE du Moteur I, baseline Moteur F : le
+    raccourci direct qui traverse la zone d'influence du doublon n'est
+    adopté QUE s'il est STRICTEMENT sûr —
+      · fond ≥ seuil sur couloir ±15 m + murs de porte (_Validator, seuil
+        NORMAL, jamais le seuil marée) ;
+      · AUCUN nouveau frôlement : tous les cercles d'écart respectés, Y
+        COMPRIS celui du doublon lui-même (60 m, jamais traversé) ;
+      · AUCUN mauvais côté d'une latérale fiable NON douteuse ;
+      · mouillages et dangers isolés respectés (_seg_marks_ok) ;
+      · jamais de régression du fond minimum du profil.
+    Sinon le tracé F est rendu TEL QUEL. Règle GLOBALE (toute la façade) :
+    s'applique à tout doublon détecté par ``_suspect_duplicate_ids``.
+    Jamais bloquant."""
+    try:
+        skip = _suspect_duplicate_ids()
+        if not skip:
+            return
+        grid = _v1.get_grid()
+        sm = get_seamarks()
+        wps = res.get("waypoints") or []
+        if grid is None or sm is None or len(wps) < 3:
+            return
+        pts: list[Pt] = [(float(w["lat"]), float(w["lng"])) for w in wps]
+        lat_s, lat_n, lng_w, lng_e = _bbox(pts)
+        mlng = m_per_deg_lng((lat_s + lat_n) / 2)
+        exempt = (start, requested_end)
+        need = max(float(draft_m) + float(depth_margin_m) - float(tide_m), -2.5)
+        strict = float(draft_m) + float(depth_margin_m) + 2.0
+        gates_arr = None
+        ga = [g for g in sm.gates(lat_s, lat_n, lng_w, lng_e)
+              if not any(_d_m((g[0], g[1]), q[0], q[1], mlng) < 400.0
+                         for q in exempt)]
+        if ga:
+            gates_arr = np.asarray(ga, dtype=np.float64)
+        val = _Validator(grid, need, need, lateral_margin_m, gates_arr, strict)
+
+        removed: list[str] = []
+        for m in sm.marks:
+            if m.get("id") not in skip:
+                continue
+            if not (lat_s - 0.01 <= m["lat"] <= lat_n + 0.01
+                    and lng_w - 0.01 <= m["lng"] <= lng_e + 0.01):
+                continue
+            d0, _seg_i, _p0 = _closest_on(pts, m["lat"], m["lng"], mlng)
+            if d0 > 1500.0:
+                continue
+            # Fenêtre de recherche : les points à ≤ 1,5 km du doublon (± 1).
+            idx = [i for i, q in enumerate(pts)
+                   if _d_m(q, m["lat"], m["lng"], mlng) < 1500.0]
+            if not idx:
+                continue
+            lo = max(0, min(idx) - 1)
+            hi = min(len(pts) - 1, max(idx) + 1)
+            if hi - lo < 2:
+                continue
+            # Toutes les cordes i→j de la fenêtre (≤ 3 km), triées par GAIN
+            # décroissant ; la première STRICTEMENT sûre gagne. La corde
+            # doit passer dans la zone d'influence du doublon (le raccourci
+            # ne s'attaque qu'aux détours attribuables au doublon).
+            cands: list[tuple[float, int, int]] = []
+            for i in range(lo, hi - 1):
+                for j in range(i + 2, hi + 1):
+                    a, b = pts[i], pts[j]
+                    chord = _d_m(a, b[0], b[1], mlng)
+                    if chord > 3000.0:
+                        continue
+                    dm, _ci, _cp = _closest_on([a, b], m["lat"], m["lng"], mlng)
+                    if dm > _BYPASS_REACH_M:
+                        continue
+                    gain = _length_m(pts[i:j + 1], mlng) - chord
+                    if gain >= _BYPASS_MIN_GAIN_M:
+                        cands.append((gain, i, j))
+            cands.sort(reverse=True)
+            for gain, i, j in cands:
+                a, b = pts[i], pts[j]
+                if not val.seg_ok(a, b, allow_relaxed=False):
+                    continue
+                # Contrôles complets (mouillages + dangers isolés compris)
+                # même quand le tracé de base a été calculé en mode F pur.
+                tokd = DIR_COHERENCE_V6.set(True)
+                try:
+                    ok = _seg_marks_ok(sm, a, b, mlng, exempt, 200.0, ignore=m)
+                finally:
+                    DIR_COHERENCE_V6.reset(tokd)
+                if not ok:
+                    continue
+                pts = pts[:i + 1] + pts[j:]
+                removed.append(m.get("name") or f"latérale {m['category']}")
+                break
+        if not removed:
+            return
+
+        merged = [{"lat": round(q[0], 6), "lng": round(q[1], 6)} for q in pts]
+        fresh = _v1._result_for(grid, merged, need)
+        old_min = res.get("min_depth_m")
+        new_min = fresh.get("min_depth_m")
+        if (new_min is not None and old_min is not None
+                and new_min < old_min - 0.05):
+            return       # jamais de régression du profil de fond
+        res["waypoints"] = fresh.get("waypoints") or merged
+        for k in ("depth_profile", "min_depth_m", "distance_m"):
+            if k in fresh:
+                res[k] = fresh[k]
+        base_need = max(float(draft_m) + float(depth_margin_m), -2.5)
+        comp = list(_v1.shallow_legs(merged, base_need))
+        if comp:
+            res["compromised_legs"] = comp
+            res["risk"] = True
+        else:
+            res.pop("compromised_legs", None)
+            res.pop("risk", None)
+        clearance = None
+        cl = sm.clearance_points(lat_s, lat_n, lng_w, lng_e, need)
+        if cl:
+            clearance = np.asarray(cl, dtype=np.float64)
+        res["corridor_m"] = _v1._corridors_for(grid, merged, need,
+                                               lateral_margin_m, clearance)
+        # Audits balises REJOUÉS sur le tracé final (warnings nominatifs
+        # obsolètes purgés, wrong_side recalculé — même motif qu'ailleurs).
+        res.pop("wrong_side_marks", None)
+        res["warnings"] = [
+            w for w in (res.get("warnings") or [])
+            if not w.startswith("⚠ MAUVAIS CÔTÉ")
+            and not w.startswith("⚠ La route passe à ~")
+            and not w.startswith("Passage à ")
+        ]
+        res["warnings"].extend(_v1._mark_pass_audit(merged, exempt))
+        for name in dict.fromkeys(removed):
+            res["warnings"].append(
+                f"Balisage en doublon « {name} » : détour fantôme supprimé "
+                f"(tracé direct re-validé — fond, écart minimal 60 m et "
+                f"balises voisines respectés).")
+        res["warnings"] = list(dict.fromkeys(res["warnings"]))
+        _audit_wrong_sides(res, exempt[0], exempt[1])
+    except Exception:  # noqa: BLE001 — jamais bloquant, tracé F conservé
+        logger.exception("i: bypass doublon en échec, tracé rendu tel quel")
+
+
+def _data_gap_only(grid, a: dict, b: dict, need: float) -> bool:
+    """True si le tronçon a→b n'est « rouge » qu'à cause de TROUS NaN
+    courts (≤ 60 m) de la grille fine : toutes les sondes MESURÉES y sont
+    ≥ seuil. Une vraie terre/assèche (NaN long ou sonde < seuil) → False."""
+    a_ll = (float(a["lat"]), float(a["lng"]))
+    b_ll = (float(b["lat"]), float(b["lng"]))
+    seg = math.hypot((b_ll[0] - a_ll[0]) * M_PER_DEG_LAT,
+                     (b_ll[1] - a_ll[1]) * m_per_deg_lng(a_ll[0]))
+    n = max(2, int(seg / 10.0))
+    gap = max_gap = 0.0
+    for k in range(n + 1):
+        d = grid.depth_at(a_ll[0] + (b_ll[0] - a_ll[0]) * k / n,
+                          a_ll[1] + (b_ll[1] - a_ll[1]) * k / n)
+        if d is None:
+            gap += seg / n
+            max_gap = max(max_gap, gap)
+            continue
+        gap = 0.0
+        if d < need:
+            return False
+    return max_gap <= 60.0
 
 
 def _strip_suspect_wrong_sides(res: dict) -> None:
