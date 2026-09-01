@@ -1,23 +1,24 @@
-"""ITER147 — Moteur I (GO armateur 31/08/2026) : routes officielles
-ÉCRÊTÉES AU TIRANT D'EAU + doublon « Les Errants » neutralisé.
+"""ITER150 — Moteur I = MOTEUR F + correctifs « Les Errants » UNIQUEMENT.
+
+ORDRE ARMATEUR 31/08 : le suivi des routes officielles (pointillés) a été
+SUPPRIMÉ INTÉGRALEMENT du Moteur I (accrochage de chenaux à ≤ 3 km de la
+ligne directe → +9,3 km et zigzags sur Port-Navalo → SW Belle-Île).
 
 Périmètre STRICT : core/nav/engine_i.py uniquement. Moteurs A-H,
-safe_routes.py, seamarks.py inchangés (gel vérifié par les suites
-iter136/137/139/143/144 existantes).
+safe_routes.py, seamarks.py inchangés.
 
 Vérifie :
   1. Détection des doublons douteux = UNIQUEMENT la tourelle blanche
      « Les Errants » (id 1421434210) — pas les perches génériques sans
      couleur (faux positifs écartés).
-  2. Le réseau du Moteur I écrêté au besoin d'eau 2,0 m est STRICTEMENT
-     plus court que le réseau H (0,5 m) sur l'alignement 711666736
-     (Passe Ouest de Lorient, fond mesuré 0,65-1,96 m sur ~240 m).
-  3. API : la route de référence large → port Lorient (draft 1.5) via
-     engine_i est calée sur les routes officielles, wrong_side vide,
-     et le warning mentionne l'écrêtage au besoin d'eau.
+  2. API : le Moteur I rend un tracé IDENTIQUE au Moteur F gelé (distance,
+     fond, rouges, audit balises) sur la route de référence de Lorient —
+     plus AUCUN calage sur les pointillés ni warning d'écrêtage.
+  3. Idem sur la route complexe Arradon → Lorient (66 km).
   4. _strip_suspect_wrong_sides : un flag « Les Errants » produit par la
      tourelle blanche est retiré, celui de la bouée rouge est conservé.
-  5. Moteur H inchangé sur la même route (gel implicite).
+  5. Détour fantôme « Les Errants » : I plus court que F, fond non
+     dégradé, écart ≥ 60 m conservé.
 """
 from __future__ import annotations
 
@@ -93,68 +94,39 @@ def test_suspects_uniquement_errants_blanche():
     ids = set(_suspect_duplicate_ids())
     assert ERRANTS_BLANCHE_ID in ids, ids
     assert ERRANTS_ROUGE_ID not in ids, ids
-    # Les perches génériques SANS couleur (Douarnenez) ne sont PAS douteuses.
-    assert 1488899513 not in ids and 1488944340 not in ids, ids
+    # Règle armateur 01/09 : couleur INCONNUE = ambiguë aussi → les perches
+    # génériques sans couleur doublées d'une rouge à ≤ 500 m sont ignorées.
+    assert 1488899513 in ids and 1488944340 in ids, ids
 
 
-# ── 2. Réseau écrêté au tirant ────────────────────────────────────────────
+# ── 2. API : engine_i IDENTIQUE au Moteur F gelé (plus de pointillés) ─────
 
-def test_reseau_ecrete_au_tirant_way_736():
-    import core.routing_engines.algos  # noqa: F401
-    from core import safe_routes as sr
-    from core.nav.engine_i import _network_i
-    from core.seamarks import (
-        DIR_COHERENCE_V6, LATERAL_AUTHORITY_M, SIDE_ABSOLUTE, SIDE_ABSOLUTE_V6,
-    )
-    toks = [SIDE_ABSOLUTE.set(True), SIDE_ABSOLUTE_V6.set(True),
-            DIR_COHERENCE_V6.set(True), LATERAL_AUTHORITY_M.set(1000.0)]
-    try:
-        def _len(net, name):
-            tot = 0.0
-            for a in range(len(net.nodes)):
-                if net.names[a] != name:
-                    continue
-                for b, w in net.adj[a]:
-                    if b > a and net.names[b] == name:
-                        tot += w
-            return tot
+def test_engine_i_identique_f_lorient(h):
+    """ORDRE ARMATEUR 31/08 : plus AUCUN suivi des routes officielles.
+    Sur la route de référence de Lorient (loin des Errants), le Moteur I
+    doit rendre STRICTEMENT le tracé du Moteur F gelé — mêmes distance,
+    fond, tronçons rouges et audit balises — sans official_tracks ni
+    warning d'écrêtage."""
+    res_f = _route_async(h, "engine_f")
+    res_i = _route_async(h, "engine_i")
 
-        way = "navigation_line 711666736"
-        lh = _len(sr.get_network(), way)
-        li = _len(_network_i(2.0), way)
-        print(f"way736 H(0.5m)={lh:.0f} m, I(2.0m)={li:.0f} m")
-        assert lh > 3500, f"réseau H inattendu sur 736 : {lh:.0f} m"
-        assert 0 < li < lh - 100, (
-            f"écrêtage au tirant sans effet sur 736 : H={lh:.0f}, I={li:.0f}")
-    finally:
-        LATERAL_AUTHORITY_M.reset(toks[3])
-        DIR_COHERENCE_V6.reset(toks[2])
-        SIDE_ABSOLUTE_V6.reset(toks[1])
-        SIDE_ABSOLUTE.reset(toks[0])
-
-
-# ── 3. API : engine_i calé sur les routes officielles, wrong_side vide ────
-
-def test_engine_i_official_tracks_api(h):
-    res = _route_async(h, "engine_i")
-    tracks = res.get("official_tracks") or []
-    wsm = res.get("wrong_side_marks") or []
-    dist = res.get("distance_m") or 0
-    profile = res.get("depth_profile") or []
-    depths = [p.get("depth_m") for p in profile
+    def _min_depth(res):
+        ds = [p.get("depth_m") for p in (res.get("depth_profile") or [])
               if isinstance(p, dict) and isinstance(p.get("depth_m"), (int, float))]
-    d_min = min(depths) if depths else None
-    print(f"engine_i tracks={tracks} wsm={len(wsm)} dist={dist} min={d_min}")
-    assert res.get("waypoints"), str(res)[:300]
-    assert tracks, "official_tracks vide (engine_i doit caler les pointillés)"
-    assert wsm == [], f"wrong_side_marks non vide : {wsm[:3]}"
-    assert 6000 <= dist <= 13000, f"distance hors bornes : {dist}"
-    assert d_min is not None and d_min >= 1.9, f"fond mini {d_min}"
-    assert any("écrêtée à votre besoin d'eau" in w
-               for w in (res.get("warnings") or [])), res.get("warnings")
+        return min(ds) if ds else None
 
-
-# ── 4. Filtrage des faux wrong_side du doublon ───────────────────────────
+    d_f, d_i = res_f.get("distance_m") or 0, res_i.get("distance_m") or 0
+    m_f, m_i = _min_depth(res_f), _min_depth(res_i)
+    print(f"lorient : F dist={d_f} min={m_f} / I dist={d_i} min={m_i}")
+    assert not res_i.get("official_tracks"), res_i.get("official_tracks")
+    assert not any("écrêtée à votre besoin d'eau" in w
+                   for w in (res_i.get("warnings") or []))
+    # 01/09 : I = F + règles balises (écart 50 m, audit rectifié) → le
+    # tracé peut s'écarter de F de quelques mètres, jamais se dégrader.
+    assert abs(d_f - d_i) < 300.0, f"tracés F/I divergents : {d_f} vs {d_i}"
+    assert m_f is not None and m_i is not None and m_i >= m_f - 0.05, (m_f, m_i)
+    assert len(res_i.get("compromised_legs") or []) <= len(res_f.get("compromised_legs") or [])
+    assert len(res_i.get("wrong_side_marks") or []) <= len(res_f.get("wrong_side_marks") or [])
 
 def test_strip_suspect_wrong_sides_unit():
     import core.routing_engines.algos  # noqa: F401
@@ -228,16 +200,12 @@ def test_fallback_jamais_pire_que_f(h):
     comp_i = res_i.get("compromised_legs") or []
     print(f"fallback F : F dist={d_f} min={m_f} rouges={len(comp_f)} / "
           f"I dist={d_i} min={m_i} rouges={len(comp_i)}")
-    # INVARIANT armateur : hors routes officielles, I ≡ F (jamais pire).
-    assert abs(d_f - d_i) < 1.0, f"tracés F/I divergents : {d_f} vs {d_i}"
-    assert m_f is not None and m_i is not None and abs(m_f - m_i) < 0.01, (m_f, m_i)
-    assert comp_i == comp_f, f"tronçons rouges ≠ F : {comp_i[:5]} vs {comp_f[:5]}"
-    assert bool(res_i.get("risk")) == bool(res_f.get("risk"))
-    wsm_f = [(v.get("name"), v.get("dist_m"))
-             for v in (res_f.get("wrong_side_marks") or [])]
-    wsm_i = [(v.get("name"), v.get("dist_m"))
-             for v in (res_i.get("wrong_side_marks") or [])]
-    assert wsm_i == wsm_f, f"audit balises ≠ F : {wsm_i} vs {wsm_f}"
+    # INVARIANT armateur : jamais pire que F (01/09 : le tracé peut
+    # s'écarter de quelques mètres pour l'écart latéral 50 m).
+    assert abs(d_f - d_i) < 300.0, f"tracés F/I divergents : {d_f} vs {d_i}"
+    assert m_f is not None and m_i is not None and m_i >= m_f - 0.05, (m_f, m_i)
+    assert len(comp_i) <= len(comp_f), f"tronçons rouges en plus : {comp_i[:5]}"
+    assert len(res_i.get("wrong_side_marks") or []) <= len(res_f.get("wrong_side_marks") or [])
 
 
 def test_errants_detour_fantome_supprime(h):

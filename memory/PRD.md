@@ -1,5 +1,69 @@
 # SignalMar — PRD
 
+## ✅ ITER151 (01/09, ordre armateur) — MOTEUR I v7.2.0 : 3 règles de balisage GLOBALES
+Captures armateur (Kergroise → SW, 18,3 km, I ≡ F) : faux « MAUVAIS CÔTÉ »
+(Petite Jument ~61 m et No2 ~159 m du BON côté — faux couples de Lorient),
+tourelle blanche Errants encore auditée, frôlements tolérés (Pengarne
+35 m/53 m requis, No13 24 m/60 m). Fait, UNIQUEMENT engine_i.py :
+1. DÉDOUBLONNAGE INTELLIGENT (_suspect_duplicate_ids réécrit) : homonymes
+   à ≤ 500 m → la latérale AMBIGUË (couleur blanche OU inconnue/vide) est
+   ignorée pour les règles de côté ; référence = latérale de couleur
+   conforme (rouge bâbord/verte tribord) OU cardinale homonyme. NOUVEAU :
+   la couleur vide est désormais ambiguë (les perches génériques de
+   Douarnenez deviennent douteuses — voulu par l'armateur, test mis à
+   jour). Groupement par NOM seul (plus par nom+catégorie).
+2. AUDIT DE PROXIMITÉ RECTIFIÉ (_reaudit_dir_coherent) : wrong_side_marks
+   + warnings « ⚠ MAUVAIS CÔTÉ » purgés puis REJOUÉS sous cohérence de
+   direction des chenaux (DIR_COHERENCE_V6 armé → faux couples corrigés,
+   même correctif que l'audit du Moteur H qui donnait 0 mauvais côté à
+   Lorient). Une alerte ne part que si le tracé coupe le secteur
+   RÉELLEMENT interdit.
+3. ÉCART LATÉRAL MINIMAL (_enforce_lateral_clearance) : toute latérale
+   frôlée < max(50 m, écart recommandé de la marque) → le point fautif est
+   repoussé radialement à la bonne distance, adopté SEULEMENT si sûr
+   (fond couloir ±15 m + portes via _Validator, _seg_marks_ok complet,
+   fond du profil jamais dégradé) ; sinon tracé F tel quel + warning
+   existant conservé. 2 passes max, refresh résultat/corridor/warnings.
+Ordre dans compute_auto : F pur → bypass Errants → écart 50 m → ré-audit
+dir-coherent → strip doublons (le tout sous contextvars armées, anti-
+pollution caches). AUCUN calcul exécuté (ordre armateur : il teste sur la
+carte) — compilation + import seuls, backend redémarré. Tests iter147 mis
+à jour sans exécution (suspects : perches désormais attendues douteuses ;
+identité F relâchée à ±300 m / fond jamais dégradé / pas plus de rouges ni
+de mauvais côtés que F). EN ATTENTE : validation carte armateur puis
+testing_agent.
+
+## ✅ ITER150 (31/08, ORDRE armateur) — MOTEUR I : suivi des routes officielles SUPPRIMÉ INTÉGRALEMENT
+- Bug armateur (captures Port-Navalo → SW Belle-Île) : Moteur I +9,3 km vs
+  F, zigzags au large. Cause analysée et validée par l'armateur : le
+  planificateur hérité du Moteur H accroche un système de pointillés dès
+  qu'UN point passe à ≤ 3 km de la ligne directe, le suit avec un biais
+  ×1,4 et peut enchaîner 3 systèmes → chenaux de la Teignouse/Houat suivis
+  au large. Ce n'étaient NI les jonctions NI les lacunes NaN.
+- ORDRE : supprimer INTÉGRALEMENT le principe de suivi/raccordement des
+  routes officielles du Moteur I ; conserver fond SHOM, balisage, tirant
+  d'eau, correctifs Errants. FAIT (engine_i.py uniquement, v7.1.0) :
+  · compute_auto = _compute_base en MODE F PUR (dir_coherence off) puis
+    correctifs Errants sous gardes contextvars (anti-pollution caches) ;
+  · SUPPRIMÉS : _compute_with_tracks, _network_i, _plan_tracks_i,
+    _join_endpoints_i, _wrong_side_i, _data_gap_only, imports safe_routes/
+    _required_side/json, constantes réseau (fichier 1751 → 1417 lignes) ;
+  · CONSERVÉS : _suspect_duplicate_ids, _bypass_suspect_detours (détour
+    fantôme raccourci seulement si strictement sûr), _strip_suspect_
+    wrong_sides. safe_routes.py/seamarks.py/moteurs A-H intacts (H garde
+    SON suivi des pointillés).
+- L'écrêtage au tirant d'eau du réseau de pointillés (iter147/148) n'a
+  plus d'objet chez I (plus de réseau) — il reste documenté dans
+  l'historique ; H conserve son écrêtage historique 0,5 m.
+- Tests mis à jour SANS exécution (ordre : aucun calcul de test, armateur
+  teste sur la carte) : test_iter148_e2e_armateur.py SUPPRIMÉ (spec
+  obsolète) ; test_iter147 réécrit — test_engine_i_identique_f_lorient
+  (I ≡ F, pas d'official_tracks ni warning écrêtage) remplace les tests
+  réseau/calage ; tests Errants/fallback/suspects conservés. Seul contrôle
+  effectué : compilation + import du module (aucun calcul de route).
+- EN ATTENTE : validation carte par l'armateur, puis passage testing_agent
+  (suites iter147 + gels) sur son accord.
+
 ## ✅ ITER149 (31/08, ordre armateur) — jobs de routage en base : fix « Calcul introuvable (expiré) »
 - Cause (donnée par l'armateur, confirmée) : _JOBS en mémoire de process
   dans routers/routing.py → en production multi-instances, le POST crée le

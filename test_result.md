@@ -399,7 +399,50 @@ agent_communication:
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
 
-  - task: "ITER149 — Jobs de routage en MongoDB (collection route_jobs, TTL 900 s) — fix « Calcul introuvable (expiré) » multi-instances"
+  - task: "ITER151 — Moteur I v7.2.0 : dédoublonnage intelligent 500 m, audit « mauvais côté » rectifié (faux couples), écart latéral minimal 50 m (engine_i.py uniquement)"
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py, backend/tests/test_iter147_moteur_i_ecretage.py (assertions mises à jour)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          3 règles globales armateur 01/09 : (1) homonymes ≤ 500 m → la
+          latérale ambiguë (blanche OU couleur inconnue) ignorée, référence
+          = conforme rouge/verte ou cardinale ; (2) wrong_side purgé puis
+          rejoué sous cohérence de direction (faux couples corrigés → plus
+          de fausse alerte Petite Jument/No2 du bon côté) ; (3) frôlement
+          latéral < max(50 m, écart recommandé) → point repoussé
+          radialement si le tracé modifié est strictement sûr, sinon F tel
+          quel. AUCUN calcul exécuté (ordre armateur). Backend redémarré.
+          Testing agent à lancer après validation carte.
+
+
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py (v7.1.0), backend/tests/test_iter147_moteur_i_ecretage.py (réécrit), test_iter148_e2e_armateur.py (supprimé)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Bug armateur : I +9,3 km vs F avec zigzags (Port-Navalo → SW
+          Belle-Île) — le planificateur hérité de H accrochait des chenaux
+          à ≤ 3 km de la ligne directe. Ordre : supprimer intégralement le
+          suivi des pointillés du Moteur I. Fait : compute_auto = F pur +
+          bypass/strip Errants ; _compute_with_tracks/_network_i/
+          _plan_tracks_i/_join_endpoints_i/_wrong_side_i/_data_gap_only
+          supprimés. AUCUN calcul de test exécuté (ordre armateur — il
+          teste sur la carte) ; seuls compilation + import vérifiés.
+          Backend redémarré. Testing agent À LANCER après validation carte
+          de l'armateur.
+
+
     implemented: true
     working: "NA"
     file: "backend/routers/routing.py (bloc jobs uniquement)"
