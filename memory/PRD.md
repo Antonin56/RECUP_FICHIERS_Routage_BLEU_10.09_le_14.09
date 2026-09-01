@@ -1,5 +1,24 @@
 # SignalMar — PRD
 
+## ✅ ITER153 (01/09 soir, GO armateur points 1+2) — MOTEUR I v7.4.0 : seuil 80 m + cardinales à la règle carte
+- Point 1 : _DETOUR_GAIN_M 500 → 80 m — TOUT zigzag > 80 m est redressé
+  par la corde directe si elle est strictement sûre (fond, portes, écarts,
+  latérales fiables, mouillages/dangers, fond jamais dégradé).
+- Point 2 : au passage d'une cardinale, la contrainte devient LA RÈGLE
+  CARTE (bon secteur via _cardinal_ok, rayon 200 m + écart ≥ 50 m) au lieu
+  du coloriage par grille : _enforce_lateral_clearance étendu aux
+  CARDINALES (repoussement à max(50 m, écart recommandé)), _cardinal_ok
+  ajouté aux segments modifiés du repoussement ET à la corde du bypass
+  Errants (5 points de contrôle au total). Le demi-plan rasterisé de l'A*
+  (F gelé) reste en amont, mais le post-traitement efface ses artefacts
+  de maille (goulot Creizic Sud).
+- AUCUN calcul exécuté (ordre armateur — il teste Berder → Roguedas et la
+  route jumelle sur la carte). Compilation + import OK, backend redémarré.
+- Analyse comparative I vs B livrée à l'armateur (tableau) : B = fond SHOM
+  + marges + écart balises + sectionnement, AUCUNE règle de côté ; I = idem
+  B + côtés latérales/cardinales + sidefix + dédoublonnage + audits
+  rectifiés + redressement 80 m + écart 50 m.
+
 ## ✅ ITER152 (01/09, ordre armateur) — MOTEUR I v7.3.0 : correctif de STABILITÉ (Golfe / Creizic Sud)
 Bug (captures) : 2 départs quasi identiques → route parfaite vs détour de
 plusieurs km au goulot de la cardinale Creizic Sud. Cause : l'A* (F gelé,

@@ -399,7 +399,27 @@ agent_communication:
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
 
-  - task: "ITER152 — Moteur I v7.3.0 : stabilité (détours > 500 m redressés, secteur cardinales 200 m, déterminisme) — engine_i.py uniquement"
+  - task: "ITER153 — Moteur I v7.4.0 : seuil de redressement 80 m + cardinales à la règle carte (secteur + écart 50 m) — engine_i.py uniquement"
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          GO armateur points 1+2 : _DETOUR_GAIN_M 500→80 m (tout zigzag
+          redressé si corde sûre) ; écart minimal étendu aux cardinales
+          (max(50 m, écart recommandé), repoussement radial validé) ;
+          _cardinal_ok (bon secteur, 200 m) appliqué aux cordes du
+          redressement, du bypass Errants et aux segments repoussés.
+          Objectif : effacer les artefacts de maille (goulot Creizic Sud,
+          Berder → Roguedas). AUCUN calcul exécuté (ordre armateur).
+          Backend redémarré.
+
+
     implemented: true
     working: "NA"
     file: "backend/core/nav/engine_i.py"

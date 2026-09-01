@@ -807,7 +807,7 @@ _LAND_LIMIT_M = -3.5
 
 class EngineI(SignalmarV5):
     id = "signalmar.i"
-    version = "7.3.0"
+    version = "7.4.0"
     description = (
         "Moteur I (base Moteur F gelé au 27.08.26) : calcul du Moteur F + "
         "3 règles de balisage globales (armateur 01/09) — dédoublonnage "
@@ -815,7 +815,7 @@ class EngineI(SignalmarV5):
         "ignorée, seule la catégorisée fait foi), audit « mauvais côté » "
         "rectifié (secteur réellement interdit, faux couples corrigés), "
         "passage à ≥ 50 m de toute latérale (tracé repoussé si sûr), "
-        "détours > 500 m redressés si la corde directe est sûre "
+        "zigzags > 80 m redressés si la corde directe est sûre "
         "(secteur des cardinales contrôlé à 200 m, résultat déterministe). "
         "AUCUN suivi des routes officielles. Moteurs A-H inchangés."
     )
@@ -1342,6 +1342,8 @@ def _bypass_suspect_detours(
                     DIR_COHERENCE_V6.reset(tokd)
                 if not ok:
                     continue
+                if not _cardinal_ok(sm, a, b, mlng):
+                    continue
                 pts = pts[:i + 1] + pts[j:]
                 removed.append(m.get("name") or f"latérale {m['category']}")
                 break
@@ -1395,7 +1397,8 @@ def _bypass_suspect_detours(
 
 
 # ── STABILITÉ (armateur 01/09, captures Golfe/Creizic Sud) ─────────────────
-_DETOUR_GAIN_M = 500.0        # détour > 500 m → corde directe si sûre
+_DETOUR_GAIN_M = 80.0         # armateur 01/09 : seuil agressif — tout
+                              # zigzag > 80 m est redressé si la corde est sûre
 _DETOUR_CHORD_MAX_M = 4000.0  # portée maxi d'une corde de redressement
 _CARDINAL_SECTOR_M = 200.0    # secteur de contrôle autour d'une cardinale
 
@@ -1428,8 +1431,8 @@ def _shortcut_large_detours(
     draft_m: float, depth_margin_m: float, lateral_margin_m: float,
     tide_m: float,
 ) -> None:
-    """PÉNALITÉ DE DÉTOUR + PERSISTANCE (armateur 01/09) : tout détour de
-    plus de 500 m est remplacé par la corde directe UNIQUEMENT si elle est
+    """PÉNALITÉ DE DÉTOUR + PERSISTANCE (armateur 01/09, seuil abaissé à
+    80 m le 01/09 soir — GO points 1+2) : tout zigzag de plus de 80 m est remplacé par la corde directe UNIQUEMENT si elle est
     strictement sûre — fond ≥ seuil couloir ±15 m + portes, aucun
     frôlement (cercles d'écart respectés : on peut FRÔLER la zone de
     sécurité, jamais y entrer), aucun mauvais côté de latérale fiable,
@@ -1562,7 +1565,10 @@ def _enforce_lateral_clearance(
             fixed = False
             for (d, _i, m, r_std, _n) in list(
                     graze_violations(sm, pts, exempt, mlng, 200.0)):
-                if m.get("kind") != "lateral":
+                # 01/09 : écart minimal appliqué aux LATÉRALES ET AUX
+                # CARDINALES (règle carte : bon secteur + ≥ 50 m, plus de
+                # goulot de maille).
+                if m.get("kind") not in ("lateral", "cardinal"):
                     continue
                 target = max(_MIN_LATERAL_CLEAR_M, float(r_std))
                 dc, seg_i, proj = _closest_on(pts, m["lat"], m["lng"], mlng)
@@ -1580,6 +1586,9 @@ def _enforce_lateral_clearance(
                 if not (_seg_marks_ok(sm, a, q, mlng, exempt, 200.0)
                         and _seg_marks_ok(sm, q, b, mlng, exempt, 200.0)):
                     continue
+                if not (_cardinal_ok(sm, a, q, mlng)
+                        and _cardinal_ok(sm, q, b, mlng)):
+                    continue          # jamais dans le mauvais secteur
                 pts = pts[:seg_i + 1] + [q] + pts[seg_i + 1:]
                 changed = fixed = True
             if not fixed:
