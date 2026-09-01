@@ -399,7 +399,28 @@ agent_communication:
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
 
-  - task: "ITER151 — Moteur I v7.2.0 : dédoublonnage intelligent 500 m, audit « mauvais côté » rectifié (faux couples), écart latéral minimal 50 m (engine_i.py uniquement)"
+  - task: "ITER152 — Moteur I v7.3.0 : stabilité (détours > 500 m redressés, secteur cardinales 200 m, déterminisme) — engine_i.py uniquement"
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Bug armateur Golfe/Creizic Sud : détour de plusieurs km selon un
+          départ décalé de 10 m (couloir A* élu à la maille, F gelé).
+          Fix post-traitement déterministe : _shortcut_large_detours (corde
+          directe si détour > 500 m ET corde strictement sûre ; secteur des
+          cardinales contrôlé via _cardinal_ok à 200 m ; fond jamais
+          dégradé ; 3 passes, plus grand détour d'abord). Câblé entre le
+          bypass Errants et l'écart latéral 50 m. AUCUN calcul exécuté
+          (ordre armateur — il reteste les 2 routes sur la carte).
+          Backend redémarré.
+
+
     implemented: true
     working: "NA"
     file: "backend/core/nav/engine_i.py, backend/tests/test_iter147_moteur_i_ecretage.py (assertions mises à jour)"

@@ -807,14 +807,16 @@ _LAND_LIMIT_M = -3.5
 
 class EngineI(SignalmarV5):
     id = "signalmar.i"
-    version = "7.2.0"
+    version = "7.3.0"
     description = (
         "Moteur I (base Moteur F gelé au 27.08.26) : calcul du Moteur F + "
         "3 règles de balisage globales (armateur 01/09) — dédoublonnage "
         "intelligent des balises homonymes à ≤ 500 m (l'ambiguë est "
         "ignorée, seule la catégorisée fait foi), audit « mauvais côté » "
         "rectifié (secteur réellement interdit, faux couples corrigés), "
-        "passage à ≥ 50 m de toute latérale (tracé repoussé si sûr). "
+        "passage à ≥ 50 m de toute latérale (tracé repoussé si sûr), "
+        "détours > 500 m redressés si la corde directe est sûre "
+        "(secteur des cardinales contrôlé à 200 m, résultat déterministe). "
         "AUCUN suivi des routes officielles. Moteurs A-H inchangés."
     )
 
@@ -851,6 +853,11 @@ class EngineI(SignalmarV5):
         tokd = DIR_COHERENCE_V6.set(True)
         try:
             _bypass_suspect_detours(
+                res, start=(start_lat, start_lng),
+                requested_end=(end_lat, end_lng),
+                draft_m=draft_m, depth_margin_m=depth_margin_m,
+                lateral_margin_m=lateral_margin_m, tide_m=tide_m)
+            _shortcut_large_detours(
                 res, start=(start_lat, start_lng),
                 requested_end=(end_lat, end_lng),
                 draft_m=draft_m, depth_margin_m=depth_margin_m,
@@ -1385,6 +1392,133 @@ def _bypass_suspect_detours(
         _audit_wrong_sides(res, exempt[0], exempt[1])
     except Exception:  # noqa: BLE001 — jamais bloquant, tracé F conservé
         logger.exception("i: bypass doublon en échec, tracé rendu tel quel")
+
+
+# ── STABILITÉ (armateur 01/09, captures Golfe/Creizic Sud) ─────────────────
+_DETOUR_GAIN_M = 500.0        # détour > 500 m → corde directe si sûre
+_DETOUR_CHORD_MAX_M = 4000.0  # portée maxi d'une corde de redressement
+_CARDINAL_SECTOR_M = 200.0    # secteur de contrôle autour d'une cardinale
+
+
+def _cardinal_ok(sm, a: Pt, b: Pt, mlng: float) -> bool:
+    """La corde a→b respecte le SECTEUR de toute cardinale à ≤ 200 m :
+    passer au N d'une nord, au S d'une sud, à l'E d'une est, à l'O d'une
+    ouest (règle carte, indépendante de la maille — supprime le « goulot
+    mathématique » de l'A*)."""
+    for m in sm.marks:
+        if m.get("kind") != "cardinal":
+            continue
+        cat = (m.get("category") or "").lower()
+        if cat not in ("north", "south", "east", "west"):
+            continue
+        d, _i, proj = _closest_on([a, b], m["lat"], m["lng"], mlng)
+        if d > _CARDINAL_SECTOR_M:
+            continue
+        ve = (proj[1] - m["lng"]) * mlng
+        vn = (proj[0] - m["lat"]) * M_PER_DEG_LAT
+        ok = {"north": vn > 0.0, "south": vn < 0.0,
+              "east": ve > 0.0, "west": ve < 0.0}[cat]
+        if not ok:
+            return False
+    return True
+
+
+def _shortcut_large_detours(
+    res: dict, *, start: Pt, requested_end: Pt,
+    draft_m: float, depth_margin_m: float, lateral_margin_m: float,
+    tide_m: float,
+) -> None:
+    """PÉNALITÉ DE DÉTOUR + PERSISTANCE (armateur 01/09) : tout détour de
+    plus de 500 m est remplacé par la corde directe UNIQUEMENT si elle est
+    strictement sûre — fond ≥ seuil couloir ±15 m + portes, aucun
+    frôlement (cercles d'écart respectés : on peut FRÔLER la zone de
+    sécurité, jamais y entrer), aucun mauvais côté de latérale fiable,
+    mouillages/dangers OK, SECTEUR des cardinales respecté (≥ 200 m de
+    contrôle), fond du profil jamais dégradé. Post-traitement DÉTERMINISTE
+    (indépendant de la maille de départ) : deux départs à 10 m d'écart
+    convergent vers le même tracé redressé. Jamais bloquant."""
+    try:
+        sm = get_seamarks()
+        grid = _v1.get_grid()
+        wps = res.get("waypoints") or []
+        if sm is None or grid is None or len(wps) < 3:
+            return
+        pts: list[Pt] = [(float(w["lat"]), float(w["lng"])) for w in wps]
+        lat_s, lat_n, lng_w, lng_e = _bbox(pts)
+        mlng = m_per_deg_lng((lat_s + lat_n) / 2)
+        exempt = (start, requested_end)
+        need = max(float(draft_m) + float(depth_margin_m) - float(tide_m), -2.5)
+        strict = float(draft_m) + float(depth_margin_m) + 2.0
+        gates_arr = None
+        ga = [g for g in sm.gates(lat_s, lat_n, lng_w, lng_e)
+              if not any(_d_m((g[0], g[1]), q[0], q[1], mlng) < 400.0
+                         for q in exempt)]
+        if ga:
+            gates_arr = np.asarray(ga, dtype=np.float64)
+        val = _Validator(grid, need, need, lateral_margin_m, gates_arr, strict)
+
+        total_gain = 0.0
+        for _pass in range(3):
+            best = None            # (gain, i, j) — le PLUS GRAND détour d'abord
+            n = len(pts)
+            for i in range(n - 2):
+                for j in range(n - 1, i + 1, -1):
+                    a, b = pts[i], pts[j]
+                    chord = _d_m(a, b[0], b[1], mlng)
+                    if chord > _DETOUR_CHORD_MAX_M:
+                        continue
+                    gain = _length_m(pts[i:j + 1], mlng) - chord
+                    if gain < _DETOUR_GAIN_M or (best and gain <= best[0]):
+                        continue
+                    if not val.seg_ok(a, b, allow_relaxed=False):
+                        continue
+                    if not _seg_marks_ok(sm, a, b, mlng, exempt, 200.0):
+                        continue
+                    if not _cardinal_ok(sm, a, b, mlng):
+                        continue
+                    best = (gain, i, j)
+            if best is None:
+                break
+            gain, i, j = best
+            pts = pts[:i + 1] + pts[j:]
+            total_gain += gain
+        if total_gain <= 0.0:
+            return
+        merged = [{"lat": round(q[0], 6), "lng": round(q[1], 6)} for q in pts]
+        fresh = _v1._result_for(grid, merged, need)
+        old_min, new_min = res.get("min_depth_m"), fresh.get("min_depth_m")
+        if (new_min is not None and old_min is not None
+                and new_min < old_min - 0.05):
+            return       # jamais de régression du profil de fond
+        res["waypoints"] = fresh.get("waypoints") or merged
+        for k in ("depth_profile", "min_depth_m", "distance_m"):
+            if k in fresh:
+                res[k] = fresh[k]
+        comp = list(_v1.shallow_legs(
+            merged, max(float(draft_m) + float(depth_margin_m), -2.5)))
+        if comp:
+            res["compromised_legs"] = comp
+            res["risk"] = True
+        else:
+            res.pop("compromised_legs", None)
+            res.pop("risk", None)
+        cl = sm.clearance_points(lat_s, lat_n, lng_w, lng_e, need)
+        res["corridor_m"] = _v1._corridors_for(
+            grid, merged, need, lateral_margin_m,
+            np.asarray(cl, dtype=np.float64) if cl else None)
+        res["warnings"] = [
+            w for w in (res.get("warnings") or [])
+            if not w.startswith("⚠ La route passe à ~")
+            and not w.startswith("Passage à ")
+        ]
+        res["warnings"].extend(_v1._mark_pass_audit(merged, exempt))
+        res["warnings"].append(
+            f"Détour de ~{total_gain:.0f} m supprimé (tracé direct "
+            f"re-validé — fond, écarts de sécurité, secteurs des "
+            f"cardinales et balises respectés).")
+        res["warnings"] = list(dict.fromkeys(res["warnings"]))
+    except Exception:  # noqa: BLE001
+        logger.exception("i: redressement des détours en échec — tracé rendu tel quel")
 
 
 _MIN_LATERAL_CLEAR_M = 50.0   # armateur 01/09 : jamais « raser » une latérale

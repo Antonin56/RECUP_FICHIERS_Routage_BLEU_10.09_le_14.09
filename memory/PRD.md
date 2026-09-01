@@ -1,5 +1,26 @@
 # SignalMar — PRD
 
+## ✅ ITER152 (01/09, ordre armateur) — MOTEUR I v7.3.0 : correctif de STABILITÉ (Golfe / Creizic Sud)
+Bug (captures) : 2 départs quasi identiques → route parfaite vs détour de
+plusieurs km au goulot de la cardinale Creizic Sud. Cause : l'A* (F gelé,
+intouchable) élit son couloir à la maille — à 10 m près la cellule de
+départ change et le couloir bascule ; rien ne pénalise ensuite le détour.
+Fait, UNIQUEMENT engine_i.py (post-traitement déterministe) :
+1. _shortcut_large_detours : tout détour > 500 m (_DETOUR_GAIN_M) est
+   remplacé par la corde directe (portée ≤ 4 km) SI strictement sûre —
+   fond couloir ±15 m + portes (_Validator), cercles d'écart respectés
+   (frôler OK, entrer jamais), latérales fiables (_seg_marks_ok),
+   SECTEUR des cardinales contrôlé (_cardinal_ok : N d'une nord, S d'une
+   sud, E d'une est, O d'une ouest, rayon 200 m), fond du profil jamais
+   dégradé. 3 passes, plus grand détour d'abord. Warning « Détour de
+   ~X m supprimé ».
+2. Persistance : le redressement est indépendant de la maille → deux
+   départs à 10 m convergent vers le même tracé redressé.
+Ordre compute_auto : F pur → bypass Errants → REDRESSEMENT DÉTOURS →
+écart latéral 50 m → ré-audit dir-coherent → strip doublons.
+AUCUN calcul exécuté (ordre armateur, il reteste les 2 routes) ;
+compilation + import OK, backend redémarré. EN ATTENTE : validation carte.
+
 ## ✅ ITER151 (01/09, ordre armateur) — MOTEUR I v7.2.0 : 3 règles de balisage GLOBALES
 Captures armateur (Kergroise → SW, 18,3 km, I ≡ F) : faux « MAUVAIS CÔTÉ »
 (Petite Jument ~61 m et No2 ~159 m du BON côté — faux couples de Lorient),
