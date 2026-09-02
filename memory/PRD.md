@@ -1,5 +1,17 @@
 # SignalMar — PRD
 
+## ✅ ITER156 (02/09) — fix 500 : RouteError("no_route", message) dans la garde balisage du Moteur I
+- La garde « Pas de route trouvée » (engine_i.py L894) levait
+  RouteError(message) alors que la signature est RouteError(code, message,
+  payload=None) → TypeError → HTTP 500. Fix (demandé par l'armateur) :
+  code "no_route" ajouté en 1er argument — choix DÉLIBÉRÉ : avec ce code,
+  la cascade API peut tenter la route de secours (« route rouge ») même en
+  conflit de balisage. NB : le verrou SIDE_RULES_OPEN=False du Moteur I
+  reste actif — la route de secours du Moteur I respecte toujours les
+  côtés de balises ; si aucune n'existe, 422 propre (plus de 500).
+- Aucun test exécuté (ordre armateur), compilation + import OK, backend
+  redémarré (sudo supervisorctl restart backend).
+
 ## ✅ ITER155 (02/09, GO armateur) — MOTEUR I v8.1.0 : VERROU DERNIER RECOURS + début nettoyage tests
 - VERROU (engine_i.py uniquement) : EngineI.compute_auto force
   SIDE_RULES_OPEN=False (_SIDE_RULES_OPEN.set(False)) autour de TOUT le

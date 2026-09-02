@@ -892,6 +892,8 @@ class EngineI(SignalmarV5):
             if wsm:
                 names = ", ".join(f"« {v.get('name')} »" for v in wsm[:3])
                 raise _v1.RouteError(
+                    "no_route",     # code : la cascade API peut tenter la
+                                    # route de secours (choix armateur 02/09)
                     f"Pas de route trouvée : impossible de rejoindre la "
                     f"destination sans passer du MAUVAIS CÔTÉ du balisage "
                     f"({names}) avec ce besoin d'eau. Réduisez le tirant/"
