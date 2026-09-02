@@ -399,7 +399,25 @@ agent_communication:
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
 
-  - task: "ITER154 — Moteur I v8.0.0 : priorité absolue au balisage (smart fixes supprimés, contrôle strict côté inconnu = refus, garde « Pas de route trouvée ») — engine_i.py uniquement"
+  - task: "ITER155 — Moteur I v8.1.0 : verrou dernier recours (SIDE_RULES_OPEN jamais levé pour le Moteur I) + archivage scripts repro"
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py, backend/tests/archive/ (repro_vilaine*.py déplacés)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Verrou : compute_auto force SIDE_RULES_OPEN=False autour de tout
+          le calcul → les paliers dégradés de la cascade API ne peuvent
+          plus lever les règles de côté pour le Moteur I (routers/routing.py
+          inchangé, moteurs A-H inchangés). AUCUN calcul ni testing agent
+          (ordre armateur explicite, réitéré — validation carte par lui).
+          Backend redémarré, import OK.
+
+
     implemented: true
     working: "NA"
     file: "backend/core/nav/engine_i.py, backend/tests/test_iter154_moteur_i_balisage_absolu.py (nouveau, non exécuté), test_iter147 supprimé"

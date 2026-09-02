@@ -805,9 +805,12 @@ logger = logging.getLogger("signalmar.routing.v6")
 _LAND_LIMIT_M = -3.5
 
 
+from core.seamarks import SIDE_RULES_OPEN as _SIDE_RULES_OPEN
+
+
 class EngineI(SignalmarV5):
     id = "signalmar.i"
-    version = "8.0.0"
+    version = "8.1.0"
     description = (
         "Moteur I (base Moteur F gelé au 27.08.26) : calcul du Moteur F + "
         "PRIORITÉ ABSOLUE AU BALISAGE (02/09) — toute modification est "
@@ -836,6 +839,27 @@ class EngineI(SignalmarV5):
         les correctifs « Les Errants » (cf. section 3) : raccourci du
         détour fantôme adopté seulement s'il est strictement sûr, et
         filtrage des faux « mauvais côté » du doublon."""
+        # VERROU DERNIER RECOURS (armateur 02/09) : la cascade API peut
+        # lever les règles de côté (SIDE_RULES_OPEN, « dernier recours » et
+        # mode « eau peu profonde ») — pour le MOTEUR I, elles ne sont
+        # JAMAIS levées : le verrou les referme quel que soit l'appelant.
+        # Une route dégradée qui couperait le balisage devient impossible ;
+        # à défaut, l'erreur « Pas de route trouvée » remonte à l'app.
+        tokr = _SIDE_RULES_OPEN.set(False)
+        try:
+            return self._compute_locked(
+                start_lat, start_lng, end_lat, end_lng,
+                draft_m, depth_margin_m, lateral_margin_m, tide_m, params)
+        finally:
+            _SIDE_RULES_OPEN.reset(tokr)
+
+    def _compute_locked(
+        self,
+        start_lat: float, start_lng: float,
+        end_lat: float, end_lng: float,
+        draft_m: float, depth_margin_m: float, lateral_margin_m: float,
+        tide_m: float, params: dict[str, Any] | None,
+    ) -> dict:
         p2 = dict(params or {})
         p2["dir_coherence"] = False        # mode F pur, déterministe
         res = self._compute_base(

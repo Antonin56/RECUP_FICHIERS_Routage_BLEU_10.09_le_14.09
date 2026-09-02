@@ -1,5 +1,24 @@
 # SignalMar — PRD
 
+## ✅ ITER155 (02/09, GO armateur) — MOTEUR I v8.1.0 : VERROU DERNIER RECOURS + début nettoyage tests
+- VERROU (engine_i.py uniquement) : EngineI.compute_auto force
+  SIDE_RULES_OPEN=False (_SIDE_RULES_OPEN.set(False)) autour de TOUT le
+  calcul (_compute_locked) : même quand la cascade API arme le « dernier
+  recours » ou le mode « eau peu profonde » (SIDE_RULES_OPEN=True dans
+  routers/routing.py, INCHANGÉ), le Moteur I referme les règles de côté.
+  Une route dégradée qui couperait le balisage est donc impossible pour
+  le Moteur I → à défaut « Pas de route trouvée ». MOORINGS_OPEN
+  (mouillages) reste géré par la cascade (pas une règle de balisage).
+  Les moteurs A-H conservent le comportement cascade historique.
+- NETTOYAGE TESTS (limité au STATIQUE, ordre armateur = aucun calcul) :
+  tests/archive/ créé ; scripts de debug repro_vilaine*.py déplacés
+  (3 fichiers, pas des tests). Collect-only : 884 tests, 0 erreur
+  d'import. Le tri des échecs connus (marée désactivée, seeds démo,
+  rate-limit — 8 pré-existants documentés) NÉCESSITE une exécution de la
+  suite → EN ATTENTE du GO armateur post-validation carte.
+- ORDRE ARMATEUR RÉITÉRÉ : aucun calcul, aucun testing agent — il valide
+  lui-même sur la carte. Compilation + import vérifiés, backend redémarré.
+
 ## ✅ ITER154 (02/09, remise à plat armateur) — MOTEUR I v8.0.0 : PRIORITÉ ABSOLUE AU BALISAGE
 Notes armateur (zip 02.09, Golfe/Crouesty) : comportement INVERSÉ — à
 tirant 2 m le Moteur I coupait Roguedas/N4/Illur que le tirant 1 m
