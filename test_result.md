@@ -399,7 +399,27 @@ agent_communication:
           1.4-2.3 m > seuil d'écrêtage 0.5 m) — correction côté moteur
           uniquement, en attente GO armateur.
 
-  - task: "ITER153 — Moteur I v7.4.0 : seuil de redressement 80 m + cardinales à la règle carte (secteur + écart 50 m) — engine_i.py uniquement"
+  - task: "ITER154 — Moteur I v8.0.0 : priorité absolue au balisage (smart fixes supprimés, contrôle strict côté inconnu = refus, garde « Pas de route trouvée ») — engine_i.py uniquement"
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py, backend/tests/test_iter154_moteur_i_balisage_absolu.py (nouveau, non exécuté), test_iter147 supprimé"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Notes armateur 02/09 : à tirant 2 m, balises Roguedas/N4/Illur
+          coupées (comportement inversé). Cause : le contrôle de côté des
+          cordes de redressement ignorait les balises à direction non
+          fiable. Fix : _marks_strict_ok (inconnu = refus, ≤ 150 m) sur
+          toutes les modifications ; dédoublonnage + bypass/strip Errants
+          SUPPRIMÉS (ordre) ; garde finale RouteError si une balise reste
+          coupée. AUCUN calcul exécuté (ordre armateur — il teste sur la
+          carte). Backend redémarré.
+
+
     implemented: true
     working: "NA"
     file: "backend/core/nav/engine_i.py"

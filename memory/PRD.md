@@ -1,5 +1,36 @@
 # SignalMar — PRD
 
+## ✅ ITER154 (02/09, remise à plat armateur) — MOTEUR I v8.0.0 : PRIORITÉ ABSOLUE AU BALISAGE
+Notes armateur (zip 02.09, Golfe/Crouesty) : comportement INVERSÉ — à
+tirant 2 m le Moteur I coupait Roguedas/N4/Illur que le tirant 1 m
+respectait. CAUSE IDENTIFIÉE : à fort tirant l'A* détourne plus, le
+redressement 80 m raccourcissait, et le contrôle de côté des cordes
+IGNORAIT les balises à direction « non fiable » (u=None → bénéfice du
+doute) → la corde coupait la bouée. Fait (engine_i.py uniquement) :
+1. SUPPRIMÉS (ordre armateur) : « dédoublonnage intelligent »
+  (_suspect_duplicate_ids), bypass « détour fantôme Errants »
+  (_bypass_suspect_detours), filtrage des flags (_strip_suspect_wrong_
+  sides) — ils masquaient de vraies balises. Fichier 1688 → ~1500 lignes.
+2. _marks_strict_ok (nouveau, câblé sur TOUTES les modifications :
+  cordes du redressement + segments du repoussement) : latérale ou
+  cardinale à ≤ 150 m dont le côté/secteur est INCONNU ou NON RESPECTÉ →
+  modification REFUSÉE. Inconnu = interdit, plus jamais de bénéfice du
+  doute. Le fond ne compense JAMAIS le balisage (besoin d'eau ↑ → passage
+  plus profond cherché, jamais de balise coupée pour compenser).
+3. GARDE FINALE : après l'audit rectifié, s'il reste UNE balise coupée →
+  RouteError « Pas de route trouvée : impossible … sans passer du MAUVAIS
+  CÔTÉ du balisage (…) ». ATTENTION (dit à l'armateur) : la cascade API
+  peut alors enchaîner sur ses paliers dégradés (dernier recours ouvre
+  les règles de côté, routers/routing.py hors périmètre moteur).
+4. Pipeline v8.0.0 : F pur → redressement > 80 m (strict) → écart 50 m
+  latérales+cardinales (strict) → audit rectifié → garde « pas de route ».
+- Tests : test_iter147 SUPPRIMÉ (testait le dédoublonnage retiré) ;
+  nouveau tests/test_iter154_moteur_i_balisage_absolu.py (3 tests : I
+  jamais pire que F à Lorient, tirant 2 m sans balise coupée ou refus
+  net, Arradon 66 km stable) — ÉCRIT SANS EXÉCUTION (ordre armateur).
+- AUCUN calcul exécuté ; compilation + import OK ; backend redémarré.
+  EN ATTENTE : validation carte armateur (Roguedas/N4/Illur à 1 m ET 2 m).
+
 ## ✅ ITER153 (01/09 soir, GO armateur points 1+2) — MOTEUR I v7.4.0 : seuil 80 m + cardinales à la règle carte
 - Point 1 : _DETOUR_GAIN_M 500 → 80 m — TOUT zigzag > 80 m est redressé
   par la corde directe si elle est strictement sûre (fond, portes, écarts,

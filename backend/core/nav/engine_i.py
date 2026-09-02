@@ -807,16 +807,14 @@ _LAND_LIMIT_M = -3.5
 
 class EngineI(SignalmarV5):
     id = "signalmar.i"
-    version = "7.4.0"
+    version = "8.0.0"
     description = (
         "Moteur I (base Moteur F gelé au 27.08.26) : calcul du Moteur F + "
-        "3 règles de balisage globales (armateur 01/09) — dédoublonnage "
-        "intelligent des balises homonymes à ≤ 500 m (l'ambiguë est "
-        "ignorée, seule la catégorisée fait foi), audit « mauvais côté » "
-        "rectifié (secteur réellement interdit, faux couples corrigés), "
-        "passage à ≥ 50 m de toute latérale (tracé repoussé si sûr), "
-        "zigzags > 80 m redressés si la corde directe est sûre "
-        "(secteur des cardinales contrôlé à 200 m, résultat déterministe). "
+        "PRIORITÉ ABSOLUE AU BALISAGE (02/09) — toute modification est "
+        "refusée près d'une balise au côté inconnu, zigzags > 80 m "
+        "redressés seulement si strictement sûrs, écart ≥ 50 m des "
+        "latérales et cardinales, et si le tracé final coupe une balise : "
+        "« Pas de route trouvée » plutôt qu'une route dangereuse. "
         "AUCUN suivi des routes officielles. Moteurs A-H inchangés."
     )
 
@@ -852,11 +850,6 @@ class EngineI(SignalmarV5):
         tok6 = SIDE_ABSOLUTE_V6.set(True)
         tokd = DIR_COHERENCE_V6.set(True)
         try:
-            _bypass_suspect_detours(
-                res, start=(start_lat, start_lng),
-                requested_end=(end_lat, end_lng),
-                draft_m=draft_m, depth_margin_m=depth_margin_m,
-                lateral_margin_m=lateral_margin_m, tide_m=tide_m)
             _shortcut_large_detours(
                 res, start=(start_lat, start_lng),
                 requested_end=(end_lat, end_lng),
@@ -869,7 +862,16 @@ class EngineI(SignalmarV5):
                 lateral_margin_m=lateral_margin_m, tide_m=tide_m)
             _reaudit_dir_coherent(
                 res, (start_lat, start_lng), (end_lat, end_lng))
-            _strip_suspect_wrong_sides(res)
+            # PRIORITE ABSOLUE AU BALISAGE (armateur 02/09) : mieux vaut
+            # « Pas de route trouvée » qu'une route qui coupe une bouée.
+            wsm = res.get("wrong_side_marks") or []
+            if wsm:
+                names = ", ".join(f"« {v.get('name')} »" for v in wsm[:3])
+                raise _v1.RouteError(
+                    f"Pas de route trouvée : impossible de rejoindre la "
+                    f"destination sans passer du MAUVAIS CÔTÉ du balisage "
+                    f"({names}) avec ce besoin d'eau. Réduisez le tirant/"
+                    f"la marge ou attendez la marée.")
         finally:
             DIR_COHERENCE_V6.reset(tokd)
             SIDE_ABSOLUTE_V6.reset(tok6)
@@ -1170,237 +1172,69 @@ class EngineI(SignalmarV5):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# SECTION 3/3 — MOTEUR I : correctifs « LES ERRANTS » (doublon de balises).
+# SECTION 3/3 — MOTEUR I (v8.0.0, remise à plat armateur du 02/09) :
+# post-traitements à PRIORITÉ ABSOLUE AU BALISAGE.
 #
-# 31/08/2026 (ORDRE ARMATEUR) — le suivi des routes officielles
-# (pointillés), son réseau écrêté, ses jonctions et son planificateur ont
-# été SUPPRIMÉS INTÉGRALEMENT de ce moteur (mesuré : accrochage de chenaux
-# à ≤ 3 km de la ligne directe → +9,3 km et zigzags sur Port-Navalo →
-# SW Belle-Île). Il ne reste ici QUE le traitement du doublon mesuré le
-# 31/08 : deux latérales bâbord HOMONYMES « Les Errants » à 351 m — la
-# tourelle BLANCHE (id 1421434210, couleur qui CONTREDIT la catégorie) et
-# la bouée ROUGE (id 1421434206), côtés requis v6 divergents de ~82°.
-# Règle Moteur I :
-#   · une latérale de couleur INCOHÉRENTE (bâbord non rouge / tribord non
-#     verte) doublée par une homonyme de couleur CONFORME à ≤ 600 m est
-#     « douteuse » : ses faux « mauvais côté » sont filtrés de l'audit, et
-#     le détour fantôme qu'elle impose peut être raccourci — UNIQUEMENT si
-#     le raccourci est strictement sûr (fond ≥ seuil couloir ±15 m +
-#     portes, aucun frôlement — écart 60 m du doublon inclus —, aucun
-#     mauvais côté d'une latérale fiable, mouillages/dangers respectés,
-#     fond du profil JAMAIS dégradé) ; sinon le tracé F est rendu tel quel.
-#   · couleur VIDE = simple inconnu OSM : jamais neutralisée (perches
-#     génériques de Douarnenez = faux positifs écartés).
-# safe_routes.py, seamarks.py et les moteurs A-H : STRICTEMENT inchangés.
+# SUPPRIMÉS sur ordre armateur : suivi des routes officielles (01/09),
+# « dédoublonnage intelligent » et « lissage Errants » (02/09 — ils
+# masquaient de vraies balises). Restent UNIQUEMENT :
+#   · redressement des zigzags > 80 m (_shortcut_large_detours) ;
+#   · écart minimal 50 m des latérales ET cardinales
+#     (_enforce_lateral_clearance) ;
+#   · audit « mauvais côté » rejoué en cohérence de chenal
+#     (_reaudit_dir_coherent) puis GARDE FINALE : la moindre balise coupée
+#     → RouteError « Pas de route trouvée » (jamais de route qui coupe).
+# Chaque modification est validée par _marks_strict_ok : balise à côté
+# INCONNU à ≤ 150 m = REFUS (le fond ne compense JAMAIS le balisage —
+# quand le besoin d'eau augmente, on cherche plus profond, on ne coupe pas).
 # ════════════════════════════════════════════════════════════════════════
-
-_DUP_NAME_M = 500.0        # doublon homonyme : rayon d'appariement (armateur 01/09)
-_EXPECTED_COLOUR = {"port": "red", "starboard": "green"}
-
-_suspect_ids_cache: Optional[frozenset] = None
-
-
-def _suspect_duplicate_ids() -> frozenset:
-    """DÉDOUBLONNAGE INTELLIGENT (armateur 01/09) : deux balises HOMONYMES
-    à ≤ 500 m → celle dont la couleur/catégorie est AMBIGUË (blanche OU
-    inconnue sur une latérale) est ignorée pour les règles de côté ; seule
-    fait foi la balise officiellement catégorisée (latérale rouge/verte
-    conforme, ou cardinale). Règle globale, toute zone."""
-    global _suspect_ids_cache
-    if _suspect_ids_cache is not None:
-        return _suspect_ids_cache
-    out: set = set()
-    sm = get_seamarks()
-    if sm is not None:
-        groups: dict[str, list[dict]] = {}
-        for m in sm.marks:
-            name = (m.get("name") or "").strip()
-            if not name or m.get("kind") not in ("lateral", "cardinal"):
-                continue
-            groups.setdefault(name.lower(), []).append(m)
-        for grp in groups.values():
-            if len(grp) < 2:
-                continue
-
-            def _conforme(m: dict) -> bool:
-                if m.get("kind") == "cardinal":
-                    return True
-                want = _EXPECTED_COLOUR.get(m.get("category"))
-                return bool(want) and want in (m.get("colour") or "").lower()
-
-            good = [m for m in grp if _conforme(m)]
-            bad = [m for m in grp if m.get("kind") == "lateral"
-                   and m.get("category") in _EXPECTED_COLOUR
-                   and not _conforme(m)]      # couleur vide OU contradictoire
-            for b in bad:
-                mlng = m_per_deg_lng(b["lat"])
-                if any(math.hypot((b["lat"] - g["lat"]) * M_PER_DEG_LAT,
-                                  (b["lng"] - g["lng"]) * mlng) <= _DUP_NAME_M
-                       for g in good):
-                    out.add(b["id"])
-    _suspect_ids_cache = frozenset(out)
-    return _suspect_ids_cache
-
-
-_BYPASS_REACH_M = 450.0    # rayon du raccourci autour d'un doublon douteux
-_BYPASS_MIN_GAIN_M = 40.0  # gain minimal : en deçà, pas un détour significatif
-
-
-def _bypass_suspect_detours(
-    res: dict, *, start: Pt, requested_end: Pt,
-    draft_m: float, depth_margin_m: float, lateral_margin_m: float,
-    tide_m: float,
-) -> None:
-    """31/08 (GO armateur) — DÉTOUR FANTÔME des doublons douteux SUPPRIMÉ.
-
-    Le demi-disque rasterisé de la tourelle blanche « Les Errants »
-    (seamarks.py, PARTAGÉ par les moteurs A-H, hors périmètre autorisé)
-    impose au tracé un détour mesuré ~2× (1 690 m au lieu de ~900 m).
-    Post-correction GÉOMÉTRIQUE du Moteur I, baseline Moteur F : le
-    raccourci direct qui traverse la zone d'influence du doublon n'est
-    adopté QUE s'il est STRICTEMENT sûr —
-      · fond ≥ seuil sur couloir ±15 m + murs de porte (_Validator, seuil
-        NORMAL, jamais le seuil marée) ;
-      · AUCUN nouveau frôlement : tous les cercles d'écart respectés, Y
-        COMPRIS celui du doublon lui-même (60 m, jamais traversé) ;
-      · AUCUN mauvais côté d'une latérale fiable NON douteuse ;
-      · mouillages et dangers isolés respectés (_seg_marks_ok) ;
-      · jamais de régression du fond minimum du profil.
-    Sinon le tracé F est rendu TEL QUEL. Règle GLOBALE (toute la façade) :
-    s'applique à tout doublon détecté par ``_suspect_duplicate_ids``.
-    Jamais bloquant."""
-    try:
-        skip = _suspect_duplicate_ids()
-        if not skip:
-            return
-        grid = _v1.get_grid()
-        sm = get_seamarks()
-        wps = res.get("waypoints") or []
-        if grid is None or sm is None or len(wps) < 3:
-            return
-        pts: list[Pt] = [(float(w["lat"]), float(w["lng"])) for w in wps]
-        lat_s, lat_n, lng_w, lng_e = _bbox(pts)
-        mlng = m_per_deg_lng((lat_s + lat_n) / 2)
-        exempt = (start, requested_end)
-        need = max(float(draft_m) + float(depth_margin_m) - float(tide_m), -2.5)
-        strict = float(draft_m) + float(depth_margin_m) + 2.0
-        gates_arr = None
-        ga = [g for g in sm.gates(lat_s, lat_n, lng_w, lng_e)
-              if not any(_d_m((g[0], g[1]), q[0], q[1], mlng) < 400.0
-                         for q in exempt)]
-        if ga:
-            gates_arr = np.asarray(ga, dtype=np.float64)
-        val = _Validator(grid, need, need, lateral_margin_m, gates_arr, strict)
-
-        removed: list[str] = []
-        for m in sm.marks:
-            if m.get("id") not in skip:
-                continue
-            if not (lat_s - 0.01 <= m["lat"] <= lat_n + 0.01
-                    and lng_w - 0.01 <= m["lng"] <= lng_e + 0.01):
-                continue
-            d0, _seg_i, _p0 = _closest_on(pts, m["lat"], m["lng"], mlng)
-            if d0 > 1500.0:
-                continue
-            # Fenêtre de recherche : les points à ≤ 1,5 km du doublon (± 1).
-            idx = [i for i, q in enumerate(pts)
-                   if _d_m(q, m["lat"], m["lng"], mlng) < 1500.0]
-            if not idx:
-                continue
-            lo = max(0, min(idx) - 1)
-            hi = min(len(pts) - 1, max(idx) + 1)
-            if hi - lo < 2:
-                continue
-            # Toutes les cordes i→j de la fenêtre (≤ 3 km), triées par GAIN
-            # décroissant ; la première STRICTEMENT sûre gagne. La corde
-            # doit passer dans la zone d'influence du doublon (le raccourci
-            # ne s'attaque qu'aux détours attribuables au doublon).
-            cands: list[tuple[float, int, int]] = []
-            for i in range(lo, hi - 1):
-                for j in range(i + 2, hi + 1):
-                    a, b = pts[i], pts[j]
-                    chord = _d_m(a, b[0], b[1], mlng)
-                    if chord > 3000.0:
-                        continue
-                    dm, _ci, _cp = _closest_on([a, b], m["lat"], m["lng"], mlng)
-                    if dm > _BYPASS_REACH_M:
-                        continue
-                    gain = _length_m(pts[i:j + 1], mlng) - chord
-                    if gain >= _BYPASS_MIN_GAIN_M:
-                        cands.append((gain, i, j))
-            cands.sort(reverse=True)
-            for gain, i, j in cands:
-                a, b = pts[i], pts[j]
-                if not val.seg_ok(a, b, allow_relaxed=False):
-                    continue
-                # Contrôles complets (mouillages + dangers isolés compris)
-                # même quand le tracé de base a été calculé en mode F pur.
-                tokd = DIR_COHERENCE_V6.set(True)
-                try:
-                    ok = _seg_marks_ok(sm, a, b, mlng, exempt, 200.0, ignore=m)
-                finally:
-                    DIR_COHERENCE_V6.reset(tokd)
-                if not ok:
-                    continue
-                if not _cardinal_ok(sm, a, b, mlng):
-                    continue
-                pts = pts[:i + 1] + pts[j:]
-                removed.append(m.get("name") or f"latérale {m['category']}")
-                break
-        if not removed:
-            return
-
-        merged = [{"lat": round(q[0], 6), "lng": round(q[1], 6)} for q in pts]
-        fresh = _v1._result_for(grid, merged, need)
-        old_min = res.get("min_depth_m")
-        new_min = fresh.get("min_depth_m")
-        if (new_min is not None and old_min is not None
-                and new_min < old_min - 0.05):
-            return       # jamais de régression du profil de fond
-        res["waypoints"] = fresh.get("waypoints") or merged
-        for k in ("depth_profile", "min_depth_m", "distance_m"):
-            if k in fresh:
-                res[k] = fresh[k]
-        base_need = max(float(draft_m) + float(depth_margin_m), -2.5)
-        comp = list(_v1.shallow_legs(merged, base_need))
-        if comp:
-            res["compromised_legs"] = comp
-            res["risk"] = True
-        else:
-            res.pop("compromised_legs", None)
-            res.pop("risk", None)
-        clearance = None
-        cl = sm.clearance_points(lat_s, lat_n, lng_w, lng_e, need)
-        if cl:
-            clearance = np.asarray(cl, dtype=np.float64)
-        res["corridor_m"] = _v1._corridors_for(grid, merged, need,
-                                               lateral_margin_m, clearance)
-        # Audits balises REJOUÉS sur le tracé final (warnings nominatifs
-        # obsolètes purgés, wrong_side recalculé — même motif qu'ailleurs).
-        res.pop("wrong_side_marks", None)
-        res["warnings"] = [
-            w for w in (res.get("warnings") or [])
-            if not w.startswith("⚠ MAUVAIS CÔTÉ")
-            and not w.startswith("⚠ La route passe à ~")
-            and not w.startswith("Passage à ")
-        ]
-        res["warnings"].extend(_v1._mark_pass_audit(merged, exempt))
-        for name in dict.fromkeys(removed):
-            res["warnings"].append(
-                f"Balisage en doublon « {name} » : détour fantôme supprimé "
-                f"(tracé direct re-validé — fond, écart minimal 60 m et "
-                f"balises voisines respectés).")
-        res["warnings"] = list(dict.fromkeys(res["warnings"]))
-        _audit_wrong_sides(res, exempt[0], exempt[1])
-    except Exception:  # noqa: BLE001 — jamais bloquant, tracé F conservé
-        logger.exception("i: bypass doublon en échec, tracé rendu tel quel")
-
 
 # ── STABILITÉ (armateur 01/09, captures Golfe/Creizic Sud) ─────────────────
 _DETOUR_GAIN_M = 80.0         # armateur 01/09 : seuil agressif — tout
                               # zigzag > 80 m est redressé si la corde est sûre
 _DETOUR_CHORD_MAX_M = 4000.0  # portée maxi d'une corde de redressement
 _CARDINAL_SECTOR_M = 200.0    # secteur de contrôle autour d'une cardinale
+
+
+_BALISAGE_STRICT_M = 150.0    # armateur 02/09 : rayon du contrôle strict
+
+
+def _marks_strict_ok(sm, a: Pt, b: Pt, mlng: float, exempt) -> bool:
+    """PRIORITÉ ABSOLUE AU BALISAGE (armateur 02/09, notes du Golfe) : un
+    segment modifié par le Moteur I est REFUSÉ si, à ≤ 150 m, se trouve
+    une latérale ou une cardinale dont le côté requis est INCONNU ou NON
+    RESPECTÉ. Plus jamais de « bénéfice du doute » : c'était la faute des
+    captures Roguedas/N4/Illur — à fort tirant, l'A* détourne davantage,
+    le redressement raccourcissait, et le contrôle de côté IGNORAIT les
+    balises à direction non fiable → la corde coupait la bouée. Inconnu =
+    interdit : il est mathématiquement impossible qu'une modification du
+    Moteur I passe du mauvais côté. Départ/arrivée exemptés (ponton voulu
+    par l'utilisateur)."""
+    for m in sm.marks:
+        if m.get("kind") not in ("lateral", "cardinal"):
+            continue
+        d, _i, proj = _closest_on([a, b], m["lat"], m["lng"], mlng)
+        if d > _BALISAGE_STRICT_M:
+            continue
+        if any(_d_m((m["lat"], m["lng"]), q[0], q[1], mlng) < 200.0
+               for q in exempt):
+            continue
+        ve = (proj[1] - m["lng"]) * mlng
+        vn = (proj[0] - m["lat"]) * M_PER_DEG_LAT
+        if m.get("kind") == "cardinal":
+            ok = {"north": vn > 0.0, "south": vn < 0.0,
+                  "east": ve > 0.0, "west": ve < 0.0}.get(
+                (m.get("category") or "").lower())
+            if ok is not True:
+                return False
+            continue
+        u = required_side_u(sm, m)
+        if u is None:
+            return False
+        if ve * u[0] + vn * u[1] <= 0.0:
+            return False
+    return True
+
 
 
 def _cardinal_ok(sm, a: Pt, b: Pt, mlng: float) -> bool:
@@ -1478,6 +1312,8 @@ def _shortcut_large_detours(
                     if not _seg_marks_ok(sm, a, b, mlng, exempt, 200.0):
                         continue
                     if not _cardinal_ok(sm, a, b, mlng):
+                        continue
+                    if not _marks_strict_ok(sm, a, b, mlng, exempt):
                         continue
                     best = (gain, i, j)
             if best is None:
@@ -1588,6 +1424,9 @@ def _enforce_lateral_clearance(
                     continue
                 if not (_cardinal_ok(sm, a, q, mlng)
                         and _cardinal_ok(sm, q, b, mlng)):
+                    continue
+                if not (_marks_strict_ok(sm, a, q, mlng, exempt)
+                        and _marks_strict_ok(sm, q, b, mlng, exempt)):
                     continue          # jamais dans le mauvais secteur
                 pts = pts[:seg_i + 1] + [q] + pts[seg_i + 1:]
                 changed = fixed = True
@@ -1644,45 +1483,6 @@ def _reaudit_dir_coherent(res: dict, start: Pt, requested_end: Pt) -> None:
         _audit_wrong_sides(res, start, requested_end)
     except Exception:  # noqa: BLE001
         logger.exception("i: ré-audit mauvais côté en échec")
-
-
-def _strip_suspect_wrong_sides(res: dict) -> None:
-    """Retire de ``wrong_side_marks`` (et des warnings nominatifs) les
-    entrées produites par un doublon douteux (« Les Errants » blanche) —
-    l'homonyme fiable (bouée rouge) reste auditée. Jamais bloquant."""
-    try:
-        skip = _suspect_duplicate_ids()
-        wsm = res.get("wrong_side_marks") or []
-        wps = res.get("waypoints") or []
-        sm = get_seamarks()
-        if not skip or not wsm or len(wps) < 2 or sm is None:
-            return
-        pts = [(float(w["lat"]), float(w["lng"])) for w in wps]
-        la = [q[0] for q in pts]
-        mlng = m_per_deg_lng((min(la) + max(la)) / 2)   # même repère que l'audit
-        drop: list[dict] = []
-        for m in sm.marks:
-            if m.get("id") not in skip:
-                continue
-            d, _i, _p = _closest_on(pts, m["lat"], m["lng"], mlng)
-            name = m.get("name") or f"latérale {m['category']}"
-            for v in wsm:
-                if (v not in drop and v.get("name") == name
-                        and v.get("category") == m.get("category")
-                        and abs(float(v.get("dist_m") or -1e9) - d) <= 2.0):
-                    drop.append(v)
-                    break
-        if not drop:
-            return
-        res["wrong_side_marks"] = [v for v in wsm if v not in drop]
-        res["warnings"] = [
-            w for w in (res.get("warnings") or [])
-            if not (w.startswith("⚠ MAUVAIS CÔTÉ")
-                    and any(v["name"] in w and f"~{v['dist_m']:.0f} m" in w
-                            for v in drop))
-        ]
-    except Exception:  # noqa: BLE001
-        logger.exception("i: filtrage des doublons wrong_side en échec")
 
 
 __all__ = ["EngineI"]
