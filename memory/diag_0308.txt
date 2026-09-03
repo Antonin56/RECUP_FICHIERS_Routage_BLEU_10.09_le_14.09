@@ -3,8 +3,8 @@ Généré le : 2026-08-03T12:29:20.025Z
 Plateforme : android 34
 user_email : antoninlepinay@gmail.com
 user_id : user_0b6070a69154
-backend : https://nav-engine-i.preview.emergentagent.com
-snapshot : {"collectedAt":"2026-08-03T12:29:00.083Z","app":{"name":"Expo Go","version":"54.0.8","build":"417","bundleId":"host.exp.exponent"},"device":{"platform":"android","osVersion":34,"brand":"samsung","modelName":"SM-T733"},"network":{"isConnected":true,"isInternetReachable":true,"type":"wifi","details":{"isConnectionExpensive":false,"txLinkSpeed":229,"rxLinkSpeed":229,"linkSpeed":229,"subnet":"255.255.255.0","ipAddress":"192.168.1.17","frequency":2462,"strength":99,"bssid":"c8:7f:2b:ac:52:98","ssid":"Livebox-5290"}},"gps":{"permission":"granted","servicesEnabled":true,"lastFix":{"lat":47.863222,"lng":-2.3182116,"accuracyM":3,"ageS":1,"speedMs":0.012914339080452919,"heading":0},"error":null},"backend":{"url":"https://nav-engine-i.preview.emergentagent.com"}}
+backend : https://moteur-i-routing.preview.emergentagent.com
+snapshot : {"collectedAt":"2026-08-03T12:29:00.083Z","app":{"name":"Expo Go","version":"54.0.8","build":"417","bundleId":"host.exp.exponent"},"device":{"platform":"android","osVersion":34,"brand":"samsung","modelName":"SM-T733"},"network":{"isConnected":true,"isInternetReachable":true,"type":"wifi","details":{"isConnectionExpensive":false,"txLinkSpeed":229,"rxLinkSpeed":229,"linkSpeed":229,"subnet":"255.255.255.0","ipAddress":"192.168.1.17","frequency":2462,"strength":99,"bssid":"c8:7f:2b:ac:52:98","ssid":"Livebox-5290"}},"gps":{"permission":"granted","servicesEnabled":true,"lastFix":{"lat":47.863222,"lng":-2.3182116,"accuracyM":3,"ageS":1,"speedMs":0.012914339080452919,"heading":0},"error":null},"backend":{"url":"https://moteur-i-routing.preview.emergentagent.com"}}
 ping : null
 Nombre d'entrées : 72 (rétention 24h)
 

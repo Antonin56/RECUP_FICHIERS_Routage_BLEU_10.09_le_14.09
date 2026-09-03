@@ -13,7 +13,7 @@ import requests
 
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://nav-engine-i.preview.emergentagent.com"
+    BASE_URL = "https://moteur-i-routing.preview.emergentagent.com"
 
 TEST_EMAIL = "antoninlepinay@gmail.com"
 TEST_PWD = "123454321"
