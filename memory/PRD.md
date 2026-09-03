@@ -1,5 +1,21 @@
 # SignalMar — PRD
 
+## ✅ ITER158 (03/09) — Lecteur de dalles PC (core/tile_bathy.py) + dalles test armateur
+- Dalles PC armateur reçues dans data/tiles/tandem_20m/ (index.json 71
+  dalles, qa_report PASS 4/4, 4 dalles finales + 2 _orig zone Lorient/Étel).
+  Intégrité vérifiée : bit-identiques à la mosaïque SignalMar (2000 pts,
+  écart 0,000 m), bake îles conforme (1022/13 cellules = index).
+- NOUVEAU core/tile_bathy.py : TileBathy (API alignée MosaicGrid) —
+  depth_at (couche la plus fine gagne, NaN jamais rebouché), memmap LRU 64,
+  résolution point→dalle avec fallback 8 voisines (coins décalés d'une
+  fraction de cellule, ex. lng0=-3.20003), fichiers absents de l'index
+  tolérés (livraison partielle → stats()["missing_files"]), tiles_for_bbox.
+- tests/test_tile_reader.py : 8/8 verts, 100 % local (aucun réseau, aucun
+  calcul de route, aucun moteur sollicité).
+- ⚠️ AUCUN moteur (A-I) ne consomme tile_bathy — branchement futur sur GO
+  explicite. Prochaine étape annoncée par l'armateur : validation carte
+  Moteur I v8.1.0 (Roguedas/N4/Illur 1 m et 2 m).
+
 ## ✅ ITER157 (03/09) — SPEC document dallage bathy PC (AUCUN code app)
 - Demande armateur : documenter la procédure SHOM complète (connexion,
   formats, transformation) pour écrire lui-même un script PC Windows de

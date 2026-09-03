@@ -1,0 +1,655 @@
+{
+ "version": "1.0",
+ "generator": "shom_bathy_tiles.py 1.0.0",
+ "convention": "depth_m_below_ZH_positive_down;NaN=land_or_nodata",
+ "crs": "EPSG:4326",
+ "license": "Licence Ouverte - Bathymetrie (c) SHOM - non utilisable pour la navigation officielle",
+ "tile_deg": 0.1,
+ "cell_deg": 0.0002,
+ "tile_size": 500,
+ "row_order": "north_to_south",
+ "tile_origin": "north_west_corner; lat0/lng0 are EXACT SHOM cell edges nearest to (iy+1)*tile_deg / ix*tile_deg (no resampling). Locate a tile with ix=floor((lng-offset_deg.lng)/tile_deg), iy=floor((lat-offset_deg.lat)/tile_deg); cell r=floor((lat0-lat)/cell_deg), c=floor((lng-lng0)/cell_deg)",
+ "layers": [
+  {
+   "name": "tandem_20m",
+   "product": "MNT_COTIER_MORBIHAN_TANDEM_20m_WGS84_PBMA_ZNEG",
+   "prepackage_group": "MNT_COTIER_MORBIHAN_TANDEM_20m_PBMA_4326_PACK_DL",
+   "source_url": "https://services.data.shom.fr/INSPIRE/telechargement/prepackageGroup/MNT_COTIER_MORBIHAN_TANDEM_20m_PBMA_4326_PACK_DL/prepackage/MNT_COTIER_MORBIHAN_TANDEM_PBMA/file/MNT_COTIER_MORBIHAN_TANDEM_PBMA.7z",
+   "downloaded_at": "2026-09-03T09:28:43+00:00",
+   "license": "Licence Ouverte - Bathymetrie (c) SHOM - non utilisable pour la navigation officielle",
+   "bounds": [
+    -3.33343,
+    47.1999,
+    -2.36663,
+    47.7251
+   ],
+   "crop": null,
+   "dir": "tandem_20m",
+   "cell_deg": 0.0002,
+   "tile_size": 500,
+   "prefix": "tile_20m",
+   "grid_origin": {
+    "x0": -3.3334300062,
+    "y0": 47.7250999938,
+    "dx": 0.0002,
+    "dy": -0.0002,
+    "ncols": 4834,
+    "nrows": 2626
+   },
+   "offset_deg": {
+    "lng": -3.0006e-05,
+    "lat": 9.9994e-05
+   },
+   "status": "tiled",
+   "tiles": {
+    "471_-34": {
+     "file": "tile_20m_471_-34.npy",
+     "lat0": 47.2001,
+     "lng0": -3.40003,
+     "valid_ratio": 0.0007,
+     "depth_min": 68.62,
+     "depth_max": 75.51
+    },
+    "471_-33": {
+     "file": "tile_20m_471_-33.npy",
+     "lat0": 47.2001,
+     "lng0": -3.30003,
+     "valid_ratio": 0.002,
+     "depth_min": 64.36,
+     "depth_max": 76.26
+    },
+    "471_-32": {
+     "file": "tile_20m_471_-32.npy",
+     "lat0": 47.2001,
+     "lng0": -3.20003,
+     "valid_ratio": 0.002,
+     "depth_min": 59.22,
+     "depth_max": 69.24
+    },
+    "471_-31": {
+     "file": "tile_20m_471_-31.npy",
+     "lat0": 47.2001,
+     "lng0": -3.10003,
+     "valid_ratio": 0.002,
+     "depth_min": 52.38,
+     "depth_max": 59.32
+    },
+    "471_-30": {
+     "file": "tile_20m_471_-30.npy",
+     "lat0": 47.2001,
+     "lng0": -3.00003,
+     "valid_ratio": 0.002,
+     "depth_min": 44.87,
+     "depth_max": 52.5
+    },
+    "471_-29": {
+     "file": "tile_20m_471_-29.npy",
+     "lat0": 47.2001,
+     "lng0": -2.90003,
+     "valid_ratio": 0.002,
+     "depth_min": 40.26,
+     "depth_max": 45.6
+    },
+    "471_-28": {
+     "file": "tile_20m_471_-28.npy",
+     "lat0": 47.2001,
+     "lng0": -2.80003,
+     "valid_ratio": 0.002,
+     "depth_min": 22.66,
+     "depth_max": 41.19
+    },
+    "471_-27": {
+     "file": "tile_20m_471_-27.npy",
+     "lat0": 47.2001,
+     "lng0": -2.70003,
+     "valid_ratio": 0.002,
+     "depth_min": 10.89,
+     "depth_max": 24.22
+    },
+    "471_-26": {
+     "file": "tile_20m_471_-26.npy",
+     "lat0": 47.2001,
+     "lng0": -2.60003,
+     "valid_ratio": 0.002,
+     "depth_min": 0.71,
+     "depth_max": 23.14
+    },
+    "471_-25": {
+     "file": "tile_20m_471_-25.npy",
+     "lat0": 47.2001,
+     "lng0": -2.50003,
+     "valid_ratio": 0.002,
+     "depth_min": -0.52,
+     "depth_max": 11.08
+    },
+    "471_-24": {
+     "file": "tile_20m_471_-24.npy",
+     "lat0": 47.2001,
+     "lng0": -2.40003,
+     "valid_ratio": 0.0007,
+     "depth_min": 8.17,
+     "depth_max": 12.18
+    },
+    "472_-34": {
+     "file": "tile_20m_472_-34.npy",
+     "lat0": 47.3001,
+     "lng0": -3.40003,
+     "valid_ratio": 0.334,
+     "depth_min": 47.84,
+     "depth_max": 79.09
+    },
+    "472_-33": {
+     "file": "tile_20m_472_-33.npy",
+     "lat0": 47.3001,
+     "lng0": -3.30003,
+     "valid_ratio": 0.9864,
+     "depth_min": -29.32,
+     "depth_max": 76.26,
+     "land_cells_baked": 3397
+    },
+    "472_-32": {
+     "file": "tile_20m_472_-32.npy",
+     "lat0": 47.3001,
+     "lng0": -3.20003,
+     "valid_ratio": 0.9196,
+     "depth_min": -39.82,
+     "depth_max": 70.25,
+     "land_cells_baked": 20088
+    },
+    "472_-31": {
+     "file": "tile_20m_472_-31.npy",
+     "lat0": 47.3001,
+     "lng0": -3.10003,
+     "valid_ratio": 0.9513,
+     "depth_min": -5.32,
+     "depth_max": 61.86,
+     "land_cells_baked": 12171
+    },
+    "472_-30": {
+     "file": "tile_20m_472_-30.npy",
+     "lat0": 47.3001,
+     "lng0": -3.00003,
+     "valid_ratio": 1.0,
+     "depth_min": 16.74,
+     "depth_max": 52.31
+    },
+    "472_-29": {
+     "file": "tile_20m_472_-29.npy",
+     "lat0": 47.3001,
+     "lng0": -2.90003,
+     "valid_ratio": 1.0,
+     "depth_min": 25.16,
+     "depth_max": 47.54
+    },
+    "472_-28": {
+     "file": "tile_20m_472_-28.npy",
+     "lat0": 47.3001,
+     "lng0": -2.80003,
+     "valid_ratio": 1.0,
+     "depth_min": 7.11,
+     "depth_max": 45.4
+    },
+    "472_-27": {
+     "file": "tile_20m_472_-27.npy",
+     "lat0": 47.3001,
+     "lng0": -2.70003,
+     "valid_ratio": 1.0,
+     "depth_min": -3.63,
+     "depth_max": 41.82
+    },
+    "472_-26": {
+     "file": "tile_20m_472_-26.npy",
+     "lat0": 47.3001,
+     "lng0": -2.60003,
+     "valid_ratio": 0.9976,
+     "depth_min": -24.43,
+     "depth_max": 25.96,
+     "land_cells_baked": 610
+    },
+    "472_-25": {
+     "file": "tile_20m_472_-25.npy",
+     "lat0": 47.3001,
+     "lng0": -2.50003,
+     "valid_ratio": 0.9974,
+     "depth_min": -25.4,
+     "depth_max": 22.07,
+     "land_cells_baked": 659
+    },
+    "472_-24": {
+     "file": "tile_20m_472_-24.npy",
+     "lat0": 47.3001,
+     "lng0": -2.40003,
+     "valid_ratio": 0.3252,
+     "depth_min": -44.99,
+     "depth_max": 12.21,
+     "land_cells_baked": 55
+    },
+    "473_-34": {
+     "file": "tile_20m_473_-34.npy",
+     "lat0": 47.4001,
+     "lng0": -3.40003,
+     "valid_ratio": 0.334,
+     "depth_min": 20.5,
+     "depth_max": 68.71
+    },
+    "473_-33": {
+     "file": "tile_20m_473_-33.npy",
+     "lat0": 47.4001,
+     "lng0": -3.30003,
+     "valid_ratio": 0.5947,
+     "depth_min": -31.51,
+     "depth_max": 54.27,
+     "land_cells_baked": 101318
+    },
+    "473_-32": {
+     "file": "tile_20m_473_-32.npy",
+     "lat0": 47.4001,
+     "lng0": -3.20003,
+     "valid_ratio": 0.5527,
+     "depth_min": -6.38,
+     "depth_max": 29.77,
+     "land_cells_baked": 111816
+    },
+    "473_-31": {
+     "file": "tile_20m_473_-31.npy",
+     "lat0": 47.4001,
+     "lng0": -3.10003,
+     "valid_ratio": 0.9353,
+     "depth_min": -4.51,
+     "depth_max": 24.83,
+     "land_cells_baked": 16170
+    },
+    "473_-30": {
+     "file": "tile_20m_473_-30.npy",
+     "lat0": 47.4001,
+     "lng0": -3.00003,
+     "valid_ratio": 0.9541,
+     "depth_min": -22.29,
+     "depth_max": 32.88,
+     "land_cells_baked": 11475
+    },
+    "473_-29": {
+     "file": "tile_20m_473_-29.npy",
+     "lat0": 47.4001,
+     "lng0": -2.90003,
+     "valid_ratio": 0.9716,
+     "depth_min": -21.84,
+     "depth_max": 36.71,
+     "land_cells_baked": 7092
+    },
+    "473_-28": {
+     "file": "tile_20m_473_-28.npy",
+     "lat0": 47.4001,
+     "lng0": -2.80003,
+     "valid_ratio": 1.0,
+     "depth_min": 11.61,
+     "depth_max": 40.51
+    },
+    "473_-27": {
+     "file": "tile_20m_473_-27.npy",
+     "lat0": 47.4001,
+     "lng0": -2.70003,
+     "valid_ratio": 1.0,
+     "depth_min": -0.39,
+     "depth_max": 35.32
+    },
+    "473_-26": {
+     "file": "tile_20m_473_-26.npy",
+     "lat0": 47.4001,
+     "lng0": -2.60003,
+     "valid_ratio": 0.9939,
+     "depth_min": -37.75,
+     "depth_max": 21.33,
+     "land_cells_baked": 712
+    },
+    "473_-25": {
+     "file": "tile_20m_473_-25.npy",
+     "lat0": 47.4001,
+     "lng0": -2.50003,
+     "valid_ratio": 0.5546,
+     "depth_min": -49.84,
+     "depth_max": -1.9,
+     "land_cells_baked": 210
+    },
+    "473_-24": {
+     "file": "tile_20m_473_-24.npy",
+     "lat0": 47.4001,
+     "lng0": -2.40003,
+     "valid_ratio": 0.0476,
+     "depth_min": -41.92,
+     "depth_max": -4.81
+    },
+    "474_-34": {
+     "file": "tile_20m_474_-34.npy",
+     "lat0": 47.5001,
+     "lng0": -3.40003,
+     "valid_ratio": 0.334,
+     "depth_min": 9.21,
+     "depth_max": 46.3
+    },
+    "474_-33": {
+     "file": "tile_20m_474_-33.npy",
+     "lat0": 47.5001,
+     "lng0": -3.30003,
+     "valid_ratio": 1.0,
+     "depth_min": 3.78,
+     "depth_max": 43.31
+    },
+    "474_-32": {
+     "file": "tile_20m_474_-32.npy",
+     "lat0": 47.5001,
+     "lng0": -3.20003,
+     "valid_ratio": 1.0,
+     "depth_min": -38.17,
+     "depth_max": 33.51,
+     "land_cells_baked": 4
+    },
+    "474_-31": {
+     "file": "tile_20m_474_-31.npy",
+     "lat0": 47.5001,
+     "lng0": -3.10003,
+     "valid_ratio": 0.9988,
+     "depth_min": -17.34,
+     "depth_max": 51.52,
+     "land_cells_baked": 300
+    },
+    "474_-30": {
+     "file": "tile_20m_474_-30.npy",
+     "lat0": 47.5001,
+     "lng0": -3.00003,
+     "valid_ratio": 0.9992,
+     "depth_min": -12.88,
+     "depth_max": 28.29,
+     "land_cells_baked": 196
+    },
+    "474_-29": {
+     "file": "tile_20m_474_-29.npy",
+     "lat0": 47.5001,
+     "lng0": -2.90003,
+     "valid_ratio": 1.0,
+     "depth_min": -39.76,
+     "depth_max": 17.69
+    },
+    "474_-28": {
+     "file": "tile_20m_474_-28.npy",
+     "lat0": 47.5001,
+     "lng0": -2.80003,
+     "valid_ratio": 1.0,
+     "depth_min": -39.25,
+     "depth_max": 18.53
+    },
+    "474_-27": {
+     "file": "tile_20m_474_-27.npy",
+     "lat0": 47.5001,
+     "lng0": -2.70003,
+     "valid_ratio": 0.996,
+     "depth_min": -11.64,
+     "depth_max": 18.21,
+     "land_cells_baked": 995
+    },
+    "474_-26": {
+     "file": "tile_20m_474_-26.npy",
+     "lat0": 47.5001,
+     "lng0": -2.60003,
+     "valid_ratio": 0.9999,
+     "depth_min": -19.15,
+     "depth_max": 16.05,
+     "land_cells_baked": 29
+    },
+    "474_-25": {
+     "file": "tile_20m_474_-25.npy",
+     "lat0": 47.5001,
+     "lng0": -2.50003,
+     "valid_ratio": 0.9881,
+     "depth_min": -50.63,
+     "depth_max": 6.47,
+     "land_cells_baked": 158
+    },
+    "474_-24": {
+     "file": "tile_20m_474_-24.npy",
+     "lat0": 47.5001,
+     "lng0": -2.40003,
+     "valid_ratio": 0.3051,
+     "depth_min": -54.38,
+     "depth_max": 4.63
+    },
+    "475_-34": {
+     "file": "tile_20m_475_-34.npy",
+     "lat0": 47.6001,
+     "lng0": -3.40003,
+     "valid_ratio": 0.334,
+     "depth_min": 17.32,
+     "depth_max": 37.98
+    },
+    "475_-33": {
+     "file": "tile_20m_475_-33.npy",
+     "lat0": 47.6001,
+     "lng0": -3.30003,
+     "valid_ratio": 1.0,
+     "depth_min": -2.05,
+     "depth_max": 39.14
+    },
+    "475_-32": {
+     "file": "tile_20m_475_-32.npy",
+     "lat0": 47.6001,
+     "lng0": -3.20003,
+     "valid_ratio": 0.9979,
+     "depth_min": -34.61,
+     "depth_max": 29.13,
+     "land_cells_baked": 536
+    },
+    "475_-31": {
+     "file": "tile_20m_475_-31.npy",
+     "lat0": 47.6001,
+     "lng0": -3.10003,
+     "valid_ratio": 0.9989,
+     "depth_min": -44.25,
+     "depth_max": 16.98,
+     "land_cells_baked": 285
+    },
+    "475_-30": {
+     "file": "tile_20m_475_-30.npy",
+     "lat0": 47.6001,
+     "lng0": -3.00003,
+     "valid_ratio": 0.9919,
+     "depth_min": -38.56,
+     "depth_max": 29.38,
+     "land_cells_baked": 2019
+    },
+    "475_-29": {
+     "file": "tile_20m_475_-29.npy",
+     "lat0": 47.6001,
+     "lng0": -2.90003,
+     "valid_ratio": 0.9333,
+     "depth_min": -45.21,
+     "depth_max": 24.89,
+     "land_cells_baked": 16671
+    },
+    "475_-28": {
+     "file": "tile_20m_475_-28.npy",
+     "lat0": 47.6001,
+     "lng0": -2.80003,
+     "valid_ratio": 0.9677,
+     "depth_min": -53.49,
+     "depth_max": 14.73,
+     "land_cells_baked": 8083
+    },
+    "475_-27": {
+     "file": "tile_20m_475_-27.npy",
+     "lat0": 47.6001,
+     "lng0": -2.70003,
+     "valid_ratio": 1.0,
+     "depth_min": -41.2,
+     "depth_max": 15.69
+    },
+    "475_-26": {
+     "file": "tile_20m_475_-26.npy",
+     "lat0": 47.6001,
+     "lng0": -2.60003,
+     "valid_ratio": 0.9919,
+     "depth_min": -59.11,
+     "depth_max": 3.28,
+     "land_cells_baked": 27
+    },
+    "475_-25": {
+     "file": "tile_20m_475_-25.npy",
+     "lat0": 47.6001,
+     "lng0": -2.50003,
+     "valid_ratio": 0.7582,
+     "depth_min": -69.67,
+     "depth_max": 1.71
+    },
+    "475_-24": {
+     "file": "tile_20m_475_-24.npy",
+     "lat0": 47.6001,
+     "lng0": -2.40003,
+     "valid_ratio": 0.1751,
+     "depth_min": -68.98,
+     "depth_max": 4.47
+    },
+    "476_-34": {
+     "file": "tile_20m_476_-34.npy",
+     "lat0": 47.7001,
+     "lng0": -3.40003,
+     "valid_ratio": 0.334,
+     "depth_min": -11.97,
+     "depth_max": 28.95
+    },
+    "476_-33": {
+     "file": "tile_20m_476_-33.npy",
+     "lat0": 47.7001,
+     "lng0": -3.30003,
+     "valid_ratio": 0.9999,
+     "depth_min": -24.55,
+     "depth_max": 29.25,
+     "land_cells_baked": 13
+    },
+    "476_-32": {
+     "file": "tile_20m_476_-32.npy",
+     "lat0": 47.7001,
+     "lng0": -3.20003,
+     "valid_ratio": 0.9959,
+     "depth_min": -46.97,
+     "depth_max": 12.57,
+     "land_cells_baked": 1022
+    },
+    "476_-31": {
+     "file": "tile_20m_476_-31.npy",
+     "lat0": 47.7001,
+     "lng0": -3.10003,
+     "valid_ratio": 0.9999,
+     "depth_min": -55.43,
+     "depth_max": 3.02,
+     "land_cells_baked": 19
+    },
+    "476_-30": {
+     "file": "tile_20m_476_-30.npy",
+     "lat0": 47.7001,
+     "lng0": -3.00003,
+     "valid_ratio": 1.0,
+     "depth_min": -61.8,
+     "depth_max": 12.64,
+     "land_cells_baked": 5
+    },
+    "476_-29": {
+     "file": "tile_20m_476_-29.npy",
+     "lat0": 47.7001,
+     "lng0": -2.90003,
+     "valid_ratio": 0.9019,
+     "depth_min": -67.0,
+     "depth_max": 25.13,
+     "land_cells_baked": 1826
+    },
+    "476_-28": {
+     "file": "tile_20m_476_-28.npy",
+     "lat0": 47.7001,
+     "lng0": -2.80003,
+     "valid_ratio": 0.7888,
+     "depth_min": -51.42,
+     "depth_max": 10.37,
+     "land_cells_baked": 2619
+    },
+    "476_-27": {
+     "file": "tile_20m_476_-27.npy",
+     "lat0": 47.7001,
+     "lng0": -2.70003,
+     "valid_ratio": 0.5325,
+     "depth_min": -54.65,
+     "depth_max": 2.2,
+     "land_cells_baked": 9
+    },
+    "476_-26": {
+     "file": "tile_20m_476_-26.npy",
+     "lat0": 47.7001,
+     "lng0": -2.60003,
+     "valid_ratio": 0.1159,
+     "depth_min": -59.17,
+     "depth_max": -8.97,
+     "land_cells_baked": 0
+    },
+    "476_-24": {
+     "file": "tile_20m_476_-24.npy",
+     "lat0": 47.7001,
+     "lng0": -2.40003,
+     "valid_ratio": 0.0465,
+     "depth_min": -93.52,
+     "depth_max": -18.56
+    },
+    "477_-34": {
+     "file": "tile_20m_477_-34.npy",
+     "lat0": 47.8001,
+     "lng0": -3.40003,
+     "valid_ratio": 0.0821,
+     "depth_min": -24.27,
+     "depth_max": -1.13,
+     "land_cells_baked": 8
+    },
+    "477_-33": {
+     "file": "tile_20m_477_-33.npy",
+     "lat0": 47.8001,
+     "lng0": -3.30003,
+     "valid_ratio": 0.246,
+     "depth_min": -32.76,
+     "depth_max": -2.96
+    },
+    "477_-32": {
+     "file": "tile_20m_477_-32.npy",
+     "lat0": 47.8001,
+     "lng0": -3.20003,
+     "valid_ratio": 0.2458,
+     "depth_min": -34.43,
+     "depth_max": 1.06,
+     "land_cells_baked": 43
+    },
+    "477_-31": {
+     "file": "tile_20m_477_-31.npy",
+     "lat0": 47.8001,
+     "lng0": -3.10003,
+     "valid_ratio": 0.246,
+     "depth_min": -63.68,
+     "depth_max": -4.47,
+     "land_cells_baked": 5
+    },
+    "477_-30": {
+     "file": "tile_20m_477_-30.npy",
+     "lat0": 47.8001,
+     "lng0": -3.00003,
+     "valid_ratio": 0.1473,
+     "depth_min": -60.81,
+     "depth_max": -9.23
+    },
+    "477_-29": {
+     "file": "tile_20m_477_-29.npy",
+     "lat0": 47.8001,
+     "lng0": -2.90003,
+     "valid_ratio": 0.0023,
+     "depth_min": -50.07,
+     "depth_max": -35.66
+    }
+   },
+   "islands_baked_at": "2026-09-03T09:30:02+00:00",
+   "islands_source": "OSM Overpass place=island|islet (ODbL)"
+  }
+ ],
+ "updated_at": "2026-09-03T09:30:02+00:00"
+}

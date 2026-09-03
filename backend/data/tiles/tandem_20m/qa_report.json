@@ -1,0 +1,166 @@
+{
+ "generated_at": "2026-09-03T09:30:03+00:00",
+ "script_version": "1.0.0",
+ "layers": [
+  {
+   "name": "tandem_20m",
+   "tiles": 71,
+   "bounds": [
+    -3.33343,
+    47.1999,
+    -2.36663,
+    47.7251
+   ],
+   "islands_baked_at": "2026-09-03T09:30:02+00:00"
+  }
+ ],
+ "tiles_total": 71,
+ "tiles_size_mb": 71.0,
+ "qa_tolerance_m": 0.05,
+ "qa_points": [
+  {
+   "name": "Chenal de Port-Navalo",
+   "lat": 47.5445,
+   "lng": -2.921,
+   "expected": "19.36",
+   "got": "19.36",
+   "layer": "tandem_20m",
+   "status": "PASS"
+  },
+  {
+   "name": "Approche Le Palais (Belle-Ile)",
+   "lat": 47.348,
+   "lng": -3.144,
+   "expected": "5.80",
+   "got": "5.80",
+   "layer": "tandem_20m",
+   "status": "PASS"
+  },
+  {
+   "name": "Passage de la Teignouse",
+   "lat": 47.455,
+   "lng": -3.047,
+   "expected": "11.85",
+   "got": "11.85",
+   "layer": "tandem_20m",
+   "status": "PASS"
+  },
+  {
+   "name": "Ile d'Arz (terre)",
+   "lat": 47.593,
+   "lng": -2.802,
+   "expected": "NaN",
+   "got": "NaN",
+   "layer": "tandem_20m",
+   "status": "PASS"
+  }
+ ],
+ "qa_status": "PASS",
+ "islands": {
+  "reference": [
+   {
+    "island": "Ile d'Arz",
+    "osm": [
+     "relation/8690475"
+    ],
+    "points": 30169,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Ile de Houat",
+    "osm": [
+     "relation/299817"
+    ],
+    "points": 40658,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Belle-Ile",
+    "osm": [
+     "relation/12620399"
+    ],
+    "points": 1044806,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Ile-aux-Moines",
+    "osm": [
+     "relation/960821"
+    ],
+    "points": 39200,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Ile d'Hoedic",
+    "osm": [
+     "way/4534329"
+    ],
+    "points": 26615,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Er Lannic",
+    "osm": [
+     "way/500298938"
+    ],
+    "points": 142,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Gavrinis",
+    "osm": [
+     "way/500298935"
+    ],
+    "points": 1831,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Berder",
+    "osm": [
+     "way/500298937"
+    ],
+    "points": 2681,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Ilur",
+    "osm": [
+     "way/500298929"
+    ],
+    "points": 5127,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Ile Tascon",
+    "osm": [
+     "way/500298879"
+    ],
+    "points": 6405,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   },
+   {
+    "island": "Ile Dumet",
+    "osm": [
+     "way/4534291"
+    ],
+    "points": 3265,
+    "water_cells_on_land": 0,
+    "status": "PASS"
+   }
+  ],
+  "named_fail_big": [],
+  "named_fail_small": [],
+  "named_checked": 119
+ },
+ "islands_status": "PASS"
+}
