@@ -1,5 +1,20 @@
 # SignalMar — PRD
 
+## ✅ ITER157 (03/09) — SPEC document dallage bathy PC (AUCUN code app)
+- Demande armateur : documenter la procédure SHOM complète (connexion,
+  formats, transformation) pour écrire lui-même un script PC Windows de
+  dallage 10/20 km en .npy. Livré : /app/memory/SPEC_DALLAGE_BATHY_PC.md.
+- URLs SHOM re-vérifiées en live (HTTP 200, Accept-Ranges) :
+  TANDEM Morbihan 20 m PBMA (105 Mo) groupe
+  MNT_COTIER_MORBIHAN_TANDEM_20m_PBMA_4326_PACK_DL, HOMONIM ATL 100 m
+  (464 Mo) groupe MNT_ATL100m_HOMONIM_PBMA_4326_PACK_DL, Litto3D BZH
+  groupe LITTO3D_BZH_2018_2021_PACK_DL (dalles 5 km L93).
+- Points de contrôle QA mesurés sur la mosaïque actuelle (lecture seule,
+  aucun calcul de route) : Port-Navalo 19,36 m ; Le Palais 5,80 m ;
+  Teignouse 11,85 m ; île d'Arz NaN.
+- Aucun fichier de code modifié. Moteur I v8.1.0 toujours EN ATTENTE de
+  validation carte armateur (Roguedas/N4/Illur 1 m et 2 m).
+
 ## ✅ ITER156 (02/09) — fix 500 : RouteError("no_route", message) dans la garde balisage du Moteur I
 - La garde « Pas de route trouvée » (engine_i.py L894) levait
   RouteError(message) alors que la signature est RouteError(code, message,
