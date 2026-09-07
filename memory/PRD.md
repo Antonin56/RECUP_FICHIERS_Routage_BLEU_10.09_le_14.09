@@ -1,5 +1,13 @@
 # SignalMar — PRD
 
+## ✅ ITER159 (03/09) — TILE_SERVER_TOKEN ajouté au backend/.env (dev)
+- Clé TILE_SERVER_TOKEN ajoutée à backend/.env (quotes simples : $ et &
+  préservés, vérifié via dotenv, 40 caractères, valeur jamais affichée).
+- Secrets de DÉPLOIEMENT : non modifiables par l'agent — l'armateur doit
+  la saisir via Publish → Deploy → Secrets (les nouvelles clés du .env
+  local sont reprises au deploy, valeurs existantes non écrasées).
+- Aucun code ne consomme encore cette clé (préparation serveur de dalles).
+
 ## ✅ ITER158 (03/09) — Lecteur de dalles PC (core/tile_bathy.py) + dalles test armateur
 - Dalles PC armateur reçues dans data/tiles/tandem_20m/ (index.json 71
   dalles, qa_report PASS 4/4, 4 dalles finales + 2 _orig zone Lorient/Étel).
