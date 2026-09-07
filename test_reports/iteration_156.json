@@ -1,0 +1,32 @@
+{
+  "summary": "Vérification NON-INVASIVE des 5 correctifs Moteur J (SÉCURITÉ + VITESSE + FIABILITÉ + LOGIQUE + VISUEL). AUCUN calcul de route effectué (ordre armateur strictement respecté). 1) GET /api/bathy/tiles-source → 200 avec source=ovh, label='Serveur OVH (v2.0)', version=2.0.0, tiles_indexed=1983, bounds=[-5.3,43.3,-1.0,48.9] (4 floats w,s,e,n). ✅ 2) ALGO_REGISTRY = 10 algos, signalmar.i et signalmar.j présents ; RemoteGrid : hasattr(.grid)=True, hasattr(.grids)=True, rg.grid.shape=(2626,4834), len(rg.grids)=3. ✅ 3) Revue code /app/backend/core/tile_bathy.py : RemoteTileBathy.prefetch existe (ligne 269, ThreadPoolExecutor), appelé dans RemoteGrid._assemble (ligne 531) ET RemoteGrid.sample (ligne 479). ✅ 4) Revue engine_i.py _complete_truncated_end : need_zh = draft_m + depth_margin_m (ligne 1096) utilisé comme seuil de sonde (d < need_zh, ligne 1115), land_cut = (d is None or d < _LAND_LIMIT_M) distingue 'arrivee_a_terre' vs 'arrivee_trop_peu_profonde' (lignes 1117, 1183-1184). ✅ 5) _marks_strict_ok (ligne 1249) : u is None → refus SEULEMENT si d < _UNKNOWN_MARK_CLEAR_M=50m (lignes 1282-1285), idem cardinale à secteur inconnu (lignes 1274-1277) ; balises à côté CONNU restent strictement inviolables. ✅ 6) pytest tests/test_tile_reader.py = 8/8 verts en 0.50s. ✅ 7) Frontend charge sans erreur : titre 'SignalMar', écran d'onboarding visible ('La mer, ensemble.'), aucun élément d'erreur, aucun red screen ; bathy.ts lignes 43-52 contiennent fetch de /api/bathy/tiles-source avec application dynamique des bounds à _bathyLayers[3] (dyn = L.latLngBounds([[b[1],b[0]],[b[3],b[2]]])) et catch silencieux pour repli statique Morbihan. ✅",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iter156_tile_reader.xml",
+    "/tmp/verify_grid.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix 1 (SÉCURITÉ) validé : engine_i.py _complete_truncated_end sonde tous les ~25m, tronque au dernier point sûr avec message franc distinct entre 'à terre' (fond < -3.5m ZH ou hors donnée) et 'trop peu profonde' (fond < draft+marge).",
+    "Fix 2 (VITESSE) validé : ThreadPoolExecutor(max_workers=min(8, len(missing))) dans RemoteTileBathy.prefetch, invoqué avant les boucles séquentielles de _assemble et sample — les allers-retours HTTP en série sont éliminés.",
+    "Fix 3 (FIABILITÉ) validé : RemoteGrid.grids délègue à get_grid() (SHOM local) via GRID_OVERRIDE.set(None) pour éviter la récursion, .grid retourne le premier memmap SHOM — plus d'AttributeError sur heuristiques abris/direction.",
+    "Fix 4 (LOGIQUE) validé : la balise à côté INCONNU n'est plus un refus d'office, elle est acceptée si le tracé garde ≥ 50m (_UNKNOWN_MARK_CLEAR_M) — logique symétrique pour lateral (u is None) et cardinal (category hors N/S/E/W).",
+    "Fix 5 (VISUEL) validé : bounds calculées côté backend (min/max des bbox des tuiles OVH) et lues côté frontend via fetch avec repli catch silencieux."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Aucune — vérifications non invasives uniquement.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Les 5 correctifs Moteur J sont validés SANS avoir déclenché aucun calcul de route (interdiction armateur respectée). Le premier appel à get_remote_grid() télécharge l'index OVH (~1 Mo) en <10s, résultat mis en cache module. Le endpoint /api/bathy/tiles-source déclenche aussi cet accès. Ne jamais purger data/tiles/remote_cache. Les 8 échecs pytest connus (marée désactivée, seeds démo, rate-limit) restent hors périmètre.",
+  "rca_of_issue": "N/A — validation de correctifs, aucun bug détecté."
+}

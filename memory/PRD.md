@@ -1,5 +1,31 @@
 # SignalMar — PRD
 
+## ✅ ITER162 (04/09, 5 correctifs armateur) — Moteur J / backend / carte
+1. SÉCURITÉ (engine_i.py _complete_truncated_end, hérité par J) : seuil de
+   sonde du raccordement final = tirant + marge au ZH (need_zh), plus
+   seulement terre (−3,5 m). Coupe au dernier point SÛR ; end_snapped
+   reason « arrivee_trop_peu_profonde » (vs « arrivee_a_terre » si terre)
+   + warning dédié. Marée non créditée (conservateur, signature inchangée).
+2. VITESSE (tile_bathy.py) : RemoteTileBathy._ensure_file + prefetch
+   (ThreadPoolExecutor 8) appelé par RemoteGrid._assemble ET sample —
+   fenêtre 12 dalles téléchargée en 1,25 s (vs séquentiel).
+3. FIABILITÉ (tile_bathy.py) : RemoteGrid.grids (grilles SHOM locales via
+   GRID_OVERRIDE=None temporaire — champs heuristiques abris/direction
+   identiques au Moteur I, évite d'assembler 2,4 Go) + .grid (tableau de
+   la plus fine) → plus d'AttributeError signalmar_v3/direction.
+4. LOGIQUE (engine_i.py _marks_strict_ok, assoupli sur ordre) : côté/
+   secteur INCONNU ≠ refus d'office — accepté si écart ≥ 50 m
+   (_UNKNOWN_MARK_CLEAR_M), refusé sinon ; côtés CONNUS toujours stricts
+   (supprime les crochets type Drennec).
+5. VISUEL : /api/bathy/tiles-source expose bounds [w,s,e,n] de l'index OVH
+   ([-5.3,43.3,-1.0,48.9]) ; marine-map/js/bathy.ts les lit au chargement
+   et remplace les bornes Morbihan de la couche fine (repli statique si
+   échec). NB : le raster WMS SHOM « morbihan » ne couvre pas plus large —
+   bornes élargies = sélection de couche, pas de nouvelles tuiles.
+- Testing agent (SANS calcul de route, ordre respecté) : backend 100 %,
+  frontend 100 %, tile_reader 8/8 — /app/test_reports/iteration_156.json.
+  engine_f_frozen intouché. AUCUN calcul de route exécuté.
+
 ## ✅ ITER161 (04/09, GO armateur) — MOTEUR J : Moteur I sur dalles OVH
 - core/bathy.py : GRID_OVERRIDE (ContextVar, défaut None → A-I inchangés) ;
   get_grid() renvoie l'override s'il est posé (mécanique SIDE_RULES_OPEN).

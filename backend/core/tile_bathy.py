@@ -248,24 +248,46 @@ class RemoteTileBathy:
         fname = f"tile_{sw_lat:.1f}_{sw_lng:.1f}.npy"
         return fname if fname in self.tiles else None
 
+    def _ensure_file(self, fname: str) -> Optional[Path]:
+        """Dalle présente sur disque (téléchargée si besoin), None si échec."""
+        path = self.cache_dir / fname
+        if path.exists():
+            return path
+        last_fail = self._failed.get(fname, 0.0)
+        if time.time() - last_fail < _RETRY_COOLDOWN_S:
+            return None
+        try:
+            data = self._get(fname)
+            part = path.with_suffix(f".part{threading.get_ident()}")
+            part.write_bytes(data)
+            os.replace(part, path)
+            return path
+        except Exception:
+            self._failed[fname] = time.time()
+            return None
+
+    def prefetch(self, fnames: list[str], workers: int = 8) -> None:
+        """04/09/2026 (ordre armateur, VITESSE) — téléchargement CONCURRENT
+        (thread pool) des dalles manquantes d'une zone de calcul, au lieu
+        de la boucle séquentielle (une fenêtre A* de 20 dalles = 20
+        allers-retours HTTP en série auparavant)."""
+        missing = [f for f in dict.fromkeys(fnames)
+                   if f in self.tiles and not (self.cache_dir / f).exists()
+                   and time.time() - self._failed.get(f, 0.0) >= _RETRY_COOLDOWN_S]
+        if not missing:
+            return
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(workers, len(missing))) as ex:
+            list(ex.map(self._ensure_file, missing))
+
     def _grid(self, fname: str) -> Optional[np.ndarray]:
         with self._lock:
             if fname in self._grids:
                 self._grids[fname] = self._grids.pop(fname)   # refresh LRU
                 return self._grids[fname]
-        path = self.cache_dir / fname
-        if not path.exists():
-            last_fail = self._failed.get(fname, 0.0)
-            if time.time() - last_fail < _RETRY_COOLDOWN_S:
-                return None
-            try:
-                data = self._get(fname)
-                part = path.with_suffix(".part")
-                part.write_bytes(data)
-                os.replace(part, path)
-            except Exception:
-                self._failed[fname] = time.time()
-                return None
+        path = self._ensure_file(fname)
+        if path is None:
+            return None
         try:
             grid = np.load(path, mmap_mode="r")
         except Exception:                     # fichier corrompu → purge
@@ -411,6 +433,32 @@ class RemoteGrid:
     def bounds(self) -> tuple[float, float, float, float]:
         return self._bounds
 
+    # ── FIABILITÉ (ordre armateur 04/09) — compatibilité heuristiques ────
+    # Les champs COARSE du pipeline (sens conventionnel / « distance au
+    # large » des abris, signalmar_v3.direction) accèdent à ``.grids`` puis
+    # ``.grid`` (tableau memmap) → AttributeError avec RemoteGrid. Ces
+    # champs sont des heuristiques topologiques décimées, indépendantes du
+    # détail bathy : on les sert depuis les grilles SHOM LOCALES (champs
+    # identiques au Moteur I) plutôt que d'assembler toute la France OVH
+    # (2,4 Go) pour un champ décimé. Les PROFONDEURS du calcul restent
+    # 100 % OVH (depth_at/sample/window ci-dessous).
+    @property
+    def grids(self) -> list:
+        from core.bathy import GRID_OVERRIDE, get_grid
+        token = GRID_OVERRIDE.set(None)
+        try:
+            base = get_grid()
+        finally:
+            GRID_OVERRIDE.reset(token)
+        if base is None:
+            return []
+        return list(getattr(base, "grids", [base]))
+
+    @property
+    def grid(self):
+        gs = self.grids
+        return gs[0].grid if gs else None
+
     def covers(self, lat: float, lng: float) -> bool:
         return self.store._fname_for(lat, lng) is not None
 
@@ -426,7 +474,11 @@ class RemoteGrid:
         iy = np.floor(la / td).astype(np.int64)
         ix = np.floor(lo / td).astype(np.int64)
         pairs = np.stack([iy, ix], axis=1)
-        for kiy, kix in np.unique(pairs, axis=0):
+        uniq = np.unique(pairs, axis=0)
+        # VITESSE (04/09) : préchargement concurrent des dalles touchées.
+        self.store.prefetch(
+            [f"tile_{kiy * td:.1f}_{kix * td:.1f}.npy" for kiy, kix in uniq])
+        for kiy, kix in uniq:
             sel = (iy == kiy) & (ix == kix)
             fname = f"tile_{kiy * td:.1f}_{kix * td:.1f}.npy"
             meta = self.store.tiles.get(fname)
@@ -473,6 +525,12 @@ class RemoteGrid:
             k += 1
         sz = size // k
         arr = np.full((nty * sz, ntx * sz), np.nan, dtype=np.float32)
+        # VITESSE (ordre armateur 04/09) : préchargement CONCURRENT de
+        # toutes les dalles de la zone de calcul (thread pool) au lieu du
+        # téléchargement séquentiel dalle par dalle.
+        self.store.prefetch([
+            f"tile_{ty * td:.1f}_{tx * td:.1f}.npy"
+            for ty in range(ty0, ty1 + 1) for tx in range(tx0, tx1 + 1)])
         import warnings as _warnings
         for ty in range(ty0, ty1 + 1):
             for tx in range(tx0, tx1 + 1):

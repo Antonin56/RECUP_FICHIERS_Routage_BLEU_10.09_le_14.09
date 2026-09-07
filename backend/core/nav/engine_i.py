@@ -1080,14 +1080,20 @@ class EngineI(SignalmarV5):
                 rest = 0.0
             if len(ext_w) < 2:
                 return
-            # 14/08 (audit QA P0/FND-004) — JAMAIS DE TRONÇON SUR TERRE : le
-            # point demandé peut être à terre (clic dans le port, quai…). Le
+            # 14/08 (audit QA P0/FND-004) — JAMAIS DE TRONÇON SUR TERRE.
+            # 04/09/2026 (ordre armateur, correctif SÉCURITÉ) — le
+            # raccordement final respecte désormais le BESOIN D'EAU
+            # (tirant + marge, mesuré au ZH — conservateur, la marée n'est
+            # pas créditée ici) et plus seulement la terre ferme : le
             # tronçon ajouté est sondé tous les ~25 m ; au premier
-            # échantillon TERRE FERME (fond < −3,5 m au ZH ou hors donnée)
-            # la route est TRONQUÉE au dernier point EN EAU et l'arrivée est
-            # honnêtement signalée déplacée (fini le tracé qui grimpe à
-            # −15 m sur le Crouesty avec un message rassurant).
+            # échantillon trop peu profond (fond < tirant + marge) ou à
+            # TERRE (fond < −3,5 m au ZH / hors donnée), la route est
+            # TRONQUÉE au dernier point SÛR et l'arrivée est honnêtement
+            # signalée déplacée (fini le tracé dangereux livré jusqu'à une
+            # arrivée insuffisamment profonde).
             landed = False
+            land_cut = False
+            need_zh = draft_m + depth_margin_m
             grid0 = _v1.get_grid()
             if grid0 is not None:
                 kept = [ext_w[0]]
@@ -1106,8 +1112,9 @@ class EngineI(SignalmarV5):
                         d = grid0.depth_at(
                             a_ll[0] + (b_ll[0] - a_ll[0]) * t,
                             a_ll[1] + (b_ll[1] - a_ll[1]) * t)
-                        if d is None or d < _LAND_LIMIT_M:
+                        if d is None or d < need_zh:
                             cut_t = (s - 1) / n
+                            land_cut = d is None or d < _LAND_LIMIT_M
                             break
                     if cut_t is None:
                         kept.append(b)
@@ -1173,13 +1180,25 @@ class EngineI(SignalmarV5):
                     (float(last["lng"]) - req_end[1]) * m_per_deg_lng(req_end[0]))
                 res["end_snapped"] = {
                     "offset_m": round(off_land, 1),
-                    "reason": "arrivee_a_terre",
+                    "reason": ("arrivee_a_terre" if land_cut
+                               else "arrivee_trop_peu_profonde"),
                 }
-                res["warnings"].insert(0, (
-                    f"⚠ ARRIVÉE DEMANDÉE À TERRE / NON NAVIGABLE : la route "
-                    f"s'arrête au dernier point en eau, à {off_land:.0f} m du "
-                    f"point demandé. Déplacez l'arrivée sur l'eau pour aller "
-                    f"plus loin."))
+                if land_cut:
+                    res["warnings"].insert(0, (
+                        f"⚠ ARRIVÉE DEMANDÉE À TERRE / NON NAVIGABLE : la "
+                        f"route s'arrête au dernier point en eau, à "
+                        f"{off_land:.0f} m du point demandé. Déplacez "
+                        f"l'arrivée sur l'eau pour aller plus loin."))
+                else:
+                    # 04/09 (ordre armateur) — arrivée trop peu profonde
+                    # pour le besoin d'eau : troncature au dernier point
+                    # SÛR plutôt qu'un tracé dangereux.
+                    res["warnings"].insert(0, (
+                        f"⚠ ARRIVÉE TROP PEU PROFONDE pour votre besoin "
+                        f"d'eau ({need_zh:.1f} m au ZH) : la route est "
+                        f"tronquée au dernier point sûr, à {off_land:.0f} m "
+                        f"du point demandé. Réduisez le tirant/la marge ou "
+                        f"attendez la marée."))
             elif comp:
                 res["warnings"].insert(0, (
                     "⚠ FIN DE ROUTE EN ZONE PEU PROFONDE / DÉCOUVRANTE : le "
@@ -1223,19 +1242,20 @@ _CARDINAL_SECTOR_M = 200.0    # secteur de contrôle autour d'une cardinale
 
 
 _BALISAGE_STRICT_M = 150.0    # armateur 02/09 : rayon du contrôle strict
+_UNKNOWN_MARK_CLEAR_M = 50.0  # armateur 04/09 : écart minimal exigé quand le
+                              # côté/secteur de la balise est INCONNU
 
 
 def _marks_strict_ok(sm, a: Pt, b: Pt, mlng: float, exempt) -> bool:
-    """PRIORITÉ ABSOLUE AU BALISAGE (armateur 02/09, notes du Golfe) : un
+    """PRIORITÉ AU BALISAGE (armateur 02/09, ASSOUPLI le 04/09) : un
     segment modifié par le Moteur I est REFUSÉ si, à ≤ 150 m, se trouve
-    une latérale ou une cardinale dont le côté requis est INCONNU ou NON
-    RESPECTÉ. Plus jamais de « bénéfice du doute » : c'était la faute des
-    captures Roguedas/N4/Illur — à fort tirant, l'A* détourne davantage,
-    le redressement raccourcissait, et le contrôle de côté IGNORAIT les
-    balises à direction non fiable → la corde coupait la bouée. Inconnu =
-    interdit : il est mathématiquement impossible qu'une modification du
-    Moteur I passe du mauvais côté. Départ/arrivée exemptés (ponton voulu
-    par l'utilisateur)."""
+    une latérale ou une cardinale dont le côté requis est NON RESPECTÉ.
+    Balise à côté/secteur INCONNU (assouplissement armateur 04/09,
+    crochets inutiles ex. Drennec) : la modification n'est plus refusée
+    d'office — elle est acceptée si le segment garde un écart ≥ 50 m
+    (_UNKNOWN_MARK_CLEAR_M) de la balise, refusée sinon. Les balises au
+    côté CONNU restent strictement inviolables. Départ/arrivée exemptés
+    (ponton voulu par l'utilisateur)."""
     for m in sm.marks:
         if m.get("kind") not in ("lateral", "cardinal"):
             continue
@@ -1251,12 +1271,18 @@ def _marks_strict_ok(sm, a: Pt, b: Pt, mlng: float, exempt) -> bool:
             ok = {"north": vn > 0.0, "south": vn < 0.0,
                   "east": ve > 0.0, "west": ve < 0.0}.get(
                 (m.get("category") or "").lower())
-            if ok is not True:
+            if ok is None:                     # secteur inconnu → règle 50 m
+                if d < _UNKNOWN_MARK_CLEAR_M:
+                    return False
+                continue
+            if not ok:
                 return False
             continue
         u = required_side_u(sm, m)
-        if u is None:
-            return False
+        if u is None:                          # côté inconnu → règle 50 m
+            if d < _UNKNOWN_MARK_CLEAR_M:
+                return False
+            continue
         if ve * u[0] + vn * u[1] <= 0.0:
             return False
     return True

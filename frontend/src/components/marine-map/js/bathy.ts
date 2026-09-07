@@ -21,7 +21,7 @@ export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM 
       L.latLngBounds([[42.0, -7.0], [49.5, 1.0]]),   // façade ATL
       L.latLngBounds([[41.0, 1.5], [44.6, 8.5]]),    // MED Golfe du Lion
       L.latLngBounds([[41.0, 8.0], [43.6, 10.5]]),   // Corse
-      L.latLngBounds([[47.15, -3.45], [47.80, -2.25]]) // côtier Morbihan 20 m
+      L.latLngBounds([[47.15, -3.45], [47.80, -2.25]]) // côtier 20 m (repli statique)
     ];
     var _tl = L.tileLayer(API_BASE + '/api/tiles/shom/' + key + '/{z}/{x}/{y}.png', {
       opacity: 0.7, maxZoom: 19, attribution: 'Bathymétrie © SHOM',
@@ -35,6 +35,21 @@ export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM 
   });
   var _bathyOn = false;
   var _bathyActive = null; // couche actuellement montée (UNE seule à la fois)
+  // 04/09/2026 (ordre armateur, VISUEL) — les LIMITES d'affichage de la
+  // couche bathy fine (les « carrés bleus ») sont lues DYNAMIQUEMENT depuis
+  // l'index des dalles du serveur (via /api/bathy/tiles-source → bounds
+  // [w, s, e, n]) au lieu d'être restreintes au Morbihan. Repli silencieux
+  // sur les bornes statiques si l'endpoint ne répond pas.
+  fetch(API_BASE + '/api/bathy/tiles-source')
+    .then(function(r){ return r.json(); })
+    .then(function(info){
+      var b = info && info.bounds;
+      if (!b || b.length !== 4) return;
+      var dyn = L.latLngBounds([[b[1], b[0]], [b[3], b[2]]]);
+      _bathyLayers[3].options.bounds = dyn;
+      if (_bathyOn) _syncBathy();
+    })
+    .catch(function(_){});
   function _pickBathyLayer(){
     // 22/07/2026 (lag + flashs tablette) — UNE SEULE couche SHOM à la fois :
     // le côtier Morbihan 20 m en zone pilote, sinon la façade régionale.

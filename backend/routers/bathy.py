@@ -208,8 +208,18 @@ async def get_seamarks_bbox(
 async def tiles_source():
     import asyncio as _asyncio
 
-    from core.tile_bathy import get_tile_service
+    from core.tile_bathy import get_tile_service, get_remote_grid
+
+    def _info():
+        info = get_tile_service().source_info()
+        # 04/09/2026 (ordre armateur, VISUEL) — bornes [w, s, e, n] de la
+        # couverture des dalles, lues dynamiquement depuis l'index OVH
+        # (affichage bathy carte non restreint au Morbihan).
+        rg = get_remote_grid()
+        if rg is not None:
+            info["bounds"] = [round(v, 4) for v in rg.bounds]
+        return info
 
     # source_info peut déclencher un fetch réseau (index) au 1er appel →
     # thread pour ne pas bloquer l'event loop.
-    return await _asyncio.to_thread(get_tile_service().source_info)
+    return await _asyncio.to_thread(_info)
