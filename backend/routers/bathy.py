@@ -197,3 +197,19 @@ async def get_seamarks_bbox(
         if south <= mo["lat"] <= north and west <= mo["lng"] <= east
     ]
     return {"marks": (marks + hazards + moorings)[:600]}
+
+
+# ── 04/09/2026 (ordre armateur) — SOURCE DES DALLES PC (OVH / repli) ────────
+# Statut de la source du lecteur de dalles core.tile_bathy (serveur OVH de
+# l'armateur, repli archive locale). Affiché dans la fiche de détails de
+# route ("Source : Serveur OVH (v2.0)" / "Source : Archive (Repli)").
+# NB : les moteurs A-I n'utilisent PAS encore ces dalles (info de câblage).
+@router.get("/tiles-source")
+async def tiles_source():
+    import asyncio as _asyncio
+
+    from core.tile_bathy import get_tile_service
+
+    # source_info peut déclencher un fetch réseau (index) au 1er appel →
+    # thread pour ne pas bloquer l'event loop.
+    return await _asyncio.to_thread(get_tile_service().source_info)

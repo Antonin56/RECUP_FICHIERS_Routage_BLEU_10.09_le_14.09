@@ -649,6 +649,11 @@ export const api = {
   }) => request<SavedRoute>("/routes/saved", { method: "POST", body }),
   deleteSavedRoute: (id: string) =>
     request<{ ok: boolean }>(`/routes/saved/${id}`, { method: "DELETE" }),
+  /** 04/09/2026 (ordre armateur) — SOURCE des dalles bathy PC : serveur OVH
+   *  ou repli archive locale (affiché dans la fiche de détails de route). */
+  tilesSource: () =>
+    request<{ source: string; label: string; version: string;
+      tiles_indexed: number; tiles_cached: number }>("/bathy/tiles-source"),
   /** 14/08/2026 (demande armateur) — Signalement « balisage non respecté » :
    *  envoie automatiquement l'ID de route + la balise concernée au support. */
   reportMarkIssue: (body: { route_id: string; mark_name?: string; comment?: string }) =>

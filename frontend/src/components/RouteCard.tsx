@@ -7,7 +7,7 @@
  * l'armateur) avec seuil tirant d'eau + marge en rouge et zones limites
  * surlignées, avertissements éventuels, bouton fermer (efface la route).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, StyleSheet,
@@ -73,6 +73,16 @@ export function RouteCard(props: {
   const [chartW, setChartW] = useState(0);
   // 14/08/2026 (demande armateur) — signalement « balisage non respecté ».
   const [reportOpen, setReportOpen] = useState(false);
+  // 04/09/2026 (ordre armateur, branchement OVH) — SOURCE des dalles bathy
+  // PC : « Serveur OVH (v2.0) » ou « Archive (Repli) » si serveur muet.
+  const [tileSource, setTileSource] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.tilesSource()
+      .then((r) => { if (alive) setTileSource(r.label); })
+      .catch(() => { if (alive) setTileSource(null); });
+    return () => { alive = false; };
+  }, []);
   const [reportMark, setReportMark] = useState("");
   const [reportComment, setReportComment] = useState("");
   const [reportSending, setReportSending] = useState(false);
@@ -190,6 +200,18 @@ export function RouteCard(props: {
               </Text>
             </TouchableOpacity>
           ) : null}
+        </View>
+      ) : null}
+
+      {/* 04/09/2026 (ordre armateur) — SOURCE DES DALLES BATHY PC (preuve
+          visuelle du branchement OVH ; les moteurs A-I restent sur la
+          mosaïque SHOM embarquée, logique v8.1.0 INCHANGÉE). */}
+      {tileSource ? (
+        <View style={styles.tideRow} testID="route-tile-source">
+          <Ionicons name="server-outline" size={13} color="#A3CEF1" />
+          <Text style={[styles.tideTxt, { color: "#A3CEF1" }]}>
+            {`Source : ${tileSource}`}
+          </Text>
         </View>
       ) : null}
 

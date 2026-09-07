@@ -1,5 +1,25 @@
 # SignalMar — PRD
 
+## ✅ ITER160 (04/09) — BRANCHEMENT DISTANT dalles OVH (tile_bathy v2) + popup Source
+- core/tile_bathy.py : RemoteTileBathy (index v2 PLAT du serveur armateur
+  https://…/signalmar_datas/tiles/, 1983 dalles France, ?token= via env
+  TILE_SERVER_TOKEN, nommage tile_{lat_sw}_{lng_sw}.npy multiples exacts
+  0.1°) — téléchargement à la demande persisté dans data/tiles/remote_cache/
+  (jamais retéléchargé), memmap LRU 64, cooldown 120 s sur échec.
+  TileService singleton : OVH d'abord, REPLI archive locale
+  (data/tiles/tandem_20m) si serveur muet, re-sonde toutes les 120 s.
+- routers/bathy.py : GET /api/bathy/tiles-source → {source, label
+  « Serveur OVH (v2.0) » / « Archive (Repli) », version, tiles_indexed,
+  tiles_cached}. Frontend : api.tilesSource() + ligne « Source : … » dans
+  RouteCard (testID route-tile-source).
+- .env : TILE_SERVER_URL ajouté (URL OVH). Vérifié e2e : source ovh,
+  3 dalles en cache après lecture, repli testé avec URL invalide.
+- ⚠️ SIGNALÉ ARMATEUR : les dalles v2 OVH DIVERGENT de la mosaïque SHOM
+  locale (Port-Navalo 14,63 m vs 19,36 m ; Teignouse 11,42 vs 11,85) —
+  probable rééchantillonnage façade 100 m dans sa chaîne PC v2. AUCUN
+  moteur (A-I) ne consomme ces dalles : logique v8.1.0 intacte.
+- Tests : test_tile_reader 8/8 verts (archive locale inchangée), lint OK.
+
 ## ✅ ITER159 (03/09) — TILE_SERVER_TOKEN ajouté au backend/.env (dev)
 - Clé TILE_SERVER_TOKEN ajoutée à backend/.env (quotes simples : $ et &
   préservés, vérifié via dotenv, 40 caractères, valeur jamais affichée).
