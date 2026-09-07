@@ -20,6 +20,7 @@ from core.routing_engines.algos.signalmar_h import SignalmarH
 # modules doivent déjà être initialisés — pas de circularité).
 from core.nav.engine_f_frozen import EngineFFrozen
 from core.nav.engine_i import EngineI
+from core.nav.engine_j import EngineJ
 
 #: Clé stable → instance singleton de l'algo (les algos SignalMar sont
 #: stateless au niveau instance — la vraie « state » est le module ``core``
@@ -34,6 +35,7 @@ ALGO_REGISTRY: dict[str, BaseAlgo] = {
     SignalmarH.id: SignalmarH(),
     EngineFFrozen.id: EngineFFrozen(),
     EngineI.id: EngineI(),
+    EngineJ.id: EngineJ(),
 }
 
 

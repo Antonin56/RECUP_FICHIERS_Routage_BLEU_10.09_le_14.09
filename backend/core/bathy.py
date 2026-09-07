@@ -269,12 +269,27 @@ class MosaicGrid:
 
 AnyGrid = Union[BathyGrid, MosaicGrid]
 
+# ── 04/09/2026 (GO armateur, Moteur J) — OVERRIDE DE GRILLE PAR CONTEXTE ──
+# Le Moteur J (core/nav/engine_j.py) calcule sur les dalles du serveur OVH :
+# il pose sa grille dans ce ContextVar le temps du calcul, et TOUT le
+# pipeline (v1→v6, sidefix, validateurs) la voit via get_grid(). Défaut
+# None → comportement STRICTEMENT inchangé pour les moteurs A-I (même
+# mécanique éprouvée que SIDE_RULES_OPEN dans core/seamarks.py).
+from contextvars import ContextVar
+
+GRID_OVERRIDE: ContextVar[Optional["AnyGrid"]] = ContextVar(
+    "bathy_grid_override", default=None)
+
 _grid: Optional[AnyGrid] = None
 _zone_grids: dict[str, BathyGrid] = {}
 
 
 def get_grid() -> Optional[AnyGrid]:
-    """Singleton paresseux — mosaïque des zones ingérées (None si aucune)."""
+    """Singleton paresseux — mosaïque des zones ingérées (None si aucune).
+    Si un override de contexte est posé (Moteur J), il est renvoyé tel quel."""
+    override = GRID_OVERRIDE.get()
+    if override is not None:
+        return override
     global _grid
     if _grid is None:
         grids: list[BathyGrid] = []

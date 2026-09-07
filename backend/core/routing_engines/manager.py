@@ -178,6 +178,25 @@ _BUILTIN_SEEDS = [
         "built_in": False,
         "parent_id": "engine_f",
     },
+    # 04/09/2026 (GO armateur) — MOTEUR J : moteur d'ESSAI pour comparaison,
+    # logique du Moteur I inchangée mais bathymétrie = dalles du serveur OVH
+    # de l'armateur (core/nav/engine_j.py). Repli mosaïque locale si serveur
+    # muet.
+    {
+        "id": "engine_j",
+        "name": "Moteur J dalles OVH 04.09.26",
+        "description": (
+            "Moteur d'essai (logique Moteur I v8.1.0 identique) calculant "
+            "sur les dalles bathy du serveur OVH de l'armateur "
+            "(Litto3D 5 m > Côtier 20 m > Façade 100 m). Pour comparer "
+            "l'effet des données sur les tracés."
+        ),
+        "algo": "signalmar.j",
+        "params": {},
+        "active": True,
+        "built_in": False,
+        "parent_id": "engine_i",
+    },
 ]
 
 

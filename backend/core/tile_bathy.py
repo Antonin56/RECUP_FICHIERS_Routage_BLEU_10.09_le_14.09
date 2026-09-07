@@ -358,3 +358,168 @@ def get_tile_service() -> TileService:
     if _service is None:
         _service = TileService()
     return _service
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# ADAPTATEUR GRILLE (GO armateur 04/09/2026, Moteur J) — expose les dalles
+# OVH sous l'API MosaicGrid (depth_at / covers / sample / window / dx / dy /
+# bounds) pour que le pipeline de routage puisse calculer dessus via
+# core.bathy.GRID_OVERRIDE, sans AUCUNE modification des moteurs A-I.
+# ═════════════════════════════════════════════════════════════════════════
+
+from core.bathy import BathyGrid as _BathyGrid
+
+#: Au-delà de ce nombre de dalles pleine résolution assemblées pour une
+#: fenêtre, on pré-poole chaque dalle (max-pooling, même sémantique que
+#: BathyGrid.window pool=True : le chenal profond survit) pour contenir la
+#: mémoire (1 dalle pleine résolution = 1 Mo float32).
+_MAX_FULL_TILES = 256
+
+
+class _MemGrid(_BathyGrid):
+    """BathyGrid en mémoire (réutilise rc/window/sample/depth_at hérités)."""
+
+    def __init__(self, arr: np.ndarray, x0: float, y0: float,
+                 dx: float, dy: float, name: str) -> None:
+        self.name = name
+        self.product = name
+        self.nrows, self.ncols = arr.shape
+        self.x0, self.y0, self.dx, self.dy = x0, y0, dx, dy
+        self.grid = arr
+
+
+class RemoteGrid:
+    """Grille virtuelle uniforme (pas cell_deg) sur les dalles OVH.
+
+    Les dalles étant alignées sur les multiples EXACTS de tile_deg, la
+    lattice globale est cohérente : window() assemble les dalles
+    intersectantes (manquantes → NaN = jamais navigable) puis délègue la
+    décimation/le pooling à la logique BathyGrid (via _MemGrid)."""
+
+    def __init__(self, store: RemoteTileBathy) -> None:
+        self.store = store
+        self.dx = store.cell_deg
+        self.dy = -store.cell_deg
+        self.product = f"Dalles OVH v{store.version} (PC armateur)"
+        ws = [m["bbox"][0] for m in store.tiles.values()]
+        ss = [m["bbox"][1] for m in store.tiles.values()]
+        es = [m["bbox"][2] for m in store.tiles.values()]
+        ns = [m["bbox"][3] for m in store.tiles.values()]
+        self._bounds = (min(ws), min(ss), max(es), max(ns))
+
+    @property
+    def bounds(self) -> tuple[float, float, float, float]:
+        return self._bounds
+
+    def covers(self, lat: float, lng: float) -> bool:
+        return self.store._fname_for(lat, lng) is not None
+
+    def depth_at(self, lat: float, lng: float) -> Optional[float]:
+        return self.store.depth_at(lat, lng)
+
+    def sample(self, lats: np.ndarray, lngs: np.ndarray) -> np.ndarray:
+        """Vectorisé par dalle (groupement des points par dalle)."""
+        la = np.asarray(lats, dtype=np.float64).ravel()
+        lo = np.asarray(lngs, dtype=np.float64).ravel()
+        out = np.full(la.shape, np.nan, dtype=np.float32)
+        td, cd = self.store.tile_deg, self.store.cell_deg
+        iy = np.floor(la / td).astype(np.int64)
+        ix = np.floor(lo / td).astype(np.int64)
+        pairs = np.stack([iy, ix], axis=1)
+        for kiy, kix in np.unique(pairs, axis=0):
+            sel = (iy == kiy) & (ix == kix)
+            fname = f"tile_{kiy * td:.1f}_{kix * td:.1f}.npy"
+            meta = self.store.tiles.get(fname)
+            if meta is None:
+                continue
+            grid = self.store._grid(fname)
+            if grid is None:
+                continue
+            w, s, e, n = meta["bbox"]
+            r = ((n - la[sel]) / cd).astype(np.int64)
+            c = ((lo[sel] - w) / cd).astype(np.int64)
+            ok = (r >= 0) & (r < self.store.nrows) & \
+                 (c >= 0) & (c < self.store.ncols)
+            vals = np.full(r.shape, np.nan, dtype=np.float32)
+            if ok.any():
+                vals[ok] = np.asarray(grid)[r[ok], c[ok]]
+            out[sel] = vals
+        return out.reshape(np.shape(lats))
+
+    def contains_bbox(self, west: float, south: float, east: float,
+                      north: float) -> bool:
+        w, s, e, n = self._bounds
+        return w <= west and e >= east and s <= south and n >= north
+
+    def _assemble(self, west: float, south: float, east: float,
+                  north: float) -> Optional[_MemGrid]:
+        """Assemble un rectangle de dalles couvrant la bbox (NaN si dalle
+        absente de l'index ou intéléchargeable)."""
+        td, cd = self.store.tile_deg, self.store.cell_deg
+        w, s, e, n = self._bounds
+        west, east = max(west, w), min(east, e)
+        south, north = max(south, s), min(north, n)
+        if west >= east or south >= north:
+            return None
+        tx0 = math.floor(west / td)
+        tx1 = math.floor((east - 1e-9) / td)
+        ty0 = math.floor(south / td)
+        ty1 = math.floor((north - 1e-9) / td)
+        ntx, nty = tx1 - tx0 + 1, ty1 - ty0 + 1
+        size = self.store.nrows                     # 500
+        # Pré-pooling si la fenêtre pleine résolution serait trop lourde.
+        k = 1
+        while (ntx * nty) * (size // k) ** 2 > _MAX_FULL_TILES * size ** 2:
+            k += 1
+        sz = size // k
+        arr = np.full((nty * sz, ntx * sz), np.nan, dtype=np.float32)
+        import warnings as _warnings
+        for ty in range(ty0, ty1 + 1):
+            for tx in range(tx0, tx1 + 1):
+                fname = f"tile_{ty * td:.1f}_{tx * td:.1f}.npy"
+                if fname not in self.store.tiles:
+                    continue
+                grid = self.store._grid(fname)
+                if grid is None:
+                    continue
+                block = np.asarray(grid, dtype=np.float32)
+                if k > 1:
+                    trim = sz * k
+                    b = block[:trim, :trim].reshape(sz, k, sz, k)
+                    with _warnings.catch_warnings():
+                        _warnings.simplefilter("ignore", RuntimeWarning)
+                        block = np.nanmax(b, axis=(1, 3))
+                r0 = (ty1 - ty) * sz
+                c0 = (tx - tx0) * sz
+                arr[r0:r0 + sz, c0:c0 + sz] = block
+        return _MemGrid(
+            arr, x0=tx0 * td, y0=(ty1 + 1) * td,
+            dx=cd * k, dy=-cd * k, name=self.product)
+
+    def window(self, west: float, south: float, east: float, north: float,
+               max_px: int = 400, pool: bool = False):
+        mem = self._assemble(west, south, east, north)
+        if mem is None:
+            return None
+        return mem.window(west, south, east, north, max_px=max_px, pool=pool)
+
+
+_remote_grid: Optional[RemoteGrid] = None
+_remote_grid_failed_at = 0.0
+
+
+def get_remote_grid() -> Optional[RemoteGrid]:
+    """Grille OVH pour le Moteur J — None si le serveur est injoignable
+    (nouvelle tentative après _RETRY_COOLDOWN_S)."""
+    global _remote_grid, _remote_grid_failed_at
+    if _remote_grid is not None:
+        return _remote_grid
+    if time.time() - _remote_grid_failed_at < _RETRY_COOLDOWN_S:
+        return None
+    svc = get_tile_service()
+    svc._ensure()
+    if svc._source == "ovh" and svc._remote is not None:
+        _remote_grid = RemoteGrid(svc._remote)
+        return _remote_grid
+    _remote_grid_failed_at = time.time()
+    return None

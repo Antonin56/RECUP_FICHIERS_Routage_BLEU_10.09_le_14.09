@@ -1,5 +1,26 @@
 # SignalMar — PRD
 
+## ✅ ITER161 (04/09, GO armateur) — MOTEUR J : Moteur I sur dalles OVH
+- core/bathy.py : GRID_OVERRIDE (ContextVar, défaut None → A-I inchangés) ;
+  get_grid() renvoie l'override s'il est posé (mécanique SIDE_RULES_OPEN).
+- core/tile_bathy.py : RemoteGrid = adaptateur API MosaicGrid complet sur
+  les dalles OVH (depth_at/covers/sample vectorisé groupé par dalle/
+  window : assemblage des dalles intersectantes en _MemGrid (héritage
+  BathyGrid pour décimation+pool), dalles manquantes → NaN, pré-pooling
+  nanmax si > 256 dalles pleine résolution). get_remote_grid() singleton
+  (cooldown 120 s si serveur muet).
+- core/nav/engine_j.py (NOUVEAU) : EngineJ(EngineI) algo signalmar.j —
+  pose GRID_OVERRIDE=RemoteGrid le temps du calcul, warning « Bathy :
+  Serveur OVH (v2.0)… » ; si OVH injoignable → repli mosaïque locale
+  (résultat = Moteur I) + warning explicite. AUCUNE copie de code moteur.
+- Registre algos + seed Mongo engine_j « Moteur J dalles OVH 04.09.26 »
+  (parent engine_i, actif → visible sélecteur mobile). Vérifié : registre
+  10 algos, doc en base, override on/off OK, sample/window OK (Teignouse
+  OVH 11,42 vs mosaïque 11,85 — écarts = données armateur, voulus pour la
+  comparaison). engine_f_frozen.py et engine_i.py NON modifiés (git).
+- AUCUN calcul de route exécuté (ordre armateur — il compare sur la carte).
+  Tests test_tile_reader 8/8 verts, backend démarré proprement.
+
 ## ✅ ITER160 (04/09) — BRANCHEMENT DISTANT dalles OVH (tile_bathy v2) + popup Source
 - core/tile_bathy.py : RemoteTileBathy (index v2 PLAT du serveur armateur
   https://…/signalmar_datas/tiles/, 1983 dalles France, ?token= via env
