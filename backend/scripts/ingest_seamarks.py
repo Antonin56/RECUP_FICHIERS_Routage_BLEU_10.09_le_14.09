@@ -28,7 +28,11 @@ from overpass import fetch as overpass_fetch, tiles as overpass_tiles  # noqa: E
 
 DATA = ROOT / "data" / "bathy"
 OUT = DATA / "seamarks.json"
-ZONES = {"morbihan": "bathy_morbihan.json", "atl100": "bathy_atl100.json"}
+# 08/09/2026 (remise à plat armateur) — zone « dalles » : emprise dérivée de
+# l'index des dalles OVH (data/tiles/remote_cache/index.json) → les balises
+# couvrent TOUTE la zone où l'armateur a des dalles (Gascogne comprise).
+ZONES = {"morbihan": "bathy_morbihan.json", "atl100": "bathy_atl100.json",
+         "dalles": None}
 TYPES = (
     "buoy_lateral|beacon_lateral|buoy_cardinal|beacon_cardinal|"
     "buoy_isolated_danger|beacon_isolated_danger|buoy_special_purpose|"
@@ -40,10 +44,17 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--zone", default="atl100", choices=sorted(ZONES))
     args = ap.parse_args()
-    meta = json.loads((DATA / ZONES[args.zone]).read_text())
-    S = meta["y0"] + meta["dy"] * meta["nrows"]
-    N, W = meta["y0"], meta["x0"]
-    E = meta["x0"] + meta["dx"] * meta["ncols"]
+    if args.zone == "dalles":
+        idx = json.loads(
+            (ROOT / "data" / "tiles" / "remote_cache" / "index.json").read_text())
+        bbs = [m["bbox"] for m in idx["tiles"].values()]
+        W, S = min(b[0] for b in bbs), min(b[1] for b in bbs)
+        E, N = max(b[2] for b in bbs), max(b[3] for b in bbs)
+    else:
+        meta = json.loads((DATA / ZONES[args.zone]).read_text())
+        S = meta["y0"] + meta["dy"] * meta["nrows"]
+        N, W = meta["y0"], meta["x0"]
+        E = meta["x0"] + meta["dx"] * meta["ncols"]
 
     tiles = overpass_tiles(S, W, N, E)
     print(f"zone={args.zone} bbox=({S:.3f},{W:.3f},{N:.3f},{E:.3f}) — {len(tiles)} tuile(s)", flush=True)

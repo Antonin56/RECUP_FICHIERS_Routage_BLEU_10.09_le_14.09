@@ -227,6 +227,13 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
     compute_route = _functools.partial(  # type: ignore[assignment]  # noqa: F811
         _algo.compute_auto, params=(engine_doc.get("params") or {}),
     )
+    # ── 08/09/2026 (remise à plat armateur) — MODE SIMPLE pour les Moteurs
+    # I et J : UN SEUL calcul direct et final. Pas de « dernier recours »
+    # (mouillages/règles de côté levées), pas de mode « eau peu profonde »,
+    # pas de règle des 150 % (route « plus sûre »), pas de calcul
+    # hypothétique marée sur échec. Seuls comptent le FOND (tirant + marge
+    # saisis) et le BALISAGE ; sinon → « Pas de route trouvée » propre.
+    simple_mode = str(getattr(_algo, "id", "")) in ("signalmar.i", "signalmar.j")
     # 25/07 — route « plus sûre » : la hauteur de sécurité supplémentaire est
     # simplement ajoutée à la marge de fond (min_depth += safety_extra_m
     # partout, y compris marée et fallbacks).
@@ -414,6 +421,12 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
     async def _run_zh_tide(s_lat: float, s_lng: float) -> tuple[dict, float]:
         nonlocal used_margin
         zh_tide = min(0.0, tide_m)
+        # 08/09/2026 (remise à plat armateur, Moteurs I/J) — UN SEUL calcul
+        # direct au pire cas (ZH) : pas de double exécution ZH/marée, pas de
+        # dernier recours. Fond + balisage respectés, sinon échec propre.
+        if simple_mode:
+            return await _run(s_lat, s_lng, zh_tide,
+                              allow_last_resort=False), zh_tide
         if tide_m <= 0.05:
             return await _run(s_lat, s_lng, zh_tide,
                               allow_last_resort=True), zh_tide
@@ -546,7 +559,7 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
         # reste que si même ce mode échoue (terre, hors couverture, aucune
         # eau atteignable).
         shallow = None
-        if e.code in _RELAX_CODES:
+        if e.code in _RELAX_CODES and not simple_mode:
             shallow = await _run_shallow(start_lat, start_lng)
         if shallow is not None:
             result = shallow
@@ -567,6 +580,17 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
             # le corriger : la marge latérale a déjà été réduite au minimum, donc
             # le refus vient du tirant d'eau + marge de fond (ou de la marée).
             msg = e.message
+            # 08/09/2026 (remise à plat armateur, Moteurs I/J) — refus PROPRE :
+            # « Pas de route trouvée », sans route de secours rouge, sans
+            # calcul hypothétique à pleine mer.
+            if simple_mode:
+                if e.code == "no_route":
+                    msg = (
+                        "Pas de route trouvée : aucun passage ne respecte à la "
+                        f"fois le fond (tirant {body.draft_m:g} m + marge "
+                        f"{body.depth_margin_m:g} m) et le balisage."
+                    )
+                raise HTTPException(422, {"code": e.code, "message": msg})
             if e.code in _RELAX_CODES:
                 msg += (
                     f" Réglages en cause : tirant d'eau {body.draft_m:g} m"
@@ -678,7 +702,7 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
         #    PLEINE MER des prochaines 24 h ? Si elle va NETTEMENT plus loin,
         #    on annonce l'heure à partir de laquelle actualiser la route.
         off = float((result.get("end_snapped") or {}).get("offset_m") or 0.0)
-        if tide_ref is not None and off > 800.0:
+        if tide_ref is not None and off > 800.0 and not simple_mode:
             cross0 = await tide_crossings(tide_ref[0], tide_ref[1], dep, 99.0)
             if cross0 is not None and cross0["max_m"] > route_tide + 0.2:
                 # Réglages « dernier recours » (balisage latéral levé, marge
@@ -730,7 +754,10 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
     # du besoin (tirant + marge de fond), on le signale : le front propose
     # une route alternative plus sûre (safety_extra_m = 2 m) ou exige la
     # confirmation du risque avant le suivi.
-    if not body.safety_extra_m and not result.get("shallow_route"):
+    # 08/09/2026 (remise à plat armateur) — règle DÉSACTIVÉE pour les Moteurs
+    # I/J : on ne respecte que le tirant d'eau + la marge saisis (plus de
+    # marge de sécurité automatique de +50 %, plus de « route plus sûre »).
+    if not simple_mode and not body.safety_extra_m and not result.get("shallow_route"):
         req = body.draft_m + body.depth_margin_m
         depths = [
             p.get("depth_m")
@@ -957,8 +984,9 @@ async def routes_manual(body: ManualRouteIn, user: dict = Depends(current_user))
     # 26/07 (demande armateur) — RÈGLE DES 150 % aussi sur les routes
     # manuelles/modifiées : même mécanique d'alerte que la route auto.
     # 27/07 — min_height intègre désormais la marée (fond carte + marée).
+    # 08/09/2026 (remise à plat armateur) — désactivée pour les Moteurs I/J.
     min_d = result.get("min_depth_m")
-    if min_d is not None:
+    if min_d is not None and str(getattr(_algo, "id", "")) not in ("signalmar.i", "signalmar.j"):
         req = body.draft_m + body.depth_margin_m
         min_h = float(min_d) + tide_m
         if req > 0 and min_h < 1.5 * req:

@@ -1,0 +1,43 @@
+{
+  "summary": "ITER163 remise à plat radicale (armateur 08/09/2026) : test STATIQUE + endpoints NON-INVASIFS + smoke UI, AUCUN calcul de route exécuté (ordre armateur respecté). STATIQUE 1 OK : contenu de engine_i.py = 2b000634 (v8.1.0) au bit près (git diff 2b000634 -- backend/core/nav/engine_i.py = 0 ligne), 'need_zh'/'land_cut'/'arrivee_trop_peu_profonde' absents du fichier ; engine_f_frozen.py intouché. ATTENTION : les changements sont dans le WORKING DIR mais restent STAGÉS (git status = modified 76 lignes) — HEAD (1a23ff00) contient toujours la retouche ITER162, donc 'git diff 2b000634 HEAD' n'est PAS vide au sens strict (76 lignes) ; l'agent principal doit committer la restauration pour que HEAD == 2b000634 sur ce fichier. STATIQUE 2 OK : routing.py simple_mode = algo in ('signalmar.i','signalmar.j') (ligne 236), _run_zh_tide fait UN SEUL _run(allow_last_resort=False) en simple_mode (l.427-429), _run_shallow bypass en simple_mode (l.562), handler d'échec en simple_mode lève 422 {code,message} SANS tide_retry ni fallback_route (l.586-593), règle 150% low_margin bypass en simple_mode (l.760, l.989). STATIQUE 3 OK : LowMarginModal/SaferPreviewModal supprimés, plus aucune référence lowMargin/safetyExtra/SaferPreview/LowMarginModal dans app/(tabs)/map.tsx ni src/ (uniquement 2 styles morts 'lowMarginSafeBtn/Txt' dans map-styles.ts, minor cleanup) ; client.ts runAsJob(CancelToken) avec Error.cancelled (l.205-228) ; map.tsx routeElapsedS + testID route-stop-btn (l.2848) + console.log compute_s/elapsed_s + logger.event route_computed (l.412-427) ; RouteCard.tsx titre 'Route conseillée' (l.161), testIDs route-info-toggle / route-disclaimer / route-draft / route-menu-toggle / route-action-save/edit/share/delete tous présents. NON-INVASIF 4 OK : bathy/tiles-source source=ovh bounds=[-5.3,43.3,-1.0,48.9] ; z12 Morbihan PNG 256x256 opaque ; relecture cache <5s. NON-INVASIF 5 OK : Grégan présent dans bbox Golfe ; Arcachon >50 balises ; seamarks.json bbox south=43.3 + 2916 marks. NON-INVASIF 6 OK : tests/test_tile_reader.py = 8/8. FRONTEND 7 OK : app charge, onboarding SignalMar 'La mer, ensemble.' visible sans red screen, aucune erreur JS uncaught (uniquement warnings RN deprecation shadow*/textShadow*/pointerEvents). MINOR DÉVIATION : GET /api/tiles/dalles/8/125/89.png renvoie un PNG 1x1 semi-opaque (alpha 127) au lieu de 256x256 transparent — comportement fonctionnellement acceptable pour la carte (pas rendu à z<10) mais s'écarte de la spec.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/tiles/dalles/8/125/89.png", "issue": "Retourne un PNG 1x1 semi-opaque (alpha=127) au lieu d'un PNG 256x256 totalement transparent comme spécifié. Impact carte négligeable (pas d'affichage bathy à z<10), mais dévie du contrat 'z<10 = transparent PNG 256x256'."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "styles (shadow*/textShadow*)", "issue": "Warnings de dépréciation : 'shadow*' style props → utiliser 'boxShadow', 'textShadow*' → 'textShadow'. Reference: frontend logs console."},
+      {"component": "props.pointerEvents", "issue": "Deprecation : props.pointerEvents doit passer en style.pointerEvents. Reference: frontend logs console."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter163_bathy_tiles.py",
+    "/app/test_reports/pytest/iter163_bathy_tiles.xml",
+    "/app/test_reports/pytest/iter163_full.xml"
+  ],
+  "action_items": [
+    "STATIQUE 1 : committer la restauration de engine_i.py à 2b000634 (actuellement les changements sont stagés mais HEAD contient encore ITER162) pour que 'git diff 2b000634 HEAD -- backend/core/nav/engine_i.py' soit réellement VIDE.",
+    "map-styles.ts : nettoyer les styles morts lowMarginSafeBtn / lowMarginSafeTxt (résidus des modales supprimées).",
+    "tiles.py : (mineur) uniformiser la dalle z<10 en PNG 256x256 totalement transparent au lieu du PNG 1x1 alpha=127 pour respecter la spec.",
+    "RN deprecations : migrer shadow*/textShadow*/pointerEvents (non bloquant)."
+  ],
+  "critical_code_review_comments": [
+    "engine_i.py contient 1400+ lignes — au-delà des 700 lignes recommandées, envisager un split (v8.1.0 preserved but monolithic).",
+    "routing.py: simple_mode piloté par comparaison de string sur getattr(_algo,'id',''); OK mais fragile si un nouveau moteur I/J-like arrive — envisager un flag class-level algo.simple_mode = True.",
+    "Sécurité : le simple_mode passe correctement dans les 3 chemins (tide_retry, fallback_route, low_margin), pas de fuite détectée par grep."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter163_bathy_tiles.py"
+  ],
+  "success_rate": {"backend": "93%", "frontend": "100%"},
+  "seed_data_creation": "aucune",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "ORDRE ARMATEUR PERMANENT : AUCUN calcul de route (POST /routes/compute*, /manual*, recompute*, appels Python compute_auto/compute_manual). Vérifs STATIQUES + endpoints bathy/seamarks/tiles + rendu UI uniquement. Le 1er GET /api/tiles/dalles peut prendre ~30-60 s (téléchargement OVH ~1 Mo pièce, cache disque data/tiles/remote_cache — NE PAS purger). Note : engine_i.py sur disque = v8.1.0 (2b000634) mais HEAD (1a23ff00) contient encore ITER162 en staged — main agent doit committer.",
+  "rca_of_issue": "STATIQUE 1 partiellement conforme : le fichier engine_i.py sur disque est bien restauré à 2b000634 (v8.1.0) — 'git diff 2b000634 -- backend/core/nav/engine_i.py' retourne 0 ligne. Mais 'git diff 2b000634 HEAD -- backend/core/nav/engine_i.py' n'est pas vide (76 lignes) car les modifications de restauration sont STAGÉES (git status = modified, changes to be committed) sans nouveau commit. Le test statique du run (contenu du fichier) est OK ; il reste à créer un commit pour que HEAD reflète l'état restauré."
+}

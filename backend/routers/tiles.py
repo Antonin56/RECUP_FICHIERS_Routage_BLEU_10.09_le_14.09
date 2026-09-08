@@ -176,3 +176,102 @@ async def seamark_tile(
         return None
 
     return await _serve_cached(path, fetch, ttl_s=SEAMARK_TTL_S, max_age=7 * 86400)
+
+
+# ── 08/09/2026 (remise à plat armateur, ACTION 4) — SURCOUCHE BATHY « DALLES
+# OVH » : le calque bleu est RENDU PAR NOUS depuis les dalles .npy du serveur
+# de l'armateur (core.tile_bathy), donc affiché PARTOUT où son index.json
+# possède des dalles (chargement dynamique + cache disque, dalle manquante →
+# transparent). En dessous de z10, tuile transparente (la couche WMS façade
+# régionale prend le relais côté carte — coût réseau des dalles maîtrisé). ──
+DALLES_MIN_Z = 10
+_dalles_sem = asyncio.Semaphore(4)
+
+
+def _render_dalles(rg, z: int, x: int, y: int) -> bytes | None:
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    minx, miny, maxx, maxy = _tile_bbox_3857(z, x, y)
+    R = 6378137.0
+    w, e = math.degrees(minx / R), math.degrees(maxx / R)
+    s = math.degrees(math.atan(math.sinh(miny / R)))
+    n = math.degrees(math.atan(math.sinh(maxy / R)))
+    bw, bs, be, bn = rg.bounds
+    if e <= bw or w >= be or n <= bs or s >= bn:
+        return _BLANK_PNG
+    N = 256
+    ys = miny + (np.arange(N) + 0.5) * (maxy - miny) / N
+    lats = np.degrees(np.arctan(np.sinh(ys / R)))[::-1]  # ligne 0 = nord
+    lngs = w + (np.arange(N) + 0.5) * (e - w) / N
+    d = rg.sample(np.repeat(lats, N), np.tile(lngs, N)).reshape(N, N)
+    rgba = np.zeros((N, N, 4), dtype=np.uint8)
+    fin = np.isfinite(d)
+    # Estran / découvrant (−3,5 → −0,2 m au ZH) en vert d'estran ; terre
+    # franche (< −3,5 m) et absence de donnée → TRANSPARENT (fond de carte).
+    estran = fin & (d < -0.2) & (d >= -3.5)
+    rgba[estran] = (134, 203, 171, 255)
+    # Eau : du plus CLAIR (peu profond) au plus FONCÉ (profond).
+    steps = (
+        (2.0, (185, 225, 241)), (5.0, (143, 202, 233)),
+        (10.0, (102, 175, 222)), (20.0, (66, 148, 210)),
+        (50.0, (38, 118, 189)), (float("inf"), (21, 90, 163)),
+    )
+    water = fin & (d >= -0.2)
+    lo = -0.2
+    for hi, col in steps:
+        m = water & (d >= lo) & (d < hi)
+        rgba[m] = (col[0], col[1], col[2], 255)
+        lo = hi
+    buf = io.BytesIO()
+    Image.fromarray(rgba, "RGBA").save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+@router.get("/dalles/{z}/{x}/{y}.png")
+async def dalles_tile(
+    z: int = FPath(ge=3, le=19),
+    x: int = FPath(ge=0),
+    y: int = FPath(ge=0),
+):
+    if x >= 2 ** z or y >= 2 ** z:
+        raise HTTPException(404, "Tuile hors grille.")
+    if z < DALLES_MIN_Z:
+        return _png_response(_BLANK_PNG, 30 * 86400)
+
+    def _work() -> bytes | None:
+        from core.tile_bathy import get_remote_grid
+
+        rg = get_remote_grid()
+        if rg is None:
+            return None
+        ver = str(getattr(rg.store, "version", "0"))
+        path = CACHE_DIR / "dalles" / ver / str(z) / str(x) / f"{y}.png"
+        try:
+            if path.exists():
+                return path.read_bytes()
+        except OSError:
+            pass
+        data = _render_dalles(rg, z, x, y)
+        if data is None:
+            return None
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_bytes(data)
+            tmp.replace(path)
+        except OSError:
+            pass
+        return data
+
+    async with _dalles_sem:
+        data = await asyncio.to_thread(_work)
+    if not data:
+        # Serveur de dalles muet : tuile transparente NON mise en cache.
+        return Response(
+            content=_BLANK_PNG, media_type="image/png",
+            headers={"Cache-Control": "no-store"},
+        )
+    return _png_response(data, 30 * 86400)

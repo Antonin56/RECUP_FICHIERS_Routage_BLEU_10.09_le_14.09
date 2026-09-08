@@ -1,5 +1,45 @@
 # SignalMar — PRD
 
+## ✅ ITER163 (08/09, MISSION REMISE À PLAT RADICALE armateur) — Industrial Stable
+1. INTÉGRITÉ : engine_i.py RESTAURÉ à v8.1.0 stable (git checkout 2b000634 —
+   les 2 retouches ITER162 need_zh/_marks_strict_ok retirées). Moteur I =
+   « Moteur Sûr Local » intouchable. engine_j.py (héritage I) inchangé.
+2. SIMPLIFICATION CALCUL (routers/routing.py, simple_mode = algo signalmar.i
+   ou signalmar.j) : UN SEUL calcul direct au ZH (plus de double exécution
+   ZH/marée), pas de dernier recours (mouillages/côtés), pas de mode « eau
+   peu profonde », pas de route de secours rouge, pas de calcul hypothétique
+   marée sur échec, RÈGLE DES 150 % (low_margin/route plus sûre) DÉSACTIVÉE
+   (auto + manuel). Échec → 422 propre « Pas de route trouvée : aucun passage
+   ne respecte à la fois le fond (tirant+marge) et le balisage ». Paliers de
+   marge latérale conservés (réduction annoncée, jamais d'ajout). Moteurs
+   A-H : comportement cascade historique INCHANGÉ.
+3. UI/CHRONO/LOGS : chrono visible pendant le calcul (route-busy-chrono) +
+   bouton ARRÊTER LE CALCUL (route-stop-btn, CancelToken dans runAsJob →
+   rend la main immédiatement). Temps effectif loggé (console + logger
+   route_computed: compute_s serveur + elapsed_s appareil). POPUPS FUSIONNÉS :
+   LowMarginModal + SaferPreviewModal SUPPRIMÉS (fichiers effacés), bandeau
+   unique « Route conseillée » (RouteCard) avec tirant d'eau (prop draftM),
+   infobulle ⓘ décharge de responsabilité (route-disclaimer), menu dépliable
+   Actions : Enregistrer / Modifier (entre en édition) / Partager
+   (Share natif) / Supprimer. safety_extra_m/preview retirés du flux front.
+4. VISUEL DALLES : NOUVEAU GET /api/tiles/dalles/{z}/{x}/{y}.png (tiles.py) —
+   calque bleu RENDU depuis les dalles OVH (RemoteGrid.sample 256², colormap
+   6 paliers clair→foncé, estran vert, NaN transparent, cache disque par
+   version d'index, z<10 → tuile transparente). bathy.ts : couche fine =
+   dalles (bounds dynamiques tiles-source conservés), _pickBathyLayer z≥10,
+   sync sur zoomend. WMS morbihan abandonné côté carte.
+5. BALISES : ingest_seamarks.py --zone dalles (emprise dérivée de
+   remote_cache/index.json ≈ 43.3→48.99 / −5.4→−1.0) → seamarks.json étendu
+   à TOUTE la couverture dalles (Gascogne comprise). NB : Grégan (cardinale
+   sud 47.5652, −2.9172) était DÉJÀ présent en base et servi par
+   /api/bathy/seamarks (vérifié) — le « manquant » côté armateur venait
+   probablement d'une version déployée antérieure.
+- ⚠️ PIÈGE ÉVITÉ/DOCUMENTÉ : édition parallèle (search_replace + sed -i) du
+  MÊME fichier = corruption (map.tsx tronqué) → restauré de git puis édits
+  séquentiels. NE JAMAIS éditer un même fichier en parallèle.
+- AUCUN calcul de route exécuté (ordre armateur). Testing agent : contrôle
+  STATIQUE + endpoints non-invasifs uniquement.
+
 ## ✅ ITER162 (04/09, 5 correctifs armateur) — Moteur J / backend / carte
 1. SÉCURITÉ (engine_i.py _complete_truncated_end, hérité par J) : seuil de
    sonde du raccordement final = tirant + marge au ZH (need_zh), plus

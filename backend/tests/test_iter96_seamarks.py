@@ -9,7 +9,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "EXPO_PUBLIC_BACKEND_URL",
-    "https://moteur-i-routing.preview.emergentagent.com",
+    "https://calcul-optimize.preview.emergentagent.com",
 ).rstrip("/")
 QA = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 

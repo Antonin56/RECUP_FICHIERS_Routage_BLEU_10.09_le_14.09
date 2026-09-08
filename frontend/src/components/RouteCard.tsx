@@ -48,12 +48,20 @@ function fmtDist(m: number, unit: "km" | "nm"): string {
 export function RouteCard(props: {
   route: ComputedRoute;
   unit: "km" | "nm";
+  /** 08/09/2026 — tirant d'eau du bateau (bandeau « Route conseillée »). */
+  draftM?: number | null;
   /** Masque la fenêtre (la ROUTE RESTE affichée — 21/07, règle armateur). */
   onClose: () => void;
   /** Réduit en mini-pill (distance seule). */
   onMinimize: () => void;
   /** 22/07 — ouvre le dialogue « Enregistrer la route » (nom). */
   onSave?: () => void;
+  /** 08/09/2026 — menu dépliable : Modifier (mode édition du tracé). */
+  onEdit?: () => void;
+  /** 08/09/2026 — menu dépliable : Partager (résumé texte). */
+  onShare?: () => void;
+  /** 08/09/2026 — menu dépliable : Supprimer (efface la route). */
+  onDelete?: () => void;
   /** 23/07 — démarre le SUIVI DE ROUTE (panneau cap/ETA + grisage). */
   onNavigate?: () => void;
   /** 28/07 (demande armateur) — GARDE-FOU : « Suivre cette route » reste
@@ -67,7 +75,11 @@ export function RouteCard(props: {
    *  un autre moteur et compare les deux tracés sur la carte. */
   onCompareEngine?: () => void;
 }) {
-  const { route, unit, onClose, onMinimize, onSave, onNavigate, acknowledged, onAcknowledge, onFocusDanger, onCompareEngine } = props;
+  const { route, unit, draftM, onClose, onMinimize, onSave, onEdit, onShare, onDelete, onNavigate, acknowledged, onAcknowledge, onFocusDanger, onCompareEngine } = props;
+  // 08/09/2026 (remise à plat armateur) — infobulle « i » de décharge de
+  // responsabilité + menu dépliable (Enregistrer/Modifier/Partager/Supprimer).
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   // Largeur MESURÉE du conteneur : react-native-svg web interprète mal
   // width="100%" (la carte gonflait à la largeur du viewBox — bug iter94).
   const [chartW, setChartW] = useState(0);
@@ -146,7 +158,11 @@ export function RouteCard(props: {
     <View style={styles.card} testID="route-card">
       <View style={styles.head}>
         <Ionicons name="navigate" size={16} color="#E5383B" />
-        <Text style={styles.title}>{route.mode === "manual" ? "Route manuelle" : "Route sûre"}</Text>
+        <Text style={styles.title}>{route.mode === "manual" ? "Route manuelle" : "Route conseillée"}</Text>
+        {/* 08/09/2026 — infobulle « i » : décharge de responsabilité. */}
+        <TouchableOpacity onPress={() => setInfoOpen((v) => !v)} hitSlop={8} testID="route-info-toggle">
+          <Ionicons name="information-circle-outline" size={18} color="#A3CEF1" />
+        </TouchableOpacity>
         <Text style={styles.dist} testID="route-distance">{fmtDist(route.distance_m, unit)}</Text>
         {onSave ? (
           <TouchableOpacity onPress={onSave} hitSlop={10} style={styles.close} testID="route-save">
@@ -160,6 +176,67 @@ export function RouteCard(props: {
           <Ionicons name="close" size={20} color={theme.textMute} />
         </TouchableOpacity>
       </View>
+
+      {infoOpen ? (
+        <View style={styles.infoBox} testID="route-disclaimer">
+          <Text style={styles.infoTxt}>
+            Route CONSEILLÉE à titre indicatif : elle ne remplace ni les cartes
+            marines officielles, ni la veille visuelle, ni les documents
+            nautiques à jour. Le chef de bord reste seul responsable de sa
+            navigation.
+          </Text>
+        </View>
+      ) : null}
+
+      {/* 08/09/2026 — TIRANT D'EAU sur le bandeau (+ besoin d'eau total). */}
+      <View style={styles.tideRow} testID="route-draft">
+        <Ionicons name="boat-outline" size={13} color="#48CAE4" />
+        <Text style={styles.tideTxt}>
+          {(draftM != null ? `Tirant d'eau : ${draftM.toFixed(1)} m · ` : "") +
+            `besoin d'eau (tirant + marge) : ${route.threshold_m.toFixed(1)} m` +
+            (route.min_depth_m != null ? ` · fond mini rencontré : ${route.min_depth_m.toFixed(1)} m` : "")}
+        </Text>
+      </View>
+
+      {/* 08/09/2026 — MENU DÉPLIABLE : Enregistrer / Modifier / Partager /
+          Supprimer (un seul bandeau, plus de popups multiples). */}
+      <TouchableOpacity
+        style={styles.menuToggle}
+        onPress={() => setMenuOpen((v) => !v)}
+        activeOpacity={0.8}
+        testID="route-menu-toggle"
+      >
+        <Ionicons name={menuOpen ? "chevron-up" : "chevron-down"} size={14} color={theme.textMute} />
+        <Text style={styles.menuToggleTxt}>Actions</Text>
+      </TouchableOpacity>
+      {menuOpen ? (
+        <View style={styles.menuRow} testID="route-actions-menu">
+          {onSave ? (
+            <TouchableOpacity style={styles.menuBtn} onPress={onSave} testID="route-action-save">
+              <Ionicons name="bookmark-outline" size={16} color="#2EC4B6" />
+              <Text style={styles.menuBtnTxt}>Enregistrer</Text>
+            </TouchableOpacity>
+          ) : null}
+          {onEdit ? (
+            <TouchableOpacity style={styles.menuBtn} onPress={onEdit} testID="route-action-edit">
+              <Ionicons name="create-outline" size={16} color="#48CAE4" />
+              <Text style={styles.menuBtnTxt}>Modifier</Text>
+            </TouchableOpacity>
+          ) : null}
+          {onShare ? (
+            <TouchableOpacity style={styles.menuBtn} onPress={onShare} testID="route-action-share">
+              <Ionicons name="share-social-outline" size={16} color="#A3CEF1" />
+              <Text style={styles.menuBtnTxt}>Partager</Text>
+            </TouchableOpacity>
+          ) : null}
+          {onDelete ? (
+            <TouchableOpacity style={styles.menuBtn} onPress={onDelete} testID="route-action-delete">
+              <Ionicons name="trash-outline" size={16} color="#E5383B" />
+              <Text style={styles.menuBtnTxt}>Supprimer</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
 
       {/* 31/07/2026 — ID PUBLIC de la route (support armateur) : chip
           copiable d'un tap. Communiqué au support pour consultation
@@ -673,6 +750,29 @@ const styles = StyleSheet.create({
   okTxt: { color: "#80ED99", fontSize: 11, flex: 1, lineHeight: 15 },
   tideRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   tideTxt: { color: "#48CAE4", fontSize: 11, flex: 1, lineHeight: 15, fontWeight: "700" },
+  // 08/09/2026 — infobulle « i » (décharge de responsabilité).
+  infoBox: {
+    backgroundColor: "rgba(163,206,241,0.10)", borderRadius: radii.sm,
+    borderWidth: 1, borderColor: "rgba(163,206,241,0.35)",
+    paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6,
+  },
+  infoTxt: { color: "#A3CEF1", fontSize: 11, lineHeight: 15 },
+  // 08/09/2026 — menu dépliable Enregistrer/Modifier/Partager/Supprimer.
+  menuToggle: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start", paddingVertical: 4, paddingHorizontal: 2,
+  },
+  menuToggleTxt: { color: theme.textMute, fontSize: 12, fontWeight: "700" },
+  menuRow: {
+    flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6,
+  },
+  menuBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5, minHeight: 40,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: radii.sm,
+    backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  menuBtnTxt: { color: theme.text, fontSize: 12, fontWeight: "700" },
   followBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     backgroundColor: "#2EC4B6", borderRadius: radii.md, paddingVertical: 10, minHeight: 44,

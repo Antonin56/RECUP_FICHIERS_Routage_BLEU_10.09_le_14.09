@@ -199,6 +199,11 @@ type JobReply<T> =
 
 const JOB_MAX_MS = 240_000;
 
+/** 08/09/2026 (remise à plat armateur) — ARRÊT DU CALCUL : jeton passé au
+ *  polling ; `cancelled = true` → on cesse d'interroger et on rend la main
+ *  immédiatement (le serveur termine son job dans son coin, sans effet). */
+export type CancelToken = { cancelled: boolean };
+
 /** Cadence d'interrogation : rapide au début (routes du Golfe = ~1 s), plus
  *  espacée ensuite (route côtière longue distance = 10-20 s). */
 function jobPollDelay(i: number): number {
@@ -207,12 +212,22 @@ function jobPollDelay(i: number): number {
   return 1000;
 }
 
-async function runAsJob<T>(startPath: string, body: unknown): Promise<T> {
+async function runAsJob<T>(startPath: string, body: unknown, cancel?: CancelToken): Promise<T> {
   const started = await request<{ job_id: string }>(startPath, { method: "POST", body });
   const t0 = Date.now();
   let misses = 0;
   for (let i = 0; Date.now() - t0 < JOB_MAX_MS; i++) {
+    if (cancel?.cancelled) {
+      const err = new Error("Calcul arrêté.") as Error & { cancelled?: boolean };
+      err.cancelled = true;
+      throw err;
+    }
     await new Promise((r) => setTimeout(r, jobPollDelay(i)));
+    if (cancel?.cancelled) {
+      const err = new Error("Calcul arrêté.") as Error & { cancelled?: boolean };
+      err.cancelled = true;
+      throw err;
+    }
     let rep: JobReply<T>;
     try {
       rep = await request<JobReply<T>>(`/routes/job/${started.job_id}`);
@@ -255,6 +270,8 @@ export interface RouteProfilePoint {
   depth_m: number | null;
 }
 export interface ComputedRoute {
+  /** 08/09/2026 — temps de calcul EFFECTIF côté serveur (secondes). */
+  compute_s?: number;
   /** 31/07/2026 — ID public de la route (support armateur). Format
    *  `R-YYYYMMDD-HHMMSS-XX`. Communiqué au support pour consultation. */
   route_id?: string;
@@ -602,7 +619,7 @@ export const api = {
     safety_extra_m?: number;
     /** 01/08/2026 — Moteur de routage à utiliser. Absent = preference user. */
     engine_id?: string;
-  }) => runAsJob<ComputedRoute>("/routes/compute/async", body),
+  }, cancel?: CancelToken) => runAsJob<ComputedRoute>("/routes/compute/async", body, cancel),
 
   /** 22/07/2026 — route MANUELLE : distance + profil sur les waypoints donnés. */
   manualRoute: (body: {

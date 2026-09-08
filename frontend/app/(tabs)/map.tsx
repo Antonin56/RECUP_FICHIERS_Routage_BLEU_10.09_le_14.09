@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Platform,
   ScrollView,
+  Share,
   Text,
   TouchableOpacity,
   useWindowDimensions,
@@ -82,11 +83,9 @@ import { AlertSettingsModal } from "@/src/screens/map/modals/AlertSettingsModal"
 import { AnchorModal } from "@/src/screens/map/modals/AnchorModal";
 import { BathyOpacityModal } from "@/src/screens/map/modals/BathyOpacityModal";
 import { LongPressMenuModal } from "@/src/screens/map/modals/LongPressMenuModal";
-import { LowMarginModal } from "@/src/screens/map/modals/LowMarginModal";
 import { RiskConfirmModal } from "@/src/screens/map/modals/RiskConfirmModal";
 import { RouteChoiceModal } from "@/src/screens/map/modals/RouteChoiceModal";
 import { RouteMenuModal } from "@/src/screens/map/modals/RouteMenuModal";
-import { SaferPreviewModal } from "@/src/screens/map/modals/SaferPreviewModal";
 import { SaveRouteNameModal } from "@/src/screens/map/modals/SaveRouteNameModal";
 import { SeamarkInfoModal } from "@/src/screens/map/modals/SeamarkInfoModal";
 import { UnitPickerModal } from "@/src/screens/map/modals/UnitPickerModal";
@@ -354,42 +353,29 @@ export default function MapScreen() {
   const [anchorModalOpen, setAnchorModalOpen] = useState(false);
   const [anchorAlarm, setAnchorAlarm] = useState(false);
   const anchorAlarmRef = useRef({ outside: false, lastAlertAt: 0, muted: false });
-  // 26/07/2026 — ROUTE DANGEREUSE (règle des 150 %) : contexte du dernier
-  // calcul (départ/arrivée) pour pouvoir relancer une route « plus sûre »
-  // (+2 m) depuis le popup d'alerte. Persiste tant que la route est affichée.
-  const lowMarginCtxRef = useRef<{
-    dest: { lat: number; lng: number };
-    from: { lat: number; lng: number };
-    info: NonNullable<ComputedRoute["low_margin"]>;
-  } | null>(null);
   // 26/07 (décision armateur) — contexte de la DERNIÈRE route auto calculée :
   // permet « Actualiser la route » (recalcul avec la marée de MAINTENANT).
   const routeCtxRef = useRef<{
     dest: { lat: number; lng: number };
     from: { lat: number; lng: number };
   } | null>(null);
-  const [lowMarginOpen, setLowMarginOpen] = useState(false);
-  // Confirmation EXPLICITE exigée avant de suivre une route à faible marge.
-  const [lowMarginAccepted, setLowMarginAccepted] = useState(false);
-  // 26/07 — APERÇU COMPARATIF de la route plus sûre (+2 m) avant adoption.
-  const [saferPreview, setSaferPreview] = useState<ComputedRoute | null>(null);
-  const [saferBusy, setSaferBusy] = useState(false);
-  // 27/07 (consigne armateur vidéo) — échec du recalcul « plus sûr » :
-  // message affiché DANS le popup + ajouté aux avertissements de la
-  // RouteCard (le toast en haut de l'écran passait inaperçu).
-  const [saferFail, setSaferFail] = useState<string | null>(null);
-  // 27/07 (vidéo 15h45, « bon sens ») — le bouton « Comparer » n'apparaît
-  // que si une alternative EXISTE : la recherche est lancée automatiquement
-  // à l'ouverture du popup 150 %, en arrière-plan.
-  const [saferReady, setSaferReady] = useState<ComputedRoute | null>(null);
-  const saferCheckedRef = useRef(false);
+  // 08/09/2026 (remise à plat armateur) — CHRONO visible pendant le calcul +
+  // bouton « ARRÊTER LE CALCUL » (jeton d'annulation du polling).
+  const routeCancelRef = useRef<{ cancelled: boolean } | null>(null);
+  const [routeElapsedS, setRouteElapsedS] = useState(0);
+  useEffect(() => {
+    if (!routeBusy) return;
+    setRouteElapsedS(0);
+    const t0 = Date.now();
+    const iv = setInterval(() => setRouteElapsedS(Math.floor((Date.now() - t0) / 1000)), 500);
+    return () => clearInterval(iv);
+  }, [routeBusy]);
+  // 08/09/2026 — tirant d'eau du bateau (affiché sur le bandeau « Route
+  // conseillée »), rafraîchi à chaque calcul.
+  const [boatDraftM, setBoatDraftM] = useState<number | null>(null);
   const computeSafeRoute = useCallback(async (
     dest: { lat: number; lng: number },
     startOverride?: { lat: number; lng: number },
-    safetyExtraM?: number,
-    // 26/07 — preview : calcule et RENVOIE la route sans l'afficher (aperçu
-    // comparatif « route plus sûre » avant adoption).
-    preview?: boolean,
   ): Promise<ComputedRoute | null> => {
     const from = startOverride ?? userLocRef.current;
     if (!from) {
@@ -398,15 +384,17 @@ export default function MapScreen() {
     }
     setRouteBusy(true);
     setRouteRetry(null);
+    const cancelTok = { cancelled: false };
+    routeCancelRef.current = cancelTok;
+    const tStart = Date.now();
     try {
       const bs = await getBoatSettings();
+      setBoatDraftM(bs.draftM);
       const r = await api.computeRoute({
         start: { lat: from.lat, lng: from.lng },
         end: dest,
         draft_m: bs.draftM,
         depth_margin_m: bs.depthMarginM,
-        // 26/07 — route « plus sûre » demandée depuis l'alerte 150 %.
-        ...(safetyExtraM ? { safety_extra_m: safetyExtraM } : {}),
         // 23/07 (demande armateur) — marge latérale : AUTO par défaut (le
         // moteur adapte au chenal) ; en manuel, la valeur des réglages est
         // envoyée telle quelle.
@@ -416,12 +404,12 @@ export default function MapScreen() {
         ...(tideChoice != null && tideChoice > 0
           ? { departure_ts: Date.now() / 1000 + tideChoice * 3600 }
           : {}),
-      });
-      if (preview) return r;
+      }, cancelTok);
       setRoute(r);
-      // 02/08/2026 — TRACE DE ROUTE dans les logs 24 h : les bundles de
-      // diagnostic ne contenaient que les appels signalements — impossible de
-      // relier une capture d'écran au moteur/aux réglages qui l'ont produite.
+      // 08/09/2026 (remise à plat armateur) — TEMPS DE CALCUL EFFECTIF dans
+      // les logs de l'appareil pour CHAQUE route générée (serveur + total).
+      const elapsedS = +((Date.now() - tStart) / 1000).toFixed(1);
+      console.log(`[route] calcul terminé en ${elapsedS}s (moteur serveur : ${r.compute_s ?? "?"}s) — ${(r.distance_m / 1000).toFixed(1)} km`);
       logger.event("api", "route_computed", {
         route_id: r.route_id ?? null,
         engine: r.engine?.id ?? null,
@@ -434,8 +422,9 @@ export default function MapScreen() {
         tide_m: r.tide_m ?? null,
         risk: !!r.risk,
         warnings: (r.warnings || []).length,
+        compute_s: r.compute_s ?? null,
+        elapsed_s: elapsedS,
       });
-      setSaferFail(null);
       routeCtxRef.current = { dest, from: { lat: from.lat, lng: from.lng } };
       setRouteCardMode("full");
       setBlocked(null);
@@ -443,27 +432,9 @@ export default function MapScreen() {
       // à la création d'une route : on consulte le tracé. Il reprend au
       // démarrage du suivi (startFollowForced).
       mapRef.current?.suspendFollow(true);
-      // 26/07 — RÈGLE DES 150 % : hauteur d'eau minimale < 150 % du besoin
-      // (tirant + marge) → popup « route dangereuse » : route plus sûre
-      // (+2 m) proposée, ou acceptation explicite du risque.
-      if (r.low_margin && !safetyExtraM) {
-        lowMarginCtxRef.current = {
-          dest, from: { lat: from.lat, lng: from.lng }, info: r.low_margin,
-        };
-        // 27/07 — nouvelle route à faible marge : la recherche d'alternative
-        // repart de zéro.
-        saferCheckedRef.current = false;
-        setSaferReady(null);
-        setLowMarginOpen(true);
-      } else {
-        lowMarginCtxRef.current = null;
-        setLowMarginOpen(false);
-      }
       showToast(
         "success",
-        (safetyExtraM
-          ? `Route plus sûre calculée (+${safetyExtraM} m de marge) — `
-          : "Route sûre calculée — ") +
+        "Route conseillée calculée — " +
           `${(r.distance_m / 1000).toFixed(1)} km` +
           (r.tide
             ? ` (marée +${(r.tide.height_start_m ?? r.tide.height_min_m).toFixed(1)} m au moment du calcul)`
@@ -471,19 +442,11 @@ export default function MapScreen() {
       );
       return r;
     } catch (e) {
-      // 26/07 — échec du recalcul « plus sûr » : on GARDE la route actuelle
-      // (ne surtout pas la remplacer par une route douteuse/blocage).
-      if (safetyExtraM) {
-        // 27/07 (consigne armateur vidéo) — le message doit être VISIBLE sur
-        // la RouteCard, pas seulement en toast tout en haut de l'écran.
-        const failMsg =
-          "Aucune route plus sûre trouvée avec +2 m de marge — route actuelle conservée.";
-        setSaferFail(failMsg);
-        setRoute((prev) =>
-          prev && !prev.warnings.includes(failMsg)
-            ? { ...prev, warnings: [failMsg, ...prev.warnings] }
-            : prev,
-        );
+      // 08/09/2026 — calcul ARRÊTÉ par l'utilisateur : on rend la main sans
+      // bandeau d'erreur ni ré-essai (le départ/destination restent posés).
+      if ((e as Error & { cancelled?: boolean }).cancelled) {
+        console.log(`[route] calcul arrêté par l'utilisateur après ${((Date.now() - tStart) / 1000).toFixed(1)}s`);
+        showToast("info", "Calcul arrêté.");
         return null;
       }
       // 22/07/2026 — route impossible : on N'EFFACE PAS la route existante,
@@ -552,18 +515,6 @@ export default function MapScreen() {
       setRouteBusy(false);
     }
   }, [tideChoice]);
-  // 27/07 — recherche AUTOMATIQUE d'une route plus sûre à l'ouverture du
-  // popup 150 % (bouton « Comparer » affiché seulement si elle existe).
-  useEffect(() => {
-    if (!lowMarginOpen || saferCheckedRef.current) return;
-    const ctx = lowMarginCtxRef.current;
-    if (!ctx) return;
-    saferCheckedRef.current = true;
-    setSaferBusy(true);
-    computeSafeRoute(ctx.dest, ctx.from, ctx.info.safe_extra_m || 2, true)
-      .then((safer) => setSaferReady(safer))
-      .finally(() => setSaferBusy(false));
-  }, [lowMarginOpen, computeSafeRoute]);
   // 22/07/2026 — ROUTE MANUELLE : « Créer cette route » → distance + profil
   // de profondeur calculés par le backend sur les étapes de l'utilisateur.
   const createManualRoute = useCallback(async () => {
@@ -572,6 +523,7 @@ export default function MapScreen() {
     setManualBusy(true);
     try {
       const bs = await getBoatSettings();
+      setBoatDraftM(bs.draftM);
       const r = await api.manualRoute({
         waypoints: pts,
         draft_m: bs.draftM,
@@ -642,12 +594,6 @@ export default function MapScreen() {
       setRiskAccepted(false);
       closeEdit();
       mapRef.current?.suspendFollow(true);
-      if (r.low_margin) {
-        // Même mécanique que la route auto dangereuse (pas de recalcul
-        // auto possible sur un tracé manuel → pas de bouton comparer).
-        lowMarginCtxRef.current = null;
-        setLowMarginOpen(true);
-      }
       if (r.compromised_legs?.length) {
         showToast("error", "Route modifiée — tronçon(s) ROUGE(S), risque à accepter avant de la suivre.");
       } else {
@@ -663,6 +609,7 @@ export default function MapScreen() {
     setRouteBusy(true);
     try {
       const bs = await getBoatSettings();
+      setBoatDraftM(bs.draftM);
       const r = await api.manualRoute({
         waypoints: sr.waypoints,
         draft_m: bs.draftM,
@@ -824,12 +771,11 @@ export default function MapScreen() {
     // 23/07 — nouvelle route (ou suppression) → le suivi repart de zéro.
     passedIdxRef.current = -1;
     setNavProgress(null);
-    // 26/07 — reset bannière d'écart + confirmation « faible marge ».
+    // 26/07 — reset bannière d'écart.
     setDeviation(null);
     setDeviationHidden(false);
     setDeviationMuted(false);
     deviationMutedRef.current = false;
-    setLowMarginAccepted(false);
     // 02/08/2026 — toute nouvelle route (ou suppression) ferme la
     // comparaison A/B de moteurs en cours.
     setCompare(null);
@@ -898,14 +844,8 @@ export default function MapScreen() {
       setRiskConfirmOpen(true);
       return;
     }
-    // 26/07 — route à FAIBLE MARGE (< 150 % du besoin) : confirmation
-    // explicite exigée avant le suivi (popup route plus sûre / accepter).
-    if (route?.low_margin && !lowMarginAccepted) {
-      setLowMarginOpen(true);
-      return;
-    }
     await startFollowForced();
-  }, [route, riskAccepted, lowMarginAccepted, startFollowForced]);
+  }, [route, riskAccepted, startFollowForced]);
   // 26/07 — « Suivre cette route » depuis le PROFIL : le suivi démarre dès
   // que la route chargée est affichée (gating risque/marge conservé).
   useEffect(() => {
@@ -2155,7 +2095,7 @@ export default function MapScreen() {
         bathymetryOpacity={bathyOpacity}
         route={route}
         routeCompare={routeComparePayload}
-        netQuiet={routeBusy || compareBusy || saferBusy || supportQuiet}
+        netQuiet={routeBusy || compareBusy || supportQuiet}
         onRouteTap={(danger) => {
           if (!editPoints) {
             setRouteMenuDanger(danger ?? null);
@@ -2890,11 +2830,26 @@ export default function MapScreen() {
       {/* ── N1 (20/07/2026) — Route sûre : pill de calcul puis RouteCard
           (distance, profil de profondeur, avertissements, fermer). ── */}
       {routeBusy ? (
-        <View style={styles.routeCardWrap} pointerEvents="none">
+        /* 08/09/2026 (remise à plat armateur) — CHRONO visible pendant le
+           calcul + bouton « ARRÊTER LE CALCUL » (rend la main immédiatement). */
+        <View style={styles.routeCardWrap} pointerEvents="box-none">
           <View style={styles.routeBusyPill}>
             <ActivityIndicator size="small" color="#48CAE4" />
-            <Text style={styles.routeBusyTxt}>Calcul de la route sûre…</Text>
+            <Text style={styles.routeBusyTxt} testID="route-busy-chrono">
+              Calcul de la route… {routeElapsedS} s
+            </Text>
           </View>
+          <TouchableOpacity
+            style={styles.routeStopBtn}
+            onPress={() => {
+              if (routeCancelRef.current) routeCancelRef.current.cancelled = true;
+            }}
+            activeOpacity={0.85}
+            testID="route-stop-btn"
+          >
+            <Ionicons name="stop-circle" size={18} color="#fff" />
+            <Text style={styles.routeStopTxt}>ARRÊTER LE CALCUL</Text>
+          </TouchableOpacity>
         </View>
       ) : blocked ? (
         /* 23/07 (demande armateur) — carte PERSISTANTE de blocage : message
@@ -3030,11 +2985,45 @@ export default function MapScreen() {
           <RouteCard
             route={route}
             unit={mapUnit}
+            draftM={boatDraftM}
             onClose={() => setRouteCardMode("hidden")}
             onMinimize={() => setRouteCardMode("min")}
             onSave={() => {
               setSaveName("");
               setSaveNameOpen(true);
+            }}
+            onEdit={navFollow ? undefined : () => {
+              // 08/09/2026 — « Modifier » depuis le menu du bandeau : entre en
+              // mode édition (même mécanique que l'appui long sur le tracé).
+              if (!route || route.waypoints.length < 2) return;
+              mapRef.current?.suspendFollow(true);
+              setEditPoints(route.waypoints.map((w) => ({ lat: w.lat, lng: w.lng })));
+              setEditIdx(null);
+              setEditMoved(false);
+              setRouteCardMode("hidden");
+              showToast("info", "Appuyez longuement près du tracé pour choisir le waypoint à déplacer.");
+            }}
+            onShare={async () => {
+              // 08/09/2026 — « Partager » : résumé texte de la route.
+              const st = route.waypoints[0];
+              const en = route.waypoints[route.waypoints.length - 1];
+              const msg =
+                `Route SignalMar — ${(route.distance_m / 1000).toFixed(1)} km` +
+                (route.min_depth_m != null ? ` · fond mini ${route.min_depth_m.toFixed(1)} m` : "") +
+                `\nDépart : ${st.lat.toFixed(6)}, ${st.lng.toFixed(6)}` +
+                `\nArrivée : ${en.lat.toFixed(6)}, ${en.lng.toFixed(6)}` +
+                (route.route_id ? `\nID : ${route.route_id}` : "") +
+                "\nRoute conseillée — ne remplace pas les cartes officielles.";
+              try {
+                await Share.share({ message: msg });
+              } catch {
+                showToast("error", "Partage impossible sur cet appareil.");
+              }
+            }}
+            onDelete={() => {
+              setRoute(null);
+              setBlocked(null);
+              showToast("info", "Route supprimée.");
             }}
             onNavigate={() => void startFollow()}
             acknowledged={routeAck}
@@ -3160,48 +3149,9 @@ export default function MapScreen() {
       {/* 26/07 — la hauteur d'eau s'affiche désormais AU POINT cliqué sur la
           carte (pastille leaflet, prop waterPoint) — plus de carte en bas. */}
 
-      {/* 26/07 — ROUTE DANGEREUSE (règle des 150 %) : marge d'eau minimale
-          insuffisante → route plus sûre (+2 m) proposée, ou acceptation
-          EXPLICITE du risque avant de pouvoir suivre la route. */}
-      <LowMarginModal
-        visible={lowMarginOpen && route?.low_margin != null}
-        lowMargin={route?.low_margin ?? null}
-        saferBusy={saferBusy}
-        saferReady={saferReady != null}
-        saferFail={saferFail}
-        onCompareSafer={() => {
-          setLowMarginOpen(false);
-          setSaferPreview(saferReady);
-        }}
-        onKeep={() => {
-          setLowMarginAccepted(true);
-          setLowMarginOpen(false);
-          showToast("info", "Route conservée — naviguez prudemment.");
-        }}
-        onClose={() => setLowMarginOpen(false)}
-      />
-
-      {/* 26/07 — APERÇU COMPARATIF : route actuelle vs route plus sûre (+2 m). */}
-      <SaferPreviewModal
-        route={route}
-        safer={saferPreview}
-        cruiseKn={cruiseKn}
-        onAdopt={() => {
-          if (!saferPreview) return;
-          setRoute(saferPreview);
-          setRouteCardMode("full");
-          lowMarginCtxRef.current = null;
-          setSaferPreview(null);
-          mapRef.current?.suspendFollow(true);
-          showToast("success", "Route plus sûre adoptée (+2 m de marge).");
-        }}
-        onKeepCurrent={() => {
-          setLowMarginAccepted(true);
-          setSaferPreview(null);
-          showToast("info", "Route actuelle conservée — naviguez prudemment.");
-        }}
-        onClose={() => setSaferPreview(null)}
-      />
+      {/* 08/09/2026 (remise à plat armateur) — les popups « route dangereuse /
+          route plus sûre » (règle des 150 %) sont SUPPRIMÉS : un seul bandeau
+          « Route conseillée » (RouteCard) avec infobulle de responsabilité. */}
 
       {/* 24/07 — acceptation du risque avant de suivre une route douteuse. */}
       <RiskConfirmModal

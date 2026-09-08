@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://moteur-i-routing.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://calcul-optimize.preview.emergentagent.com").rstrip("/")
 QA_BYPASS = {"X-RateLimit-Bypass": "qa-bypass-signalmar-2026"}
 LOGIN_EMAIL = "antoninlepinay@gmail.com"
 LOGIN_PWD = "123454321"

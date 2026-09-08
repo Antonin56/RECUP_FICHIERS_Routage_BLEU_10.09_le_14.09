@@ -622,3 +622,30 @@ agent_communication:
           les évolutions de routage sur engine_i.py. Vérifié : 2 routes de
           référence F≡I≡ancien v6 100% identiques (hors compute_s volatil) ;
           iter140/143/144 : 19 passed + 1 xfailed.
+
+  - task: "ITER163 — Remise à plat radicale (armateur 08/09)"
+    implemented: true
+    working: "NA"
+    file: "backend/core/nav/engine_i.py (restauré v8.1.0), backend/routers/routing.py (simple_mode I/J), backend/routers/tiles.py (endpoint dalles), backend/scripts/ingest_seamarks.py (zone dalles), frontend: map.tsx, RouteCard.tsx, client.ts, bathy.ts, map-styles.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          (1) engine_i.py restauré à v8.1.0 (retouches ITER162 retirées).
+          (2) Moteurs I/J : un seul calcul direct au ZH — plus de dernier
+          recours, plus de mode eau peu profonde, plus de règle des 150 %,
+          plus de route de secours rouge ; échec → 422 « Pas de route
+          trouvée » propre. Moteurs A-H inchangés. (3) Chrono + bouton
+          ARRÊTER LE CALCUL (CancelToken), temps de calcul loggé, popups
+          fusionnés en un bandeau « Route conseillée » (tirant d'eau,
+          infobulle ⓘ responsabilité, menu Enregistrer/Modifier/Partager/
+          Supprimer) ; LowMarginModal + SaferPreviewModal supprimés.
+          (4) GET /api/tiles/dalles/{z}/{x}/{y}.png : calque bleu rendu
+          depuis les dalles OVH partout où l'index les possède (vérifié :
+          z12 Morbihan 200 OK 9 Ko, z8 transparent) ; bathy.ts branché.
+          (5) seamarks.json ré-ingéré sur l'emprise des dalles (Gascogne
+          incluse) ; Grégan déjà présent et servi (vérifié). AUCUN calcul
+          de route exécuté (ordre armateur strict).

@@ -232,31 +232,6 @@ export const styles = StyleSheet.create({
   // 24/07/2026 — acceptation du risque (route douteuse, tronçon rouge).
   riskTitle: { color: "#FF6B6B", fontSize: 16, fontWeight: "900", marginBottom: 8 },
   riskMsg: { color: theme.text, fontSize: 13, lineHeight: 19, marginBottom: 14 },
-  // 26/07/2026 — route à faible marge (règle des 150 %) : bouton « route
-  // plus sûre (+2 m) » (teal, action recommandée).
-  lowMarginSafeBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#2EC4B6", borderRadius: 12, paddingVertical: 12,
-    marginBottom: 8, minHeight: 44,
-  },
-  lowMarginSafeTxt: { color: theme.bg, fontSize: 14, fontWeight: "900" },
-  // 27/07 — échec « aucune route plus sûre » affiché dans le popup 150 %.
-  saferFailTxt: {
-    color: "#F4A261",
-    fontSize: 13,
-    fontWeight: "700",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  // 26/07/2026 — tableau comparatif route actuelle vs route plus sûre.
-  cmpTable: {
-    borderWidth: 1, borderColor: theme.border, borderRadius: 12,
-    paddingVertical: 6, paddingHorizontal: 10, marginBottom: 14, gap: 6,
-  },
-  cmpRow: { flexDirection: "row", alignItems: "center" },
-  cmpLbl: { flex: 1.2, color: theme.textMute, fontSize: 12, fontWeight: "700" },
-  cmpHead: { flex: 1, color: theme.textDim, fontSize: 11, fontWeight: "900", textAlign: "right", letterSpacing: 0.3 },
-  cmpVal: { flex: 1, color: theme.text, fontSize: 13, fontWeight: "800", textAlign: "right", fontVariant: ["tabular-nums"] },
   // 26/07/2026 — bannière d'écart de route persistante (remplace le toast).
   devWrap: { position: "absolute", left: 12, right: 12, zIndex: 60 },
   devCard: { borderColor: "#E5383B" },
@@ -388,6 +363,14 @@ export const styles = StyleSheet.create({
     borderRadius: radii.pill, paddingHorizontal: 14, paddingVertical: 8,
   },
   routeBusyTxt: { color: theme.text, fontSize: 12, fontWeight: "700" },
+  // 08/09/2026 — bouton « ARRÊTER LE CALCUL » sous le chrono.
+  routeStopBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, alignSelf: "center", marginTop: 8, minHeight: 44,
+    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 22,
+    backgroundColor: "#B0231F", borderWidth: 1, borderColor: "#E5383B",
+  },
+  routeStopTxt: { color: "#fff", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
   // 23/07 — carte PERSISTANTE « Passage impossible » (réglage en cause +
   // bouton Mon bateau). Remplace le toast de 3,5 s, trop court.
   blockedCard: {

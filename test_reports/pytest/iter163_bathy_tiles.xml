@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="6" time="2.840" timestamp="2026-09-08T13:58:58.265935+00:00" hostname="agent-env-9204372b-3b0d-44b7-ad9c-fb6d275847e4"><testcase classname="tests.test_iter163_bathy_tiles.TestTilesSource" name="test_bathy_tiles_source" time="1.579" /><testcase classname="tests.test_iter163_bathy_tiles.TestDalles" name="test_z12_morbihan_opaque_png" time="0.262" /><testcase classname="tests.test_iter163_bathy_tiles.TestDalles" name="test_z12_cache_relecture_rapide" time="0.213" /><testcase classname="tests.test_iter163_bathy_tiles.TestDalles" name="test_z8_transparent" time="0.186"><failure message="AssertionError: assert (1, 1) == (256, 256)&#10;  &#10;  At index 0 diff: 1 != 256&#10;  &#10;  Full diff:&#10;    (&#10;  -     256,&#10;  -     256,...&#10;  &#10;  ...Full output truncated (3 lines hidden), use '-vv' to show">backend/tests/test_iter163_bathy_tiles.py:50: in test_z8_transparent
+    assert img.size == (256, 256)
+E   AssertionError: assert (1, 1) == (256, 256)
+E     
+E     At index 0 diff: 1 != 256
+E     
+E     Full diff:
+E       (
+E     -     256,
+E     -     256,...
+E     
+E     ...Full output truncated (3 lines hidden), use '-vv' to show</failure></testcase><testcase classname="tests.test_iter163_bathy_tiles.TestSeamarks" name="test_gregan_present" time="0.313" /><testcase classname="tests.test_iter163_bathy_tiles.TestSeamarks" name="test_arcachon_more_than_50" time="0.234" /></testsuite></testsuites>
