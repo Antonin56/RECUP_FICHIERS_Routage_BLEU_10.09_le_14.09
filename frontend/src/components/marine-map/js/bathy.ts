@@ -13,13 +13,12 @@ export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM 
   // NOTRE PROXY-CACHE backend (/api/tiles/shom/...) : chaque tuile n'est
   // demandée qu'UNE seule fois au WMS SHOM (lent, cause n°1 du lag), puis
   // servie instantanément depuis le disque avec cache HTTP 30 jours.
-  // 08/09/2026 (remise à plat armateur, ACTION 4) — la couche FINE (index 3)
-  // n'est plus le WMS « morbihan » (limité au Morbihan) mais NOTRE rendu des
-  // DALLES OVH de l'armateur (/api/tiles/dalles/) : le calque bleu s'affiche
-  // PARTOUT où son index.json possède des dalles, chargé dynamiquement
-  // (dalle manquante → tuile transparente). En dessous de z10, la couche WMS
-  // façade régionale prend le relais (_pickBathyLayer).
-  var _bathyLayers = ['atl', 'gdl', 'corse', 'dalles'].map(function(key, idx){
+  // 09/09/2026 (V1.6, ordre armateur « adieu Minecraft ») — le rendu visuel
+  // direct des dalles .npy est DÉSACTIVÉ : retour au calque OFFICIEL SHOM
+  // (WMS, lisse) partout — façade ATL / MED / Corse + côtier Morbihan 20 m
+  // dans sa zone. Les dalles .npy ne servent plus qu'au CALCUL et aux
+  // ALERTES (l'endpoint /api/tiles/dalles reste disponible côté serveur).
+  var _bathyLayers = ['atl', 'gdl', 'corse', 'morbihan'].map(function(key, idx){
     // 22/07/2026 (lag tablette) — chaque couche est BORNÉE à son emprise
     // réelle : plus AUCUNE requête MED/Corse en Bretagne. + updateWhenIdle
     // (téléchargement à l'arrêt du geste) et updateWhenZooming=false.
@@ -27,14 +26,12 @@ export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM 
       L.latLngBounds([[42.0, -7.0], [49.5, 1.0]]),   // façade ATL
       L.latLngBounds([[41.0, 1.5], [44.6, 8.5]]),    // MED Golfe du Lion
       L.latLngBounds([[41.0, 8.0], [43.6, 10.5]]),   // Corse
-      L.latLngBounds([[43.3, -5.3], [48.9, -1.0]])   // dalles OVH (repli statique)
+      L.latLngBounds([[47.15, -3.45], [47.80, -2.25]]) // côtier 20 m (emprise WMS réelle)
     ];
-    var url = key === 'dalles'
-      ? API_BASE + '/api/tiles/dalles/{z}/{x}/{y}.png'
-      : API_BASE + '/api/tiles/shom/' + key + '/{z}/{x}/{y}.png';
+    var url = API_BASE + '/api/tiles/shom/' + key + '/{z}/{x}/{y}.png';
     var _tl = L.tileLayer(url, {
       opacity: 0.7, maxZoom: 21, maxNativeZoom: 19,
-      attribution: key === 'dalles' ? 'Bathymétrie © SHOM (dalles SignalMar)' : 'Bathymétrie © SHOM',
+      attribution: 'Bathymétrie © SHOM',
       // 23/07 — le proxy-cache local rend les tuiles quasi instantanées :
       // on recharge PENDANT le pan (fini les trous puis flashs à l'arrêt).
       keepBuffer: 6, updateWhenIdle: false, updateWhenZooming: false,
@@ -45,28 +42,15 @@ export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM 
   });
   var _bathyOn = false;
   var _bathyActive = null; // couche actuellement montée (UNE seule à la fois)
-  // 04/09/2026 (ordre armateur, VISUEL) — les LIMITES d'affichage de la
-  // couche bathy fine (les « carrés bleus ») sont lues DYNAMIQUEMENT depuis
-  // l'index des dalles du serveur (via /api/bathy/tiles-source → bounds
-  // [w, s, e, n]) au lieu d'être restreintes au Morbihan. Repli silencieux
-  // sur les bornes statiques si l'endpoint ne répond pas.
-  fetch(API_BASE + '/api/bathy/tiles-source')
-    .then(function(r){ return r.json(); })
-    .then(function(info){
-      var b = info && info.bounds;
-      if (!b || b.length !== 4) return;
-      var dyn = L.latLngBounds([[b[1], b[0]], [b[3], b[2]]]);
-      _bathyLayers[3].options.bounds = dyn;
-      if (_bathyOn) _syncBathy();
-    })
-    .catch(function(_){});
+  // 09/09/2026 (V1.6) — l'élargissement dynamique des bornes de la couche
+  // fine (ITER162) est RETIRÉ : le WMS morbihan ne rend rien hors de son
+  // emprise réelle (tuiles vides). Bornes STATIQUES = emprise WMS.
   function _pickBathyLayer(){
-    // 22/07/2026 (lag + flashs tablette) — UNE SEULE couche à la fois.
-    // 08/09/2026 — dalles OVH dès z8 (« partout en France », fini le rendu
-    // flou 100 m ; en dessous : WMS régional, vue nationale).
+    // 22/07/2026 (lag + flashs tablette) — UNE SEULE couche SHOM à la fois :
+    // le côtier Morbihan 20 m en zone pilote, sinon la façade régionale.
     var c = map.getCenter();
-    var atl = _bathyLayers[0], med = _bathyLayers[1], cor = _bathyLayers[2], dalles = _bathyLayers[3];
-    if (map.getZoom() >= 8 && dalles.options.bounds.contains(c)) return dalles;
+    var atl = _bathyLayers[0], med = _bathyLayers[1], cor = _bathyLayers[2], morb = _bathyLayers[3];
+    if (morb.options.bounds.contains(c)) return morb;
     if (med.options.bounds.contains(c)) return med;
     if (cor.options.bounds.contains(c)) return cor;
     return atl;

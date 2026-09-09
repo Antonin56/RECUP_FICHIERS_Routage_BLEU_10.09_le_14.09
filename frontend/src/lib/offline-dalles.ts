@@ -117,6 +117,34 @@ export async function checkFineTiles(
   return res.done;
 }
 
+/** 09/09/2026 (V1.6) — PACK HORS LIGNE complet : balisage + mouillages +
+ *  dangers de la zone (jusqu'à 5000 objets), stocké en JSON sur l'appareil. */
+export async function downloadSeamarkPack(
+  corners: { lat: number; lng: number }[],
+): Promise<{ count: number; bytes: number }> {
+  const w = Math.min(...corners.map((c) => c.lng));
+  const s = Math.min(...corners.map((c) => c.lat));
+  const e = Math.max(...corners.map((c) => c.lng));
+  const n = Math.max(...corners.map((c) => c.lat));
+  const r = await fetch(`${API_BASE}/api/bathy/seamarks?bbox=${w},${s},${e},${n}&limit=5000`);
+  if (!r.ok) throw new Error(`Balisage indisponible (${r.status}).`);
+  const body = await r.text();
+  await FileSystem.makeDirectoryAsync(DIR, { intermediates: true }).catch(() => {});
+  const dest = `${DIR}pack_seamarks.json`;
+  await FileSystem.writeAsStringAsync(dest, body);
+  const count = (JSON.parse(body).marks ?? []).length;
+  return { count, bytes: body.length };
+}
+
+/** 09/09/2026 (V1.6) — pastille de source : TRUE si le point est couvert par
+ *  une dalle téléchargée SUR L'APPAREIL (vert « LOCAL »), sinon « SERVER ». */
+export function isLocalCovered(
+  manifest: OfflineManifest, lat: number, lng: number,
+): boolean {
+  return Object.values(manifest).some(
+    (m) => lng >= m.bbox[0] && lng <= m.bbox[2] && lat >= m.bbox[1] && lat <= m.bbox[3]);
+}
+
 /** Statistiques du stock local (compte + octets). */
 export async function offlineStats(): Promise<{ count: number; bytes: number }> {
   const manifest = await getManifest();

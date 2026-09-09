@@ -39,6 +39,9 @@ export type MarineMapHandle = {
   recenterOnUser: () => void;
   /** 20/07/2026 — pause/reprise de l'auto-recentrage (appui long carte). */
   suspendFollow: (on: boolean) => void;
+  /** 09/09/2026 (V1.6) — outil de zone « Cartes 📥 » : carré 50 km ajustable. */
+  startZonePicker: () => void;
+  stopZonePicker: () => void;
   /** 13/07/2026 — repousse le recentrage automatique de 5 s (comme un geste
    *  utilisateur) sans bouger la carte. */
   grantRecenterGrace: () => void;
@@ -157,6 +160,8 @@ type Props = {
   onMapTapClose?: () => void;
   /** 31/07/2026 — appui sur le bouton capture support du popup clic carte. */
   onMapTapSupport?: (lat: number, lng: number, depth_zh_m: number | null) => void;
+  /** 09/09/2026 (V1.6) — coins du carré de sélection de zone (Cartes 📥). */
+  onZoneCorners?: (corners: { lat: number; lng: number }[]) => void;
   /** 02/08/2026 — silence réseau pendant un calcul de route (anti-429). */
   netQuiet?: boolean;
   /** 02/08/2026 — COMPARAISON A/B de moteurs : tracé variante superposé +
@@ -180,7 +185,7 @@ type Props = {
 };
 
 export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
-  { center, zoom = 11, userLocation, userHeading, userSpeed, showBoat = true, coneHalfAngleDeg = null, coneDistanceKm = null, radarPingRadiusM = null, courseUp = false, reports, crosshair = false, focusId = null, onMarkerPress, onMapMoved, onMapLongPress, mapUnit = "km", onRulerTap, bathymetry = false, bathymetryOpacity = 0.7, route = null, onRouteTap, manualPoints = null, draftEditIndex = null, onDraftMove, blocked = null, onSeamarkTap, routeProgress = null, targetBearingDeg = null, showHeadingLine = false, anchor = null, measure = false, onMeasureSnap, onMapTap, waterPoint = null, onWaterClose, mapTapInfo = null, onMapTapClose, onMapTapSupport, routeCompare = null, netQuiet = false },
+  { center, zoom = 11, userLocation, userHeading, userSpeed, showBoat = true, coneHalfAngleDeg = null, coneDistanceKm = null, radarPingRadiusM = null, courseUp = false, reports, crosshair = false, focusId = null, onMarkerPress, onMapMoved, onMapLongPress, mapUnit = "km", onRulerTap, bathymetry = false, bathymetryOpacity = 0.7, route = null, onRouteTap, manualPoints = null, draftEditIndex = null, onDraftMove, blocked = null, onSeamarkTap, routeProgress = null, targetBearingDeg = null, showHeadingLine = false, anchor = null, measure = false, onMeasureSnap, onMapTap, waterPoint = null, onWaterClose, mapTapInfo = null, onMapTapClose, onMapTapSupport, onZoneCorners, routeCompare = null, netQuiet = false },
   ref,
 ) {
   const webRef = useRef<WebView | null>(null);
@@ -224,6 +229,8 @@ export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
     setNavMode: (on, skipRecenter) => sendJs(`window.SM && SM.setNavMode(${on},${skipRecenter ? "true" : "false"})`),
     recenterOnUser: () => sendJs(`window.SM && SM.recenterOnUser(true)`),
     suspendFollow: (on) => sendJs(`window.SM && SM.setFollowSuspended(${on ? "true" : "false"})`),
+    startZonePicker: () => sendJs(`window.__zoneStart && window.__zoneStart()`),
+    stopZonePicker: () => sendJs(`window.__zoneStop && window.__zoneStop()`),
     grantRecenterGrace: () => sendJs(`window.SM && SM.grantGrace()`),
     setNavCone: (halfAngleDeg, distKm) => sendJs(
       `window.SM && SM.setNavCone(${halfAngleDeg == null ? "null" : halfAngleDeg},${distKm == null ? "null" : distKm})`,
@@ -435,7 +442,7 @@ export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
 
   const handleMessage = (raw: string) => {
     try {
-      const d = JSON.parse(raw) as { event?: string; id?: string; lat?: number; lng?: number; zoom?: number; index?: number; mark?: Seamark; depth_zh_m?: number; danger?: RouteTapDanger };
+      const d = JSON.parse(raw) as { event?: string; id?: string; lat?: number; lng?: number; zoom?: number; index?: number; mark?: Seamark; depth_zh_m?: number; danger?: RouteTapDanger; corners?: { lat: number; lng: number }[] };
       if (d.event === "marker" && d.id) onMarkerPress?.(d.id);
       else if (d.event === "move" && typeof d.lat === "number" && typeof d.lng === "number") {
         // 23/07/2026 (vidéos armateur, « sauts dans le Golfe ») — mémorise la
@@ -464,6 +471,8 @@ export const MarineMap = forwardRef<MarineMapHandle, Props>(function MarineMap(
       } else if (d.event === "map_tap_support") {
         const depth = typeof d.depth_zh_m === "number" ? d.depth_zh_m : null;
         onMapTapSupport?.(d.lat as number, d.lng as number, depth);
+      } else if (d.event === "zone_corners" && Array.isArray(d.corners)) {
+        onZoneCorners?.(d.corners as { lat: number; lng: number }[]);
       } else if (d.event === "draft_move" && typeof d.index === "number" && typeof d.lat === "number" && typeof d.lng === "number") {
         onDraftMove?.(d.index, d.lat, d.lng);
       } else if (d.event === "ready") {

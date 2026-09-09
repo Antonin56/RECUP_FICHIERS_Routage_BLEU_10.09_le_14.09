@@ -1,5 +1,41 @@
 # SignalMar — PRD
 
+## ✅ ITER165 (09/09, V1.6 — REFONTE UI/UX + DONNÉES LOCALES armateur)
+- A1 (RouteCard) : accusé « Ok, j'ai compris » SUPPRIMÉ (props acknowledged/
+  onAcknowledge + styles ack*/followBtnOff retirés) → accès DIRECT : bouton
+  vert « Suivre cette route » + bouton « Enregistrer cette route »
+  (route-save-big). CHRONO FINAL sous le titre : « Calculé en X.X s »
+  (route-compute-time, prop computeS ← routeComputeS posé à chaque calcul).
+- A2 (Cartes 📥) : bouton « Cartes 📥 » EN BAS À GAUCHE (cartes-btn, styles
+  cartesWrap left:10 bottom:44) → window.__zoneStart() (nouveau module JS
+  zone-picker.ts injecté dans leaflet-html) : CARRÉ semi-transparent de
+  50 km de rayon centré sur la vue, 4 COINS DRAGGABLES (postMsg
+  zone_corners → onZoneCorners → état zoneCorners). Barre offline-zone-bar :
+  « Lancer le téléchargement » = analyse (dalles-list?poly=4 coins) puis
+  PACK COMPLET : dalles .npy + balisage/mouillages/dangers
+  (downloadSeamarkPack → /api/bathy/seamarks?bbox&limit=5000 → JSON
+  pack_seamarks.json sur l'appareil) + progression en Mo. L'ancienne entrée
+  appui-long « Cartes hors ligne » (ITER164) est SUPPRIMÉE.
+  Backend : /api/bathy/seamarks accepte limit (600 défaut, max 5000).
+- A3 (VISUEL) : rendu visuel des dalles .npy DÉSACTIVÉ (« adieu Minecraft »)
+  → bathy.ts revenu au WMS SHOM officiel (atl/gdl/corse + morbihan bornes
+  STATIQUES, élargissement dynamique ITER162 retiré). L'endpoint
+  /api/tiles/dalles reste servi côté backend (inutilisé par la carte).
+  Zoom conservé jusqu'à z21 (~10 m). NETTOYAGE CLIC : mini-popup clic carte
+  (coordonnées/hauteur/photo, mapTapInfo + capture support admin) SUPPRIMÉ —
+  un clic ne déclenche plus rien ; seule la GOUTTE D'EAU (bouton) mesure.
+- A4 (HORS LIGNE) : préchargement auto de tuiles au démarrage DÉSACTIVÉ
+  (prefetch.ts : __prefetchAroundUser inerte sauf window.__prefetchOn) ;
+  fond de carte basique OSM chargé à la demande (bathy OFF par défaut).
+  PASTILLE SOURCE (data-source-badge) sous le bouton Cartes : verte
+  « LOCAL » si le centre carte est couvert par une dalle stockée sur
+  l'appareil (isLocalCovered + manifeste), grise « SERVER » sinon
+  (badgeCenter throttlé 1 s via onMapMoved).
+- A5 (PERF) : A* J (2.0, 50 000) déjà en place (ITER164) ; côté serveur les
+  dalles en cache disque sont déjà utilisées en priorité (remote_cache).
+- NB : Moteur I v8.1.0 INTACT (aucun fichier moteur touché à l'ITER165).
+- AUCUN calcul de route exécuté.
+
 ## ✅ ITER164 (09/09, REFONTE TOTALE UI + STRATÉGIE DONNÉES armateur)
 - INTÉGRITÉ : engine_i.py = 2b000634 (v8.1.0) VÉRIFIÉ intact (git diff vide).
 - ACTION 1 (UI) : bandeau unique/chrono/STOP/tirant/ⓘ/menu = déjà ITER163.

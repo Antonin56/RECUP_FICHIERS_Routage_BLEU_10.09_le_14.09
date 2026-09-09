@@ -672,3 +672,24 @@ agent_communication:
           l'index OVH ne publie pas tiles_fine). Calque dalles dès z8,
           zoom carte jusqu'à z21. Tests iter163 adaptés (z7 transparent,
           _CLEAR_PNG alpha 0) : 6/6. AUCUN calcul de route moteur exécuté.
+
+  - task: "ITER165 — V1.6 Refonte UI/UX + données locales (armateur 09/09)"
+    implemented: true
+    working: "NA"
+    file: "frontend: RouteCard.tsx (ack supprimé, chrono final, bouton Enregistrer), map.tsx (Cartes 📥 + carré 50 km + pack complet + pastille LOCAL/SERVER + clic carte neutralisé), marine-map js (zone-picker.ts nouveau, bathy.ts retour WMS SHOM, prefetch.ts inerte, zoom 21), MarineMap.tsx (startZonePicker/onZoneCorners), offline-dalles.ts (downloadSeamarkPack/isLocalCovered) ; backend: routers/bathy.py (limit ≤ 5000)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          V1.6 : (A1) plus d'accusé de lecture, Suivre + Enregistrer directs,
+          « Calculé en X.X s » sous le titre ; (A2) bouton Cartes 📥 bas-
+          gauche → carré 50 km à coins draggables (Leaflet) → pack complet
+          dalles+balisage stocké sur l'appareil avec progression Mo ;
+          (A3) rendu dalles .npy désactivé, retour WMS SHOM lisse, clic
+          carte neutralisé (goutte d'eau conservée), zoom z21 ; (A4) prefetch
+          auto désactivé, pastille LOCAL/SERVER ; (A5) A* J 2.0/50k déjà en
+          place. Moteur I intact. seamarks?limit=2000 → 545 marks, 9999 →
+          422. AUCUN calcul de route exécuté.

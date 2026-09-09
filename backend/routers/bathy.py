@@ -129,6 +129,9 @@ async def get_coverage():
 @router.get("/seamarks")
 async def get_seamarks_bbox(
     bbox: str = Query(..., description="west,south,east,north (EPSG:4326)"),
+    # 09/09/2026 (V1.6, pack hors ligne) — plafond relevable jusqu'à 5000
+    # pour télécharger TOUT le balisage/mouillages/dangers d'une zone.
+    limit: int = Query(600, ge=1, le=5000),
 ):
     from core.seamarks import get_seamarks
 
@@ -196,7 +199,7 @@ async def get_seamarks_bbox(
         for mo in getattr(idx, "moorings", [])
         if south <= mo["lat"] <= north and west <= mo["lng"] <= east
     ]
-    return {"marks": (marks + hazards + moorings)[:600]}
+    return {"marks": (marks + hazards + moorings)[:limit]}
 
 
 # ── 04/09/2026 (ordre armateur) — SOURCE DES DALLES PC (OVH / repli) ────────

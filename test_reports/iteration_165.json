@@ -1,0 +1,28 @@
+{
+  "summary": "ITER165 V1.6 (UI/UX + zone offline) — vérifications STATIQUES + endpoints NON-INVASIFS uniquement (ordre armateur : AUCUN calcul de route). 8/8 checks statiques OK + 4/4 pytest OK + frontend charge sans red screen. RouteCard: plus aucune ref acknowledged/onAcknowledge/ackBtn/route-ack/followBtnOff ; nouveaux testID route-follow-start (inconditionnel), route-save-big, route-compute-time (`Calculé en X.X s`). map.tsx: setRouteComputeS(elapsedS) posé après calcul + computeS={routeComputeS} transmis. zone-picker.ts: L.polygon carré dLat=50000/111320, 4 markers draggables → postMsg zone_corners ; JS_ZONE_PICKER injecté dans leaflet-html.ts. MarineMap: startZonePicker/stopZonePicker + case 'zone_corners' → onZoneCorners. map.tsx: bouton cartes-btn (styles cartesWrap left:10), offline-zone-bar + offline-zone-download appellent downloadDalles+downloadSeamarkPack, longpress-offline-zone SUPPRIMÉ de LongPressMenuModal (aucune occurrence). bathy.ts: 4 couches WMS SHOM (atl/gdl/corse/morbihan, bornes morbihan statiques [[47.15,-3.45],[47.80,-2.25]]), aucune ref /api/tiles/dalles/, plus de fetch tiles-source. Zoom maxZoom:21 (bootstrap), OSM 21/19 (tiles). map.tsx: mini-popup clic supprimé (0 occurrence mapTapInfo/onMapTapClose/onMapTapSupport/sendMapCaptureToSupport), onMapTap early-return si !waterTapOn, goutte d'eau (setWaterInfo) conservée. prefetch.ts: __prefetchAroundUser retourne si !__prefetchOn (l.82). data-source-badge présent, alimenté par isLocalCovered. offline-dalles.ts: downloadSeamarkPack + isLocalCovered + pack_seamarks.json OK. Backend: /api/bathy/seamarks limit=2000 → 545 marks (>600 possible), limit=9999 → 422, défaut ≤600 ; /api/tiles/dalles-list?poly=... → 12 tiles. INTÉGRITÉ MOTEURS: git diff 2b000634 HEAD engine_i.py VIDE ; engine_j._J_ASTAR_TUNING=(2.0, 50_000) ; core.ASTAR_TUNING default None.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter165_v16_ui.py",
+    "/app/test_reports/pytest/iter165_v16.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Ordre armateur strictement respecté : aucun /api/routes/compute*, /manual*, recompute, ni interaction UI déclenchant un calcul.",
+    "Test statique du plafond seamarks : le bbox de test contient ~545 marks, le fait que limit=2000 puisse renvoyer plus de 600 confirme la levée du plafond (avant : 422 pour limit>600).",
+    "Note info (hors périmètre ITER165) : warnings RN-Web deprecation shadow*/textShadow*/pointerEvents visibles côté console — pré-existants, ne bloquent pas le bundle."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter165_v16_ui.py (nouveau)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100% (smoke seulement, pas de nav profonde par ordre armateur)"},
+  "seed_data_creation": "aucune",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "ITER165 (V1.6 UI/UX + zone offline) validée en STATIQUE + endpoints NON-INVASIFS. Ordre armateur : ne JAMAIS déclencher /api/routes/compute*, /manual*, recompute ou compute_auto. Le rendu dalles .npy est désactivé côté carte mais /api/tiles/dalles* reste disponible côté serveur (pack offline). test_iter165_v16_ui.py: 4/4 verts. Warnings RN-Web deprecation pré-existants, hors périmètre."
+}

@@ -19,6 +19,7 @@ import { JS_SEAMARKS } from "./js/seamarks";
 import { jsSmApi } from "./js/sm-api";
 import { JS_TILES } from "./js/tiles";
 import { JS_WATER_TAP } from "./js/water-tap";
+import { JS_ZONE_PICKER } from "./js/zone-picker";
 
 export const TYPE_COLOR: Record<string, string> = REPORT_TYPES.reduce((acc, t) => {
   acc[t.id] = t.color;
@@ -51,6 +52,7 @@ export function buildHtml(center: { lat: number; lng: number }, zoom: number, cr
     JS_SEAMARKS,
     JS_MEASURE,
     JS_WATER_TAP,
+    JS_ZONE_PICKER,
     JS_PREFETCH,
     JS_MARKERS,
     JS_GEO,

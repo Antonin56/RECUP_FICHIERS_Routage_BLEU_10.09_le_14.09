@@ -55,8 +55,7 @@ import {
   type RouteNavState,
 } from "@/src/lib/route-guard";import { storage } from "@/src/utils/storage";
 import { logger } from "@/src/lib/logger";
-import { checkFineTiles, downloadDalles, listDallesForPolygon, type DalleInfo } from "@/src/lib/offline-dalles";
-import { sendMapCaptureToSupport } from "@/src/lib/support-upload";
+import { checkFineTiles, downloadDalles, downloadSeamarkPack, getManifest, isLocalCovered, listDallesForPolygon, type DalleInfo, type OfflineManifest } from "@/src/lib/offline-dalles";
 import { formatDM } from "@/src/lib/coords";
 import { CoordsPopup } from "@/src/components/CoordsPopup";
 import {
@@ -183,9 +182,8 @@ export default function MapScreen() {
   // 24/07/2026 — ROUTE DOUTEUSE (tronçon rouge) : acceptation du risque.
   const [riskAccepted, setRiskAccepted] = useState(false);
   const [riskConfirmOpen, setRiskConfirmOpen] = useState(false);
-  // 28/07 (demande armateur) — accusé de lecture « Ok, j'ai compris » :
-  // obligatoire avant de pouvoir toucher « Suivre cette route ».
-  const [routeAck, setRouteAck] = useState(false);
+  // 09/09/2026 (V1.6) — l'accusé de lecture « Ok, j'ai compris » est
+  // SUPPRIMÉ : accès direct au bouton « Suivre cette route ».
   // 28/07 — unité de vitesse (partagée avec le compteur, persistée).
   const [speedUnit, setSpeedUnit] = useState<"kn" | "kmh">("kn");
   // 24/07/2026 — HAUTEUR D'EAU au point cliqué (clic court sur l'eau).
@@ -226,28 +224,9 @@ export default function MapScreen() {
     return () => clearTimeout(t);
   }, [waterInfo]);
 
-  // 31/07/2026 — POPUP CLIC CARTE (mode goutte d'eau désactivé) : affiche
-  // coordonnées + hauteur d'eau ZH au point, avec bouton capture support
-  // pour le compte SignalMar admin. Persistant (pas d'auto-close 5 s) —
-  // reste à l'écran tant que l'utilisateur ne ferme pas.
-  const [mapTapInfo, setMapTapInfo] = useState<{
-    lat: number; lng: number; loading?: boolean; error?: boolean;
-    covered?: boolean; water?: boolean; depth_zh_m?: number | null;
-  } | null>(null);
-  const mapTapReqRef = useRef(0);
   const isAdmin = !!user?.is_signalmar_admin;
-  const mapTapInfoWithBtn = useMemo(() => {
-    if (!mapTapInfo) return null;
-    return { ...mapTapInfo, showSupport: isAdmin };
-  }, [mapTapInfo, isAdmin]);
-  const [supportSending, setSupportSending] = useState(false);
-  // 02/08/2026 — pendant l'ENVOI de la capture au support (~300 Ko), le
-  // trafic secondaire de la carte (tuiles, isobathes, balises) est mis en
-  // silence : c'est lui qui saturait le quota de la plateforme et faisait
-  // échouer l'envoi en 429 (3 captures perdues sur 6 dans les logs du 02/08).
-  // Le silence ne démarre qu'APRÈS la capture, pour ne pas photographier une
-  // carte aux tuiles manquantes.
-  const [supportQuiet, setSupportQuiet] = useState(false);
+  // 09/09/2026 (V1.6) — le popup clic-carte (coordonnées/hauteur/capture
+  // support) est SUPPRIMÉ : un clic simple ne déclenche plus rien.
   // Opacité de la surcouche (retour armateur 19/07) : 0.3-1, défaut 0.7,
   // réglée via appui LONG sur le bouton goutte d'eau (popup chips).
   const [bathyOpacity, setBathyOpacity] = useState(0.7);
@@ -374,15 +353,29 @@ export default function MapScreen() {
   // 08/09/2026 — tirant d'eau du bateau (affiché sur le bandeau « Route
   // conseillée »), rafraîchi à chaque calcul.
   const [boatDraftM, setBoatDraftM] = useState<number | null>(null);
-  // ── 08/09/2026 (MASTER PLAN armateur) — CARTES HORS LIGNE : sélection de
-  // zone par points (appuis longs) + téléchargement des dalles 20 m sur
-  // l'appareil, avec progression. Dalles fines 5 m/2 m récupérées
-  // automatiquement quand l'index OVH les publiera (checkFineTiles).
-  const [offlinePoints, setOfflinePoints] = useState<{ lat: number; lng: number }[] | null>(null);
+  // 09/09/2026 (V1.6) — temps de calcul DÉFINITIF affiché sur le bandeau.
+  const [routeComputeS, setRouteComputeS] = useState<number | null>(null);
+  // ── 09/09/2026 (V1.6 armateur) — OUTIL « Cartes 📥 » : carré de 50 km de
+  // rayon aux coins ajustables (dessiné côté Leaflet), puis téléchargement
+  // du PACK complet de la zone (dalles bathy + balisage/mouillages/dangers)
+  // stocké sur l'appareil, avec barre de progression en Mo.
+  const [zoneCorners, setZoneCorners] = useState<{ lat: number; lng: number }[] | null>(null);
   const [offlineTiles, setOfflineTiles] = useState<{ tiles: DalleInfo[]; total_bytes: number } | null>(null);
   const [offlineBusy, setOfflineBusy] = useState(false);
   const [offlineProg, setOfflineProg] = useState<{ done: number; total: number } | null>(null);
   const offlineCancelRef = useRef<{ cancelled: boolean } | null>(null);
+  // 09/09/2026 (V1.6) — pastille source de données : verte « LOCAL » si le
+  // centre de la carte est couvert par une dalle stockée sur l'appareil.
+  const [offlineManifest, setOfflineManifest] = useState<OfflineManifest>({});
+  const [badgeCenter, setBadgeCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const badgeThrottleRef = useRef(0);
+  useEffect(() => {
+    void getManifest().then(setOfflineManifest);
+  }, []);
+  const dataIsLocal = useMemo(
+    () => (badgeCenter ? isLocalCovered(offlineManifest, badgeCenter.lat, badgeCenter.lng) : false),
+    [badgeCenter, offlineManifest],
+  );
   const computeSafeRoute = useCallback(async (
     dest: { lat: number; lng: number },
     startOverride?: { lat: number; lng: number },
@@ -419,6 +412,7 @@ export default function MapScreen() {
       // 08/09/2026 (remise à plat armateur) — TEMPS DE CALCUL EFFECTIF dans
       // les logs de l'appareil pour CHAQUE route générée (serveur + total).
       const elapsedS = +((Date.now() - tStart) / 1000).toFixed(1);
+      setRouteComputeS(elapsedS);
       console.log(`[route] calcul terminé en ${elapsedS}s (moteur serveur : ${r.compute_s ?? "?"}s) — ${(r.distance_m / 1000).toFixed(1)} km`);
       logger.event("api", "route_computed", {
         route_id: r.route_id ?? null,
@@ -890,11 +884,6 @@ export default function MapScreen() {
     try { stopRouteDeviationSound(); } catch { /* noop */ }
     try { stopAlertFeedback(); } catch { /* noop */ }
   }, []);
-  // 28/07 — l'accusé « Ok, j'ai compris » est remis à zéro à CHAQUE nouvelle
-  // route (nouveau calcul, actualisation, route chargée du profil).
-  useEffect(() => {
-    setRouteAck(false);
-  }, [route]);
   // 28/07 — unité de vitesse persistée (partagée avec le compteur agrandi).
   useEffect(() => {
     storage.getItem<"kn" | "kmh">("sm.speedo.unit", "kn")
@@ -2057,17 +2046,17 @@ export default function MapScreen() {
         onMarkerPress={(id) => router.push(`/report/${id}`)}
         onMapMoved={(lat, lng) => {
           mapCenterRef.current = { lat, lng };
+          // 09/09/2026 (V1.6) — pastille LOCAL/SERVER : suivi du centre
+          // (limité à 1 mise à jour/s pour ne pas re-rendre en continu).
+          const now = Date.now();
+          if (now - badgeThrottleRef.current > 1000) {
+            badgeThrottleRef.current = now;
+            setBadgeCenter({ lat, lng });
+          }
           if (picking || routePickDest != null) setPickedPoint({ lat, lng });
         }}
+        onZoneCorners={(corners) => setZoneCorners(corners)}
         onMapLongPress={(lat, lng) => {
-          // 08/09/2026 (MASTER PLAN) — mode ZONE HORS LIGNE : chaque appui
-          // long AJOUTE un sommet du polygone de sélection.
-          if (offlinePoints != null) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            setOfflineTiles(null);
-            setOfflinePoints((prev) => (prev ? [...prev, { lat, lng }] : [{ lat, lng }]));
-            return;
-          }
           // 22/07/2026 — mode route MANUELLE : chaque appui long AJOUTE une étape.
           if (manualPoints != null) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -2120,14 +2109,14 @@ export default function MapScreen() {
         bathymetryOpacity={bathyOpacity}
         route={route}
         routeCompare={routeComparePayload}
-        netQuiet={routeBusy || compareBusy || supportQuiet}
+        netQuiet={routeBusy || compareBusy}
         onRouteTap={(danger) => {
           if (!editPoints) {
             setRouteMenuDanger(danger ?? null);
             setRouteMenuOpen(true);
           }
         }}
-        manualPoints={manualPoints ?? editPoints ?? offlinePoints}
+        manualPoints={manualPoints ?? editPoints}
         draftEditIndex={editPoints != null ? editIdx : null}
         onDraftMove={(index, lat, lng) => {
           // 22/07 — drag & drop d'un point (création manuelle OU édition).
@@ -2163,30 +2152,12 @@ export default function MapScreen() {
           // 11/08 (règle armateur) — en édition : le tap à côté ne valide
           // plus (validation UNIQUEMENT via « Recalculer la route »).
           if (editPoints) return;
-          // 24/07 — clic court sur l'eau → hauteur d'eau au point. Actif
-          // uniquement si le mode goutte d'eau est enclenché ; ignoré
-          // pendant la construction d'une route manuelle (clics = étapes).
           if (manualPoints) return;
-          if (!waterTapOn) {
-            // 31/07/2026 — MODE GOUTTE D'EAU DÉSACTIVÉ : nouveau popup avec
-            // coordonnées + hauteur ZH + bouton capture support (admin).
-            setMapTapInfo({ lat, lng, loading: true });
-            const rid = ++mapTapReqRef.current;
-            api.depthAt(lat, lng)
-              .then((d) => {
-                if (mapTapReqRef.current !== rid) return;
-                setMapTapInfo({
-                  lat, lng,
-                  covered: d.covered, water: d.water,
-                  depth_zh_m: d.depth_zh_m ?? null,
-                });
-              })
-              .catch(() => {
-                if (mapTapReqRef.current !== rid) return;
-                setMapTapInfo({ lat, lng, error: true });
-              });
-            return;
-          }
+          // 09/09/2026 (V1.6, NETTOYAGE CLIC armateur) — un clic simple sur
+          // la carte ne déclenche PLUS RIEN (l'ancien mini-popup coordonnées/
+          // hauteur/photo est supprimé). Seule la GOUTTE D'EAU (mesure
+          // manuelle, bouton dédié) reste active.
+          if (!waterTapOn) return;
           setWaterInfo({ lat, lng, loading: true });
           // 28/07 (vidéo 15h45 « hyper lente, parfois rapide ») — COURSE de
           // requêtes : une réponse LENTE d'un ancien tap pouvait écraser la
@@ -2214,129 +2185,6 @@ export default function MapScreen() {
           setWaterTapOn(false);
           setWaterInfo(null);
           showToast("info", "Hauteur d'eau au toucher désactivée.");
-        }}
-        mapTapInfo={mapTapInfoWithBtn}
-        onMapTapClose={() => setMapTapInfo(null)}
-        onMapTapSupport={async (lat, lng, depthZh) => {
-          // 31/07/2026 — CAPTURE d'écran + envoi au support (admin only).
-          if (supportSending) return;
-          if (!isAdmin) {
-            showToast("info", "Fonction réservée au compte SignalMar admin.");
-            return;
-          }
-          setSupportSending(true);
-          try {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-            // On efface le popup momentanément pour qu'il n'apparaisse pas
-            // sur la capture ; on le remet après (ou toast succès).
-            setMapTapInfo(null);
-            // Petit délai (2 frames) pour laisser Leaflet retirer l'overlay.
-            await new Promise((r) => setTimeout(r, 80));
-            const uri = await mapRef.current?.captureMap();
-            // 03/08/2026 — sur le NAVIGATEUR la photo de l'iframe Leaflet est
-            // impossible (canvas teinté par les tuiles tierces). On n'abandonne
-            // plus : on envoie le CONTEXTE seul (coordonnées + tracé complet +
-            // verdict de balisage), qui suffit à rejouer le calcul.
-            // Silence réseau de la carte pendant l'envoi : sinon la rafale de
-            // tuiles sature le quota de la plateforme → 429.
-            setSupportQuiet(true);
-            const routeId = route?.route_id ?? null;
-            const bs = await getBoatSettings();
-            const ctx: Record<string, unknown> = {
-              nav_mode: navMode || navFollow,
-              user_loc: userLoc ? { lat: userLoc.lat, lng: userLoc.lng } : null,
-              tap: { lat, lng, depth_zh_m: depthZh },
-              // 02/08/2026 — MOTEUR + réglages bateau : sans eux, impossible
-              // de savoir quel moteur a produit le tracé photographié.
-              engine: route?.engine
-                ? { id: route.engine.id, name: route.engine.name, version: route.engine.algo_version }
-                : null,
-              route: route
-                ? {
-                    route_id: route.route_id ?? null,
-                    distance_m: route.distance_m,
-                    min_depth_m: route.min_depth_m,
-                    threshold_m: route.threshold_m,
-                    warnings: (route.warnings || []).slice(0, 8),
-                    // 03/08/2026 — TRAÇABILITÉ DU BALISAGE : sans le tracé
-                    // complet et le verdict de côté, impossible de rejouer le
-                    // calcul côté serveur pour auditer une balise.
-                    waypoints: (route.waypoints || []).map((w) => [
-                      Number(w.lat.toFixed(6)), Number(w.lng.toFixed(6)),
-                    ]),
-                    lateral_margin_used_m: route.lateral_margin_used_m ?? null,
-                    engine_rules: route.engine_rules ?? null,
-                    side_fixed: route.side_fixed ?? null,
-                    wrong_side_marks: route.wrong_side_marks ?? null,
-                    endpoint_cardinals: route.endpoint_cardinals ?? null,
-                    compromised_legs: route.compromised_legs ?? null,
-                    leg_reasons: route.leg_reasons ?? null,
-                  }
-                : null,
-              boat: {
-                draft_m: bs.draftM,
-                depth_margin_m: bs.depthMarginM,
-                margin_mode: bs.marginMode,
-                lateral_margin_m: bs.marginM,
-              },
-              bathy_on: bathyOn,
-            };
-            // 03/08/2026 — ENVOI PAR MORCEAUX (~128 Ko par requête). Le POST
-            // unique de ~400 Ko était throttlé par l'ingress : les logs du
-            // terrain montrent « support screenshot failed {"status":429} » et
-            // aucune capture reçue après 12h28 le 03/08.
-            let sid: string;
-            if (uri) {
-              showToast("info", "Envoi de la capture… 0 %");
-              sid = await sendMapCaptureToSupport(
-                uri,
-                {
-                  lat, lng,
-                  depth_zh_m: depthZh,
-                  route_id: routeId,
-                  context: ctx,
-                },
-                (pct) => {
-                  if (pct >= 100 || pct % 25 < 3) {
-                    showToast("info", `Envoi de la capture… ${pct} %`);
-                  }
-                },
-              );
-            } else {
-              // Navigateur : pas de pixels, mais tout le contexte utile.
-              const r = await api.sendMapSupportScreenshot({
-                image_b64: null,
-                lat, lng,
-                depth_zh_m: depthZh,
-                route_id: routeId,
-                context: { ...ctx, no_image_reason: "web_iframe_capture_unavailable" },
-              });
-              sid = r.id;
-            }
-            logger.event("api", "support_screenshot_sent", {
-              id: sid, route_id: routeId, engine: route?.engine?.id ?? null,
-              with_image: !!uri,
-            });
-            showToast(
-              "success",
-              uri
-                ? `Envoyé au support · ${sid}`
-                : `Contexte envoyé · ${sid} (image indisponible sur navigateur)`,
-            );
-          } catch (err) {
-            const st = (err as Error & { status?: number }).status;
-            logger.error("api", "support screenshot failed", { status: st ?? null });
-            console.warn("support screenshot failed", err);
-            showToast(
-              "error",
-              st === 429
-                ? "Réseau saturé — capture non envoyée. Réessayez dans quelques secondes."
-                : "Envoi au support impossible.",
-            );
-          } finally {
-            setSupportQuiet(false);
-            setSupportSending(false);
-          }
         }}
       />
 
@@ -2838,36 +2686,30 @@ export default function MapScreen() {
           setLongPressPoint(null);
           setRouteChoicePt(pt);
         }}
-        onOfflineZone={(pt) => {
-          // 08/09/2026 (MASTER PLAN) — 1er sommet de la zone hors ligne.
-          setLongPressPoint(null);
-          setOfflineTiles(null);
-          setOfflinePoints([pt]);
-          mapRef.current?.suspendFollow(true);
-          showToast("info", "Zone hors ligne : ajoutez des points par appui long, puis « Analyser la zone ».");
-        }}
       />
 
-      {/* ── 08/09/2026 (MASTER PLAN armateur) — BARRE ZONE HORS LIGNE :
-          sélection par points, analyse des dalles 20 m, téléchargement sur
-          l'appareil avec progression, puis dalles fines 5 m/2 m auto dès que
-          l'index OVH les publiera. ── */}
-      {offlinePoints != null ? (
+      {/* ── 09/09/2026 (V1.6 armateur) — BARRE « CARTES 📥 » : carré 50 km
+          ajustable (coins déplaçables côté carte) → « Lancer le
+          téléchargement » récupère TOUT le pack de la zone (dalles bathy +
+          balisage + mouillages + dangers) sur l'appareil, avec barre de
+          progression en Mo. ── */}
+      {zoneCorners != null ? (
         <View style={styles.routeCardWrap} pointerEvents="box-none">
           <View style={styles.blockedCard} testID="offline-zone-bar">
             <View style={styles.blockedHead}>
               <Ionicons name="cloud-download" size={18} color="#48CAE4" />
               <Text style={styles.blockedTitle}>
                 {offlineBusy && offlineProg
-                  ? `Téléchargement ${offlineProg.done}/${offlineProg.total} dalles…`
+                  ? `Téléchargement ${offlineProg.done}/${offlineProg.total} · ${(offlineProg.done * 1.0).toFixed(0)}/${(offlineProg.total * 1.0).toFixed(0)} Mo`
                   : offlineTiles
-                    ? `${offlineTiles.tiles.length} dalle(s) · ~${(offlineTiles.total_bytes / 1e6).toFixed(0)} Mo`
-                    : `Zone hors ligne — ${offlinePoints.length} point(s)`}
+                    ? `${offlineTiles.tiles.length} dalle(s) · ~${(offlineTiles.total_bytes / 1e6).toFixed(0)} Mo + balisage`
+                    : "Cartes hors ligne — ajustez le carré"}
               </Text>
               <TouchableOpacity
                 onPress={() => {
                   if (offlineCancelRef.current) offlineCancelRef.current.cancelled = true;
-                  setOfflinePoints(null);
+                  mapRef.current?.stopZonePicker();
+                  setZoneCorners(null);
                   setOfflineTiles(null);
                   setOfflineBusy(false);
                   setOfflineProg(null);
@@ -2885,59 +2727,53 @@ export default function MapScreen() {
             ) : (
               <Text style={styles.blockedMsg}>
                 {offlineTiles
-                  ? "Les dalles 20 m seront stockées sur l'appareil. Les dalles fines 5 m/2 m seront récupérées automatiquement dès que le serveur les publiera."
-                  : "Ajoutez des points par APPUI LONG pour dessiner la zone (3 points minimum)."}
+                  ? "Pack complet : bathy fine + balisage + mouillages + dangers, stocké sur l'appareil."
+                  : "Déplacez les coins du carré pour ajuster la zone, puis lancez le téléchargement."}
               </Text>
             )}
             {!offlineBusy ? (
               <View style={styles.blockedBtnRow}>
-                {offlineTiles ? (
-                  <TouchableOpacity
-                    style={styles.blockedBtn}
-                    onPress={() => {
-                      const tiles = offlineTiles.tiles;
-                      if (!tiles.length) return;
-                      const tok = { cancelled: false };
-                      offlineCancelRef.current = tok;
-                      setOfflineBusy(true);
-                      setOfflineProg({ done: 0, total: tiles.length });
-                      void downloadDalles(tiles, (done, total) => setOfflineProg({ done, total }), tok)
-                        .then(async (res) => {
+                <TouchableOpacity
+                  style={styles.blockedBtn}
+                  onPress={() => {
+                    // 1) analyse de la zone ; 2) téléchargement du pack.
+                    void listDallesForPolygon(zoneCorners)
+                      .then(async (r) => {
+                        setOfflineTiles(r);
+                        if (!r.tiles.length) {
+                          showToast("error", "Aucune dalle bathy de l'index dans cette zone.");
+                          return;
+                        }
+                        const tok = { cancelled: false };
+                        offlineCancelRef.current = tok;
+                        setOfflineBusy(true);
+                        setOfflineProg({ done: 0, total: r.tiles.length });
+                        try {
+                          const res = await downloadDalles(
+                            r.tiles, (done, total) => setOfflineProg({ done, total }), tok);
+                          const pack = await downloadSeamarkPack(zoneCorners).catch(() => null);
                           showToast(res.failed ? "error" : "success",
-                            `${res.done}/${tiles.length} dalles stockées sur l'appareil${res.failed ? ` (${res.failed} échec(s))` : ""}.`);
+                            `${res.done}/${r.tiles.length} dalles stockées` +
+                            (pack ? ` + ${pack.count} balises/mouillages/dangers` : "") +
+                            `${res.failed ? ` (${res.failed} échec(s))` : ""}.`);
                           const fine = await checkFineTiles().catch(() => 0);
                           if (fine > 0) showToast("success", `${fine} dalle(s) fines 5 m/2 m récupérées.`);
-                          setOfflinePoints(null);
+                          setOfflineManifest(await getManifest());
+                          mapRef.current?.stopZonePicker();
+                          setZoneCorners(null);
                           setOfflineTiles(null);
-                        })
-                        .finally(() => {
+                        } finally {
                           setOfflineBusy(false);
                           setOfflineProg(null);
-                        });
-                    }}
-                    testID="offline-zone-download"
-                  >
-                    <Ionicons name="download" size={16} color={theme.bg} />
-                    <Text style={styles.blockedBtnTxt}>Télécharger</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.blockedBtn, offlinePoints.length < 3 && { opacity: 0.5 }]}
-                    disabled={offlinePoints.length < 3}
-                    onPress={() => {
-                      void listDallesForPolygon(offlinePoints)
-                        .then((r) => {
-                          if (!r.tiles.length) showToast("error", "Aucune dalle de l'index dans cette zone.");
-                          setOfflineTiles(r);
-                        })
-                        .catch((e) => showToast("error", (e as Error).message));
-                    }}
-                    testID="offline-zone-analyze"
-                  >
-                    <Ionicons name="scan" size={16} color={theme.bg} />
-                    <Text style={styles.blockedBtnTxt}>Analyser la zone</Text>
-                  </TouchableOpacity>
-                )}
+                        }
+                      })
+                      .catch((e) => showToast("error", (e as Error).message));
+                  }}
+                  testID="offline-zone-download"
+                >
+                  <Ionicons name="download" size={16} color={theme.bg} />
+                  <Text style={styles.blockedBtnTxt}>Lancer le téléchargement</Text>
+                </TouchableOpacity>
               </View>
             ) : null}
           </View>
@@ -3116,7 +2952,6 @@ export default function MapScreen() {
               setCompare(null);
               setRoute({ ...v, mode: compare.base.mode });
               setRouteCardMode("full");
-              setRouteAck(false);
               showToast("success", `Variante ${compare.engineName} adoptée — enregistrez-la pour la conserver.`);
             }}
             onClose={() => {
@@ -3171,8 +3006,7 @@ export default function MapScreen() {
               showToast("info", "Route supprimée.");
             }}
             onNavigate={() => void startFollow()}
-            acknowledged={routeAck}
-            onAcknowledge={() => setRouteAck(true)}
+            computeS={routeComputeS}
             onFocusDanger={(lat, lng, spanM) => {
               // 26/07 — tap sur la zone rouge du profil : centre + zoom sur
               // la section dangereuse (recentrage auto suspendu).
@@ -3411,6 +3245,37 @@ export default function MapScreen() {
           Android. Référence commune = bas du conteneur : barre ≈ 39 px
           (bottom 10 + ~29 de hauteur) → bouton à 39 + 5 = 44 px, séparation
           5 px sur TOUS les devices et orientations. */}
+      {/* ── 09/09/2026 (V1.6 armateur) — bouton « Cartes 📥 » en bas à
+          gauche (à gauche de l'échelle) + pastille de SOURCE des données
+          (verte LOCAL = dalle stockée sur l'appareil / grise SERVER). ── */}
+      {!picking && manualPoints == null && editPoints == null && (
+        <View style={[styles.cartesWrap, { bottom: 44 }]} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.cartesBtn}
+            testID="cartes-btn"
+            activeOpacity={0.85}
+            onPress={() => {
+              if (zoneCorners != null) {
+                mapRef.current?.stopZonePicker();
+                setZoneCorners(null);
+                setOfflineTiles(null);
+                return;
+              }
+              mapRef.current?.suspendFollow(true);
+              mapRef.current?.startZonePicker();
+            }}
+          >
+            <Text style={styles.cartesTxt}>Cartes 📥</Text>
+          </TouchableOpacity>
+          <View style={styles.srcBadge} testID="data-source-badge">
+            <View style={[styles.srcDot, { backgroundColor: dataIsLocal ? "#2EC46B" : "#8D99AE" }]} />
+            <Text style={[styles.srcTxt, dataIsLocal && { color: "#2EC46B" }]}>
+              {dataIsLocal ? "LOCAL" : "SERVER"}
+            </Text>
+          </View>
+        </View>
+      )}
+
       <View
         style={[
           styles.fabStack,
@@ -3550,10 +3415,6 @@ export default function MapScreen() {
                 const next = !waterTapOn;
                 setWaterTapOn(next);
                 if (!next) setWaterInfo(null);
-                // 31/07 — activation du mode goutte : ferme le popup clic
-                // carte (les deux ne cohabitent pas — le popup s'ouvre
-                // seulement en mode goutte OFF).
-                if (next) setMapTapInfo(null);
                 Haptics.selectionAsync().catch(() => {});
                 showToast(
                   "info",

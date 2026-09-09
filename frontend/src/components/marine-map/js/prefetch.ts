@@ -76,6 +76,10 @@ export const JS_PREFETCH = `  // Prefetch actif de tuiles autour du bateau (16/0
     }
   }
   window.__prefetchAroundUser = function(lat, lng){
+    // 09/09/2026 (V1.6, ordre armateur) — TÉLÉCHARGEMENT AUTO DÉSACTIVÉ au
+    // démarrage : plus aucun préchargement de tuiles tant que l'utilisateur
+    // n'en décide pas (fond de carte basique chargé à la demande).
+    if (!window.__prefetchOn) return;
     if (typeof lat !== 'number' || typeof lng !== 'number') return;
     var z = Math.round(map.getZoom());
     // Rayon = 2 km (choix user 16/07) sur Z-1 / Z / Z+1.

@@ -377,6 +377,23 @@ export const styles = StyleSheet.create({
     overflow: "hidden", marginBottom: 10,
   },
   offlineProgFill: { height: 8, borderRadius: 4, backgroundColor: "#48CAE4" },
+  // 09/09/2026 (V1.6) — bouton « Cartes 📥 » + pastille source LOCAL/SERVER.
+  cartesWrap: { position: "absolute", left: 10, alignItems: "flex-start", gap: 6 },
+  cartesBtn: {
+    minHeight: 44, paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 22, backgroundColor: "rgba(11,19,43,0.92)",
+    borderWidth: 1, borderColor: "rgba(72,202,228,0.55)",
+    justifyContent: "center",
+  },
+  cartesTxt: { color: theme.text, fontSize: 13, fontWeight: "800" },
+  srcBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
+    backgroundColor: "rgba(11,19,43,0.85)", borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  srcDot: { width: 8, height: 8, borderRadius: 4 },
+  srcTxt: { color: "#8D99AE", fontSize: 10, fontWeight: "900", letterSpacing: 0.6 },
   // 23/07 — carte PERSISTANTE « Passage impossible » (réglage en cause +
   // bouton Mon bateau). Remplace le toast de 3,5 s, trop court.
   blockedCard: {

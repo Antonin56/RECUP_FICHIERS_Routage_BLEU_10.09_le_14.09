@@ -64,18 +64,15 @@ export function RouteCard(props: {
   onDelete?: () => void;
   /** 23/07 — démarre le SUIVI DE ROUTE (panneau cap/ETA + grisage). */
   onNavigate?: () => void;
-  /** 28/07 (demande armateur) — GARDE-FOU : « Suivre cette route » reste
-   *  GRISÉ tant que « Ok, j'ai compris » (sous les avertissements) n'a pas
-   *  été touché. */
-  acknowledged?: boolean;
-  onAcknowledge?: () => void;
+  /** 09/09/2026 (V1.6) — temps de calcul définitif, affiché sous le titre. */
+  computeS?: number | null;
   /** 26/07 — tap sur la ZONE ROUGE du profil → centre la carte dessus. */
   onFocusDanger?: (lat: number, lng: number, spanM: number) => void;
   /** 02/08/2026 (demande armateur) — A/B TESTING : recalcule cette route avec
    *  un autre moteur et compare les deux tracés sur la carte. */
   onCompareEngine?: () => void;
 }) {
-  const { route, unit, draftM, onClose, onMinimize, onSave, onEdit, onShare, onDelete, onNavigate, acknowledged, onAcknowledge, onFocusDanger, onCompareEngine } = props;
+  const { route, unit, draftM, onClose, onMinimize, onSave, onEdit, onShare, onDelete, onNavigate, computeS, onFocusDanger, onCompareEngine } = props;
   // 08/09/2026 (remise à plat armateur) — infobulle « i » de décharge de
   // responsabilité + menu dépliable (Enregistrer/Modifier/Partager/Supprimer).
   const [infoOpen, setInfoOpen] = useState(false);
@@ -176,6 +173,14 @@ export function RouteCard(props: {
           <Ionicons name="close" size={20} color={theme.textMute} />
         </TouchableOpacity>
       </View>
+
+      {/* 09/09/2026 (V1.6) — CHRONO FINAL : temps de calcul définitif,
+          bien visible juste sous le titre. */}
+      {computeS != null ? (
+        <Text style={styles.computeTime} testID="route-compute-time">
+          {`Calculé en ${computeS.toFixed(1)} s`}
+        </Text>
+      ) : null}
 
       {infoOpen ? (
         <View style={styles.infoBox} testID="route-disclaimer">
@@ -518,33 +523,29 @@ export function RouteCard(props: {
           <Text style={styles.warnTxt}>{w}</Text>
         </View>
       ))}
-      {/* 28/07 (demande armateur) — accusé de lecture OBLIGATOIRE : le bouton
-          « Suivre cette route » reste grisé tant que « Ok, j'ai compris »
-          (sous les précisions de calcul et les avertissements) n'a pas été
-          touché. */}
-      {onNavigate && onAcknowledge && !acknowledged ? (
-        <TouchableOpacity
-          style={styles.ackBtn}
-          onPress={onAcknowledge}
-          activeOpacity={0.85}
-          testID="route-ack"
-        >
-          <Ionicons name="checkmark-circle-outline" size={16} color="#0B132B" />
-          <Text style={styles.ackTxt}>{"Ok, j'ai compris"}</Text>
-        </TouchableOpacity>
-      ) : null}
+      {/* 09/09/2026 (V1.6, ordre armateur) — l'écran d'accusé de lecture
+          « Ok, j'ai compris » est SUPPRIMÉ : accès DIRECT au suivi, avec le
+          bouton vert « Suivre cette route » et « Enregistrer cette route ». */}
       {onNavigate ? (
         <TouchableOpacity
-          style={[styles.followBtn, onAcknowledge && !acknowledged ? styles.followBtnOff : null]}
+          style={styles.followBtn}
           onPress={onNavigate}
           activeOpacity={0.85}
-          disabled={!!onAcknowledge && !acknowledged}
           testID="route-follow-start"
         >
-          <Ionicons name="play" size={16} color={onAcknowledge && !acknowledged ? "rgba(232,236,251,0.45)" : "#04121F"} />
-          <Text style={[styles.followTxt, onAcknowledge && !acknowledged ? styles.followTxtOff : null]}>
-            Suivre cette route
-          </Text>
+          <Ionicons name="play" size={16} color="#04121F" />
+          <Text style={styles.followTxt}>Suivre cette route</Text>
+        </TouchableOpacity>
+      ) : null}
+      {onSave ? (
+        <TouchableOpacity
+          style={styles.saveBtn}
+          onPress={onSave}
+          activeOpacity={0.85}
+          testID="route-save-big"
+        >
+          <Ionicons name="bookmark" size={15} color="#2EC4B6" />
+          <Text style={styles.saveBtnTxt}>Enregistrer cette route</Text>
         </TouchableOpacity>
       ) : null}
       {/* 02/08/2026 (demande armateur) — A/B TESTING de moteurs : recalcule
@@ -778,13 +779,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#2EC4B6", borderRadius: radii.md, paddingVertical: 10, minHeight: 44,
   },
   followTxt: { color: "#04121F", fontWeight: "900", fontSize: 14 },
-  // 28/07 — bouton GRISÉ tant que « Ok, j'ai compris » n'est pas touché.
-  followBtnOff: { backgroundColor: "rgba(46,196,182,0.18)" },
-  followTxtOff: { color: "rgba(232,236,251,0.45)" },
-  ackBtn: {
+  // 09/09/2026 (V1.6) — bouton « Enregistrer cette route » sous le suivi.
+  saveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    backgroundColor: "#F4A261", borderRadius: radii.md, paddingVertical: 9, minHeight: 40,
+    borderRadius: radii.md, paddingVertical: 9, minHeight: 44, marginTop: 8,
+    borderWidth: 1.5, borderColor: "#2EC4B6",
   },
-  ackTxt: { color: "#0B132B", fontWeight: "900", fontSize: 13 },
+  saveBtnTxt: { color: "#2EC4B6", fontWeight: "900", fontSize: 13 },
+  // 09/09/2026 (V1.6) — chrono final sous le titre.
+  computeTime: { color: "#48CAE4", fontSize: 12, fontWeight: "800", marginBottom: 6 },
   disclaimer: { color: theme.textMute, fontSize: 9, lineHeight: 12 },
 });

@@ -18,12 +18,10 @@ interface Props {
   onReport: (pt: Pt) => void;
   onNavigate: (pt: Pt) => void;
   onCreateRoute: (pt: Pt) => void;
-  /** 08/09/2026 (MASTER PLAN) — sélection d'une zone de cartes hors ligne. */
-  onOfflineZone?: (pt: Pt) => void;
 }
 
 export function LongPressMenuModal(
-  { point, openedAt, onClose, onReport, onNavigate, onCreateRoute, onOfflineZone }: Props,
+  { point, openedAt, onClose, onReport, onNavigate, onCreateRoute }: Props,
 ) {
   return (
     <Modal visible={point != null} transparent animationType="fade" onRequestClose={onClose}>
@@ -90,22 +88,6 @@ export function LongPressMenuModal(
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.textMute} />
           </TouchableOpacity>
-          {onOfflineZone ? (
-            <TouchableOpacity
-              style={styles.longPressRow}
-              onPress={() => {
-                if (point) onOfflineZone(point);
-              }}
-              testID="longpress-offline-zone"
-            >
-              <Ionicons name="cloud-download" size={20} color="#48CAE4" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.longPressLabel}>Cartes hors ligne</Text>
-                <Text style={styles.unitPickerHint}>{"Dessinez une zone — dalles 20 m stockées sur l'appareil"}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMute} />
-            </TouchableOpacity>
-          ) : null}
         </Pressable>
       </Pressable>
     </Modal>
