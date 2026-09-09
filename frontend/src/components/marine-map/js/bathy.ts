@@ -23,7 +23,10 @@ export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM 
     // réelle : plus AUCUNE requête MED/Corse en Bretagne. + updateWhenIdle
     // (téléchargement à l'arrêt du geste) et updateWhenZooming=false.
     var boundsByLayer = [
-      L.latLngBounds([[42.0, -7.0], [49.5, 1.0]]),   // façade ATL
+      // 10/09/2026 (V1.6 finale, ordre armateur) — GÉNÉRALISATION : la façade
+      // ATL/HOMONIM couvre Atlantique + Manche + Mer du Nord ; bornes élargies
+      // à TOUTE la France métropolitaine Ouest/Nord (plus de restriction).
+      L.latLngBounds([[41.0, -7.5], [51.6, 2.8]]),   // façade ATL + Manche/Nord
       L.latLngBounds([[41.0, 1.5], [44.6, 8.5]]),    // MED Golfe du Lion
       L.latLngBounds([[41.0, 8.0], [43.6, 10.5]]),   // Corse
       L.latLngBounds([[47.15, -3.45], [47.80, -2.25]]) // côtier 20 m (emprise WMS réelle)

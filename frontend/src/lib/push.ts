@@ -21,6 +21,10 @@ export async function registerForPush(user_id: string): Promise<void> {
   if (!Device.isDevice) return; // simulators/emulators don't get tokens
   // Expo Go cannot receive remote push since SDK 53 → skip entirely.
   if (Constants.appOwnership === "expo") return;
+  // 10/09/2026 (contrôle pré-publication) — push iOS NON configuré (pas de
+  // GoogleService-Info.plist) : enregistrement limité à Android tant que la
+  // configuration Firebase iOS n'est pas fournie.
+  if (Platform.OS === "ios") return;
 
   try {
     const Notifications = await import("expo-notifications");

@@ -43,22 +43,26 @@ _upload_sessions: Dict[str, Dict[str, Any]] = {}
 
 
 async def purge_expired_support_uploads() -> int:
-    """Supprime les uploads support de plus de SUPPORT_RETENTION_HOURS :
-    documents Mongo + fichiers assemblés + chunks temporaires orphelins +
-    sessions mémoire périmées. Appelé par la boucle d'archivage (server.py,
-    toutes les 10 min). Retourne le nombre de documents purgés."""
+    """Nettoyage des uploads support de plus de SUPPORT_RETENTION_HOURS —
+    SANS suppression en base (10/09/2026, contrôle pré-publication) : seuls
+    les FICHIERS disque (assemblés + chunks temporaires) sont retirés pour
+    l'hygiène du stockage ; le document Mongo est CONSERVÉ et marqué
+    ``purged: True`` (update_one). Appelé par la boucle d'archivage
+    (server.py, toutes les 10 min). Retourne le nombre de documents marqués."""
     from datetime import timedelta
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=SUPPORT_RETENTION_HOURS)
     purged = 0
     async for doc in srv.db.support_uploads.find(
-        {"created_at": {"$lt": cutoff}}, {"_id": 1, "path": 1}
+        {"created_at": {"$lt": cutoff}, "purged": {"$ne": True}}, {"_id": 1, "path": 1}
     ):
         try:
             Path(doc.get("path") or "").unlink(missing_ok=True)
         except OSError:
             pass
-        await srv.db.support_uploads.delete_one({"_id": doc["_id"]})
+        await srv.db.support_uploads.update_one(
+            {"_id": doc["_id"]}, {"$set": {"purged": True}}
+        )
         purged += 1
     # Fichiers orphelins (assemblés ou chunks tmp) plus vieux que la rétention.
     now = time.time()

@@ -281,6 +281,10 @@ export default function MapScreen() {
   // 22/07 — route MANUELLE en création : liste des étapes (null = inactif).
   const [manualPoints, setManualPoints] = useState<{ lat: number; lng: number }[] | null>(null);
   const [manualBusy, setManualBusy] = useState(false);
+  // 10/09/2026 (V1.6 finale) — editBusy déclaré ICI (avant le chrono) : le
+  // bouton STOP couvre TOUS les écrans de calcul (auto, manuelle, édition de
+  // points, recalcul moteur A/B admin).
+  const [editBusy, setEditBusy] = useState(false);
   // 22/07 — point de BLOCAGE (route impossible) : affiché en rouge pulsant,
   // la route existante n'est JAMAIS effacée (demande armateur).
   const [blocked, setBlocked] = useState<{ blocked_at: { lat: number; lng: number }; partial_waypoints?: { lat: number; lng: number }[]; message?: string } | null>(null);
@@ -343,13 +347,17 @@ export default function MapScreen() {
   // bouton « ARRÊTER LE CALCUL » (jeton d'annulation du polling).
   const routeCancelRef = useRef<{ cancelled: boolean } | null>(null);
   const [routeElapsedS, setRouteElapsedS] = useState(0);
+  // 10/09/2026 (V1.6 finale, ordre armateur) — STOP + chrono sur TOUS les
+  // écrans de calcul : route auto, manuelle, modification de points (User)
+  // et recalcul avec un autre moteur (Admin).
+  const anyBusy = routeBusy || manualBusy || editBusy || compareBusy;
   useEffect(() => {
-    if (!routeBusy) return;
+    if (!anyBusy) return;
     setRouteElapsedS(0);
     const t0 = Date.now();
     const iv = setInterval(() => setRouteElapsedS(Math.floor((Date.now() - t0) / 1000)), 500);
     return () => clearInterval(iv);
-  }, [routeBusy]);
+  }, [anyBusy]);
   // 08/09/2026 — tirant d'eau du bateau (affiché sur le bandeau « Route
   // conseillée »), rafraîchi à chaque calcul.
   const [boatDraftM, setBoatDraftM] = useState<number | null>(null);
@@ -532,6 +540,8 @@ export default function MapScreen() {
     const pts = manualPoints;
     if (!pts || pts.length < 2) return;
     setManualBusy(true);
+    const cancelTok = { cancelled: false };
+    routeCancelRef.current = cancelTok;
     try {
       const bs = await getBoatSettings();
       setBoatDraftM(bs.draftM);
@@ -545,7 +555,7 @@ export default function MapScreen() {
         ...(tideChoice != null && tideChoice > 0
           ? { departure_ts: Date.now() / 1000 + tideChoice * 3600 }
           : {}),
-      });
+      }, cancelTok);
       // 24/07 — risk posé aussi côté client (défense en profondeur : le
       // suivi doit TOUJOURS passer par l'acceptation du risque si rouge).
       setRoute({ ...r, risk: r.risk || !!r.compromised_legs?.length });
@@ -564,7 +574,8 @@ export default function MapScreen() {
         showToast("success", "Route créée — « Suivre cette route » pour démarrer.");
       }
     } catch (e) {
-      showToast("error", (e as Error).message || "Création de la route impossible.");
+      if ((e as { cancelled?: boolean }).cancelled) showToast("info", "Calcul arrêté.");
+      else showToast("error", (e as Error).message || "Création de la route impossible.");
     } finally {
       setManualBusy(false);
     }
@@ -578,7 +589,6 @@ export default function MapScreen() {
   // complet re-contrôlé par le moteur). Ajustement fin, carte lisible.
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [editMoved, setEditMoved] = useState(false);
-  const [editBusy, setEditBusy] = useState(false);
   const closeEdit = useCallback(() => {
     setEditPoints(null);
     setEditIdx(null);
@@ -588,6 +598,8 @@ export default function MapScreen() {
     const pts = editPoints;
     if (!pts || pts.length < 2 || editBusy) return;
     setEditBusy(true);
+    const cancelTok = { cancelled: false };
+    routeCancelRef.current = cancelTok;
     try {
       const bs = await getBoatSettings();
       const r = await api.manualRoute({
@@ -599,7 +611,7 @@ export default function MapScreen() {
         use_tide: true,
         // 11/08 — recalcul par LE MOTEUR de la route affichée (test A/B).
         ...(route?.engine_id ? { engine_id: route.engine_id } : {}),
-      });
+      }, cancelTok);
       setRoute({ ...r, mode: "manual", risk: r.risk || !!r.compromised_legs?.length });
       setRouteCardMode("full");
       setRiskAccepted(false);
@@ -611,13 +623,16 @@ export default function MapScreen() {
         showToast("success", "Modification de la route enregistrée.");
       }
     } catch (e) {
-      showToast("error", (e as Error).message || "Validation de la modification impossible.");
+      if ((e as { cancelled?: boolean }).cancelled) showToast("info", "Calcul arrêté.");
+      else showToast("error", (e as Error).message || "Validation de la modification impossible.");
     } finally {
       setEditBusy(false);
     }
   }, [editPoints, editBusy, route?.engine_id, closeEdit]);
   const loadSavedRoute = useCallback(async (sr: SavedRoute) => {
     setRouteBusy(true);
+    const cancelTok = { cancelled: false };
+    routeCancelRef.current = cancelTok;
     try {
       const bs = await getBoatSettings();
       setBoatDraftM(bs.draftM);
@@ -631,7 +646,7 @@ export default function MapScreen() {
         // 02/08/2026 — la route est re-contrôlée par LE MOTEUR QUI L'A
         // PRODUITE (référence du test A/B) quand il est encore disponible.
         ...(sr.engine_id ? { engine_id: sr.engine_id } : {}),
-      });
+      }, cancelTok);
       setRoute({ ...r, mode: sr.mode });
       setRouteCardMode("full");
       setBlocked(null);
@@ -640,7 +655,8 @@ export default function MapScreen() {
       showToast("success", `Route « ${sr.name} » affichée.`);
       return true;
     } catch (e) {
-      showToast("error", (e as Error).message || "Affichage de la route impossible.");
+      if ((e as { cancelled?: boolean }).cancelled) showToast("info", "Calcul arrêté.");
+      else showToast("error", (e as Error).message || "Affichage de la route impossible.");
       return false;
     } finally {
       setRouteBusy(false);
@@ -724,10 +740,12 @@ export default function MapScreen() {
     const base = route;
     if (!base || base.waypoints.length < 2) return;
     setCompareBusy(true);
+    const cancelTok = { cancelled: false };
+    routeCancelRef.current = cancelTok;
     try {
       let variant: ComputedRoute;
       if (savedCtx) {
-        const res = await api.recomputeSavedRoute(savedCtx.id, [engine.id]);
+        const res = await api.recomputeSavedRoute(savedCtx.id, [engine.id], cancelTok);
         const got = res.results[engine.id] as ComputedRoute & { error?: string };
         if (!got || got.error || !got.waypoints?.length) {
           throw new Error(got?.error || "Ce moteur n'a pas pu recalculer cette route.");
@@ -742,7 +760,7 @@ export default function MapScreen() {
             waypoints: base.waypoints.map((w) => ({ lat: w.lat, lng: w.lng })),
             draft_m: draft, depth_margin_m: marginM, use_tide: false,
             engine_id: engine.id,
-          });
+          }, cancelTok);
         } else {
           const ctx = routeCtxRef.current;
           const wps = base.waypoints;
@@ -753,7 +771,7 @@ export default function MapScreen() {
             ...(bs?.marginMode === "manual" ? { lateral_margin_m: bs.marginM } : {}),
             use_tide: false,
             engine_id: engine.id,
-          });
+          }, cancelTok);
         }
       }
       const diff = compareRoutes(base.waypoints, variant.waypoints, 25);
@@ -772,7 +790,8 @@ export default function MapScreen() {
           : `${diffCount(diff)} écart(s) — variante ${(variant.distance_m / 1000).toFixed(1)} km (écart maxi ${Math.round(diff.maxDevM)} m).`,
       );
     } catch (e) {
-      showToast("error", (e as Error).message || "Recalcul impossible avec ce moteur.");
+      if ((e as { cancelled?: boolean }).cancelled) showToast("info", "Calcul arrêté.");
+      else showToast("error", (e as Error).message || "Recalcul impossible avec ce moteur.");
     } finally {
       setCompareBusy(false);
     }
@@ -2109,7 +2128,7 @@ export default function MapScreen() {
         bathymetryOpacity={bathyOpacity}
         route={route}
         routeCompare={routeComparePayload}
-        netQuiet={routeBusy || compareBusy}
+        netQuiet={anyBusy}
         onRouteTap={(danger) => {
           if (!editPoints) {
             setRouteMenuDanger(danger ?? null);
@@ -2794,9 +2813,10 @@ export default function MapScreen() {
 
       {/* ── N1 (20/07/2026) — Route sûre : pill de calcul puis RouteCard
           (distance, profil de profondeur, avertissements, fermer). ── */}
-      {routeBusy ? (
-        /* 08/09/2026 (remise à plat armateur) — CHRONO visible pendant le
-           calcul + bouton « ARRÊTER LE CALCUL » (rend la main immédiatement). */
+      {anyBusy ? (
+        /* 10/09/2026 (V1.6 finale) — CHRONO + bouton « ARRÊTER LE CALCUL »
+           sur TOUS les écrans de calcul (auto, manuelle, édition de points,
+           recalcul moteur admin) : rend la main immédiatement. */
         <View style={styles.routeCardWrap} pointerEvents="box-none">
           <View style={styles.routeBusyPill}>
             <ActivityIndicator size="small" color="#48CAE4" />

@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -63,7 +64,10 @@ router = APIRouter(tags=["dev"], dependencies=[Depends(_require_dev_enabled)])
 TEST_ACCOUNTS: dict[str, dict[str, Optional[str]]] = {
     "antoninlepinay@gmail.com": {"pseudo": None, "phone": "+33760071445"},
 }
-TEST_PASSWORD = "123454321"
+# 10/09/2026 (contrôle pré-publication) — le mot de passe QA partagé n'est
+# PLUS commité en dur : il vient de l'environnement (backend/.env en dev,
+# Publish → Deploy → Secrets en production). Vide = seed QA DÉSACTIVÉ.
+TEST_PASSWORD = os.environ.get("TEST_PASSWORD", "")
 
 
 def _is_whitelisted(email: Optional[str]) -> bool:
@@ -79,6 +83,10 @@ async def seed_test_accounts(db) -> dict:
     """
     created = 0
     updated = 0
+    # Pas de TEST_PASSWORD dans l'environnement → aucun compte de test
+    # seedé/réaligné (comportement voulu en production).
+    if not TEST_PASSWORD:
+        return {"created": 0, "updated": 0, "skipped": "TEST_PASSWORD non défini"}
     pwd_hash = srv.hash_password(TEST_PASSWORD)
 
     for email, cfg in TEST_ACCOUNTS.items():

@@ -961,7 +961,7 @@ async def referral_landing(ref: str = ""):
       <a id="cta-ios" href="https://apps.apple.com/app/signalmar" class="btn" style="display:none">
         Télécharger sur l'App Store
       </a>
-      <a id="cta-and" href="https://play.google.com/store/apps/details?id=com.signalmar" class="btn dark" style="display:none">
+      <a id="cta-and" href="https://play.google.com/store/apps/details?id=com.emergent.signmarwazemer.sa5b3v" class="btn dark" style="display:none">
         Télécharger sur Google Play
       </a>
     </div>
@@ -1077,20 +1077,26 @@ async def on_startup():
     except Exception:
         logger.exception("subscription index setup failed")
 
-    # 31/07/2026 — ID PUBLIC de route + support armateur : indices + TTL.
-    #  - computed_routes : conservées 30 jours pour inspection support.
-    #  - support_screenshots : conservées 60 jours (temps de diagnostic).
+    # 31/07/2026 — ID PUBLIC de route + support armateur : indices.
+    # 10/09/2026 (contrôle pré-publication) — AUCUNE suppression automatique
+    # en base : les index TTL Mongo (computed_routes 30 j, support_screenshots
+    # 60 j) sont SUPPRIMÉS (drop idempotent des anciens index TTL s'ils
+    # existent d'un déploiement précédent). La rétention devient purement
+    # informative (champ created_at) ; les données sont conservées.
     try:
+        for _coll, _ttl_idx in (
+            (db.computed_routes, "created_at_1"),
+            (db.support_screenshots, "created_at_1"),
+            (db.reports, "expires_at_ttl"),
+        ):
+            try:
+                await _coll.drop_index(_ttl_idx)
+            except Exception:
+                pass  # index absent — rien à faire
         await db.computed_routes.create_index("route_id", unique=True)
         await db.computed_routes.create_index([("created_at", -1)])
-        await db.computed_routes.create_index(
-            "created_at", expireAfterSeconds=30 * 24 * 3600,
-        )
         await db.support_screenshots.create_index("id", unique=True)
         await db.support_screenshots.create_index([("created_at", -1)])
-        await db.support_screenshots.create_index(
-            "created_at", expireAfterSeconds=60 * 24 * 3600,
-        )
     except Exception:
         logger.exception("support/computed_routes index setup failed")
 
@@ -1116,31 +1122,30 @@ async def on_startup():
 
 
 async def _archive_loop():
-    """Periodic delete of:
-    - expired reports (sliding TTL has run out), with a 24 h grace period.
-    - legacy unconfirmed reports older than REPORT_TTL_HOURS (no expires_at).
-    Runs every 10 minutes.
+    """Rétention des signalements SANS AUCUNE suppression en base (10/09/2026,
+    exigence du contrôle pré-publication) : la boucle POSE ``expires_at`` sur
+    les signalements hérités sans TTL glissant (non confirmés, plus vieux que
+    REPORT_TTL_HOURS) — ``update_many`` uniquement, jamais de ``delete`` ni
+    d'index TTL. Les lectures (routers/reports.py) filtrent déjà sur
+    ``expires_at`` : un signalement expiré disparaît de la carte mais le
+    document est CONSERVÉ. Tourne toutes les 10 minutes.
     """
     import asyncio
     while True:
         try:
             now = now_utc()
-            grace = now - timedelta(hours=24)
-            res1 = await db.reports.delete_many(
-                {"expires_at": {"$exists": True, "$lt": grace}}
-            )
             cutoff = now - timedelta(hours=REPORT_TTL_HOURS)
-            res2 = await db.reports.delete_many(
+            res = await db.reports.update_many(
                 {
                     "created_at": {"$lt": cutoff},
                     "expires_at": {"$exists": False},
                     "$or": [{"confirmations": {"$exists": False}}, {"confirmations": {"$size": 0}}],
-                }
+                },
+                {"$set": {"expires_at": now}},
             )
-            total = res1.deleted_count + res2.deleted_count
-            if total:
-                logger.info("auto-archived %d reports (expired=%d, legacy=%d)",
-                            total, res1.deleted_count, res2.deleted_count)
+            if res.modified_count:
+                logger.info("auto-archived %d legacy reports (purge déléguée au TTL Mongo)",
+                            res.modified_count)
         except Exception as e:
             logger.warning("archive loop error: %s", e)
         # Rétention 12 h des captures vidéo envoyées au support (13/07/2026).

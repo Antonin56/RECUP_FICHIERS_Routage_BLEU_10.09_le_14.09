@@ -1,5 +1,43 @@
 # SignalMar — PRD
 
+## ✅ ITER166 (10/09, V1.6 FINALE — refonte visuelle + prépa build APK, ordre armateur)
+- ACTION 1 (déjà ITER165 sauf WMS) : rendu .npy désactivé ✔ ; NOUVEAU :
+  calque WMS SHOM GÉNÉRALISÉ à toute la France — bornes façade ATL élargies
+  [[41.0,-7.5],[51.6,2.8]] (bathy.ts), HOMONIM ATL couvre Atlantique +
+  Manche + Mer du Nord (vérifié : tuiles Cherbourg 70 Ko et Dunkerque 83 Ko
+  servies via /api/tiles/shom/atl). Rôles : WMS = visuel, dalles .npy =
+  calcul + goutte d'eau uniquement.
+- ACTION 2 : « Ok j'ai compris » supprimé ✔ (ITER165), chrono « Calculé en
+  X.X s » ✔ ; NOUVEAU : bouton STOP sur TOUS les écrans de calcul —
+  anyBusy = routeBusy|manualBusy|editBusy|compareBusy (map.tsx) → pill
+  chrono + ARRÊTER LE CALCUL pour route auto, création manuelle,
+  modification de points (User), recalcul autre moteur (Admin), route
+  enregistrée rejouée. CancelToken propagé : api.manualRoute et
+  api.recomputeSavedRoute acceptent cancel (client.ts) ; catch cancelled →
+  toast info « Calcul arrêté. ». editBusy déclaré avant le chrono ;
+  netQuiet={anyBusy}. NOUVEAU : RÈGLE DES 150 % SUPPRIMÉE POUR TOUS LES
+  MOTEURS (routing.py : blocs low_margin auto + manuel retirés) — seuls
+  tirant + marge saisis comptent.
+- ACTION 3 : bouton Cartes 📥 + carré 50 km + pack (dalles + balisage/
+  mouillages/dangers) + pastille LOCAL/SERVER + zoom z21 ✔ (déjà ITER165,
+  vérifié).
+- ACTION 4 : A* Moteur J (2.0, 50 000) ✔ (déjà ITER164, vérifié).
+- AUCUN calcul de route exécuté. iter165 pytest 4/4, lint OK, smoke OK.
+- PRÉPA PUBLICATION/APK (deployment_agent, 4 passes → statut WARN seulement) :
+  · app.json splash → splash-image.png (le fichier splash-icon.png manquait) ;
+  · PLUS AUCUNE suppression auto en base : TTL computed_routes/support_
+    screenshots retirés + drop idempotent au boot, _archive_loop = update_many
+    seul (les lectures filtrent expires_at), purge support_uploads = soft-
+    delete {purged:true} + nettoyage disque seulement ;
+  · JWT_SECRET requis de l'env (plus de fallback), TEST_PASSWORD sorti du
+    code → env (backend/.env en dev, Secrets en prod — sans lui le seed QA
+    est inerte), .gitignore sans patterns .env, METRO_CACHE_ROOT quoté ;
+  · push iOS early-return (pas de GoogleService-Info.plist — Android seul),
+    URL Play Store page parrain → id=com.emergent.signmarwazemer.sa5b3v ;
+  · expo ~54.0.37 / expo-constants ~18.0.14 / expo-file-system ~19.0.24.
+  ⚠️ À la publication : saisir JWT_SECRET, TEST_PASSWORD, TILE_SERVER_TOKEN
+  dans Publish → Deploy → Secrets.
+
 ## ✅ ITER165 (09/09, V1.6 — REFONTE UI/UX + DONNÉES LOCALES armateur)
 - A1 (RouteCard) : accusé « Ok, j'ai compris » SUPPRIMÉ (props acknowledged/
   onAcknowledge + styles ack*/followBtnOff retirés) → accès DIRECT : bouton

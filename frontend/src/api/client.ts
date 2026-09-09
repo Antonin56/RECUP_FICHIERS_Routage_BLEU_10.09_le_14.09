@@ -631,7 +631,8 @@ export const api = {
     departure_ts?: number;
     /** 01/08/2026 — Moteur de routage à utiliser. Absent = preference user. */
     engine_id?: string;
-  }) => runAsJob<ComputedRoute>("/routes/manual/async", body),
+    // 10/09/2026 (V1.6) — STOP possible sur TOUS les écrans de calcul.
+  }, cancel?: CancelToken) => runAsJob<ComputedRoute>("/routes/manual/async", body, cancel),
 
   /** 24/07/2026 — hauteur d'eau au point cliqué (fond carte + marée). */
   depthAt: (lat: number, lng: number) =>
@@ -678,12 +679,12 @@ export const api = {
       "/routes/mark-report", { method: "POST", body }),
   /** 01/08/2026 — Recalcule une route enregistrée avec 1..6 moteurs et
    *  retourne les tracés côte à côte pour analyse. */
-  recomputeSavedRoute: (id: string, engine_ids: string[]) =>
+  recomputeSavedRoute: (id: string, engine_ids: string[], cancel?: CancelToken) =>
     runAsJob<{
       saved_route_id: string;
       source_engine_id: string | null;
       results: Record<string, ComputedRoute | { engine: unknown; error: string }>;
-    }>(`/routes/saved/${id}/recompute/async`, { engine_ids }),
+    }>(`/routes/saved/${id}/recompute/async`, { engine_ids }, cancel),
 
   // ── 01/08/2026 — Multi-moteurs de routage ─────────────────────────────
   listRoutingEngines: () =>

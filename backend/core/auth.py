@@ -29,7 +29,10 @@ from core.db import db
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-JWT_SECRET: str = os.environ.get("JWT_SECRET", "signmar-dev-secret-change-me")
+# 10/09/2026 (contrôle pré-publication) — JWT_SECRET REQUIS depuis
+# l'environnement : plus de secret par défaut en dur (échec franc au boot
+# si la variable manque — à saisir dans Publish → Deploy → Secrets).
+JWT_SECRET: str = os.environ["JWT_SECRET"]
 JWT_ALGO: str = "HS256"
 JWT_EXPIRE_DAYS: int = 7
 

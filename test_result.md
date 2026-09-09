@@ -693,3 +693,40 @@ agent_communication:
           auto désactivé, pastille LOCAL/SERVER ; (A5) A* J 2.0/50k déjà en
           place. Moteur I intact. seamarks?limit=2000 → 545 marks, 9999 →
           422. AUCUN calcul de route exécuté.
+
+  - task: "ITER166 — V1.6 finale : WMS France entière + STOP partout + 150% supprimée (armateur 10/09)"
+    implemented: true
+    working: "NA"
+    file: "frontend: src/components/marine-map/js/bathy.ts (bornes ATL élargies France entière), app/(tabs)/map.tsx (anyBusy, CancelToken sur manuelle/édition/compare/saved), src/api/client.ts (manualRoute+recomputeSavedRoute cancel) ; backend: routers/routing.py (blocs low_margin 150% supprimés pour TOUS les moteurs)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          WMS SHOM généralisé (bornes ATL [[41,-7.5],[51.6,2.8]] — tuiles
+          Cherbourg/Dunkerque vérifiées 200 OK). STOP + chrono sur tous les
+          écrans de calcul (auto/manuelle/édition/recalcul moteur admin/route
+          enregistrée) via anyBusy + CancelToken propagé. Règle des 150 %
+          (low_margin) supprimée pour TOUS les moteurs, auto + manuel.
+          Moteurs I/J intacts. iter165 pytest 4/4. AUCUN calcul de route
+          exécuté (ordre armateur).
+
+  - task: "ITER166b — Prépa publication/APK : contrôle deployment_agent (10/09)"
+    implemented: true
+    working: true
+    file: "backend: server.py (TTL retirés + drops idempotents, archive_loop non destructif, URL Play Store parrain), routers/diagnostics.py (soft-delete support_uploads), routers/dev_switch.py (TEST_PASSWORD depuis env), core/auth.py (JWT_SECRET requis) ; frontend: app.json (splash-image.png), .env (METRO_CACHE_ROOT quoté), src/lib/push.ts (iOS early-return), package.json (expo ~54.0.37) ; .gitignore (patterns .env retirés)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: >
+          deployment_agent : 4 passes, statut final WARN uniquement (push iOS
+          volontairement désactivé, Android configuré). Plus aucune
+          suppression automatique en base (vérifié : 0 index TTL sur
+          reports/computed_routes/support_screenshots). Login seedé OK avec
+          TEST_PASSWORD depuis backend/.env. Secrets à saisir au Publish :
+          JWT_SECRET, TEST_PASSWORD, TILE_SERVER_TOKEN. Smoke frontend OK.

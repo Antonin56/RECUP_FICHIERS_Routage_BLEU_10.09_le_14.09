@@ -749,30 +749,10 @@ async def routes_compute(body: RouteIn, user: dict = Depends(current_user)):
                         "resterait déplacée : fond insuffisant sur les cartes "
                         "au-delà de ce point."
                     )
-    # ── 25/07 (demande armateur — vidéo « route dangereuse ») : MARGE FAIBLE.
-    # Si la hauteur d'eau minimale rencontrée (fond carte + marée) est < 150%
-    # du besoin (tirant + marge de fond), on le signale : le front propose
-    # une route alternative plus sûre (safety_extra_m = 2 m) ou exige la
-    # confirmation du risque avant le suivi.
-    # 08/09/2026 (remise à plat armateur) — règle DÉSACTIVÉE pour les Moteurs
-    # I/J : on ne respecte que le tirant d'eau + la marge saisis (plus de
-    # marge de sécurité automatique de +50 %, plus de « route plus sûre »).
-    if not simple_mode and not body.safety_extra_m and not result.get("shallow_route"):
-        req = body.draft_m + body.depth_margin_m
-        depths = [
-            p.get("depth_m")
-            for p in result.get("depth_profile", [])
-            if p.get("depth_m") is not None
-        ]
-        if depths and req > 0:
-            min_h = min(depths) + tide_m
-            if min_h < 1.5 * req:
-                result["low_margin"] = {
-                    "min_height_m": round(min_h, 2),
-                    "required_m": round(req, 2),
-                    "alert_at_m": round(1.5 * req, 2),
-                    "safe_extra_m": 2.0,
-                }
+    # ── 10/09/2026 (V1.6 finale, ordre armateur) — RÈGLE DES 150 % (marge
+    # automatique de +50 %, alerte low_margin / « route plus sûre »)
+    # DÉFINITIVEMENT SUPPRIMÉE pour TOUS les moteurs (A-J) : seuls le tirant
+    # d'eau et la marge SAISIS par l'utilisateur comptent.
     dt = time.monotonic() - t0
     logger.info(
         "route computed user=%s wp=%d dist=%.0fm fallback=%s in %.2fs",
@@ -981,21 +961,9 @@ async def routes_manual(body: ManualRouteIn, user: dict = Depends(current_user))
         )
     elif tide_warning:
         result["warnings"].append(tide_warning)
-    # 26/07 (demande armateur) — RÈGLE DES 150 % aussi sur les routes
-    # manuelles/modifiées : même mécanique d'alerte que la route auto.
-    # 27/07 — min_height intègre désormais la marée (fond carte + marée).
-    # 08/09/2026 (remise à plat armateur) — désactivée pour les Moteurs I/J.
-    min_d = result.get("min_depth_m")
-    if min_d is not None and str(getattr(_algo, "id", "")) not in ("signalmar.i", "signalmar.j"):
-        req = body.draft_m + body.depth_margin_m
-        min_h = float(min_d) + tide_m
-        if req > 0 and min_h < 1.5 * req:
-            result["low_margin"] = {
-                "min_height_m": round(min_h, 2),
-                "required_m": round(req, 2),
-                "alert_at_m": round(1.5 * req, 2),
-                "safe_extra_m": 2.0,
-            }
+    # 10/09/2026 (V1.6 finale, ordre armateur) — RÈGLE DES 150 % SUPPRIMÉE
+    # pour TOUS les moteurs, routes manuelles/modifiées comprises : seuls le
+    # tirant d'eau et la marge saisis comptent (plus de low_margin).
     # 31/07/2026 — ID PUBLIC + persistance 30 j (support armateur).
     result["route_id"] = _new_route_id()
     # 01/08/2026 — traçabilité multi-moteurs (cf. compute).
