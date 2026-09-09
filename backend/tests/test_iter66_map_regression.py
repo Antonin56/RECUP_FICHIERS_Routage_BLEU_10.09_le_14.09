@@ -7,7 +7,7 @@ reports (no backend changes this iteration; UI-only regression fix).
 import os
 import requests
 
-BASE_URL = os.environ.get("EXPO_BACKEND_URL", "https://calcul-optimize.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_BACKEND_URL", "https://routing-offline.preview.emergentagent.com").rstrip("/")
 
 
 def test_get_reports_anonymous_demo_returns_seed():

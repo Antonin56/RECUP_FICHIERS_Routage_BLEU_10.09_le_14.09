@@ -32,7 +32,7 @@ from core.routing import RouteError, compute_route  # noqa: E402
 
 BASE_URL = os.environ.get(
     "EXPO_PUBLIC_BACKEND_URL",
-    "https://calcul-optimize.preview.emergentagent.com",
+    "https://routing-offline.preview.emergentagent.com",
 ).rstrip("/")
 QA = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 ADMIN_USER_ID = "user_0b6070a69154"        # SignalMar (armateur, testeur)

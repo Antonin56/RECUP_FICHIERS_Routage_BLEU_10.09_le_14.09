@@ -10,7 +10,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "EXPO_PUBLIC_BACKEND_URL",
-    "https://calcul-optimize.preview.emergentagent.com",
+    "https://routing-offline.preview.emergentagent.com",
 ).rstrip("/")
 QA_BYPASS = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 ADMIN_PHONE = "0760071445"

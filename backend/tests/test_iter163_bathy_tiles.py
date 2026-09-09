@@ -10,7 +10,7 @@ from PIL import Image
 BASE_URL = (
     os.environ.get("EXPO_BACKEND_URL")
     or os.environ.get("EXPO_PUBLIC_BACKEND_URL")
-    or "https://calcul-optimize.preview.emergentagent.com"
+    or "https://routing-offline.preview.emergentagent.com"
 ).rstrip("/")
 
 
