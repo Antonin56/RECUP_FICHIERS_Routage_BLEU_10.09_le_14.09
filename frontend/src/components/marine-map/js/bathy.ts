@@ -33,7 +33,7 @@ export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM 
       ? API_BASE + '/api/tiles/dalles/{z}/{x}/{y}.png'
       : API_BASE + '/api/tiles/shom/' + key + '/{z}/{x}/{y}.png';
     var _tl = L.tileLayer(url, {
-      opacity: 0.7, maxZoom: 19,
+      opacity: 0.7, maxZoom: 21, maxNativeZoom: 19,
       attribution: key === 'dalles' ? 'Bathymétrie © SHOM (dalles SignalMar)' : 'Bathymétrie © SHOM',
       // 23/07 — le proxy-cache local rend les tuiles quasi instantanées :
       // on recharge PENDANT le pan (fini les trous puis flashs à l'arrêt).
@@ -62,11 +62,11 @@ export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM 
     .catch(function(_){});
   function _pickBathyLayer(){
     // 22/07/2026 (lag + flashs tablette) — UNE SEULE couche à la fois.
-    // 08/09/2026 — dalles OVH à partir de z10 (en dessous : WMS régional,
-    // le rendu fin d'une tuile trop large coûterait trop de dalles).
+    // 08/09/2026 — dalles OVH dès z8 (« partout en France », fini le rendu
+    // flou 100 m ; en dessous : WMS régional, vue nationale).
     var c = map.getCenter();
     var atl = _bathyLayers[0], med = _bathyLayers[1], cor = _bathyLayers[2], dalles = _bathyLayers[3];
-    if (map.getZoom() >= 10 && dalles.options.bounds.contains(c)) return dalles;
+    if (map.getZoom() >= 8 && dalles.options.bounds.contains(c)) return dalles;
     if (med.options.bounds.contains(c)) return med;
     if (cor.options.bounds.contains(c)) return cor;
     return atl;

@@ -18,7 +18,7 @@ export function jsBootstrap(
   // PROXY-CACHE de tuiles (/api/tiles/...) qui remplace les appels directs
   // au WMS SHOM (lent) et à OpenSeaMap (irrégulier).
   var API_BASE = ${JSON.stringify(apiBase)};
-  var map = L.map('map', {zoomControl:false, attributionControl:false}).setView([${center.lat}, ${center.lng}], ${zoom});
+  var map = L.map('map', {zoomControl:false, attributionControl:false, maxZoom: 21}).setView([${center.lat}, ${center.lng}], ${zoom});
   // Expose the map instance for diagnostic/testing purposes (pan direction
   // verification). Harmless in production.
   window.__map__ = map;

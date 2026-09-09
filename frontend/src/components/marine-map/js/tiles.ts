@@ -26,7 +26,9 @@ export const JS_TILES = `  var _netQuiet = false, _isoRetry = false, _markRetry 
     });
   }
   var _osmTiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution:'© OpenStreetMap', keepBuffer: 4,
+    // 08/09/2026 (ordre armateur) — zoom jusqu'à l'échelle ~10 m : les tuiles
+    // OSM s'arrêtent à z19, on les AGRANDIT (maxNativeZoom) jusqu'à z21.
+    maxZoom: 21, maxNativeZoom: 19, attribution:'© OpenStreetMap', keepBuffer: 4,
   }).addTo(map);
   attachTileRetry(_osmTiles, 3);
   // 23/07/2026 (fluidité) — tuiles seamark servies par NOTRE proxy-cache
@@ -37,7 +39,7 @@ export const JS_TILES = `  var _netQuiet = false, _isoRetry = false, _markRetry 
     // 22/07/2026 (bug armateur « balise qui disparaît au zoom ») : les tuiles
     // OpenSeaMap s'arrêtent au z18 → au-delà la couche disparaissait. On
     // AGRANDIT les tuiles z18 (maxNativeZoom) au lieu de les perdre.
-    maxZoom: 19, maxNativeZoom: 18, attribution:'© OpenSeaMap', opacity:0.95, keepBuffer: 6,
+    maxZoom: 21, maxNativeZoom: 18, attribution:'© OpenSeaMap', opacity:0.95, keepBuffer: 6,
   }).addTo(map);
   // 26/07/2026 (bug armateur « carte blanche au démarrage — il faut zoomer/
   // dézoomer pour la faire apparaître ») — au premier chargement, une partie

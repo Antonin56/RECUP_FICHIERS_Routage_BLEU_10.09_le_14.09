@@ -1,0 +1,29 @@
+{
+  "summary": "ITER164 SignalMar — validation NON-INVASIVE (ordre armateur : AUCUN calcul de route déclenché). 21/21 tests iter164 verts + 6/6 iter163 tile-reader verts. STATIQUE : engine_i.py STRICTEMENT intact vs commit 2b000634 (git diff vide). UNITAIRE A* : ASTAR_TUNING ContextVar défaut None ; sur grille synthétique numpy 12x12 (nav True, cost_extra zeros), _astar((0,0)→(11,11)) rend le MÊME chemin tuning None vs (2.0, 50000), et rend None avec cap (2.0, 5). engine_j.py arme _J_ASTAR_TUNING=(2.0, 50_000) via set→try→super().compute_auto→finally reset. NON-INVASIF endpoints : /api/tiles/dalles-list (12 tiles, 12 001 536 octets, structure {name,bbox,size_bytes:1000128}) + 422 sur poly 2 pts ; /api/tiles/dalles-npy/tile_47.5_-2.9.npy = 1 000 128 octets, np.load → (500,500) float32 + 422 sur noms invalides (tile_x.npy, .txt, malicious.npy) ; path traversal ../etc/passwd bloqué par l'ingress (404, aucun contenu system) ; /api/tiles/dalles-fine-list = {\"tiles\":[]} + 422 sur bbox invalide ; /api/tiles/dalles/8/125/89.png PNG RGBA avec alpha_max=255 (opaque dès z8) ; /api/tiles/dalles/7/62/44.png alpha_max=0 (_CLEAR_PNG totalement transparent). STATIQUE frontend : offline-dalles.ts (listDallesForPolygon/downloadDalles/checkFineTiles/MANIFEST_KEY/AsyncStorage), map.tsx (états offlinePoints/offlineTiles/offlineBusy + testIDs offline-zone-bar/-analyze/-download/route-retry-engine + reason:\"stop\"), LongPressMenuModal.tsx (testID longpress-offline-zone), bootstrap.ts (maxZoom:21), tiles.ts (OSM maxZoom 21/maxNativeZoom 19, OpenSeaMap maxNativeZoom 18), bathy.ts (map.getZoom()>=8 sur dalles + maxZoom 21/maxNativeZoom 19). FRONTEND rendu : onboarding SignalMar chargé (viewport mobile 390x844), pas de red screen, aucune erreur console, testID onboarding-next détecté. AUCUN calcul de route déclenché (aucun POST /api/routes/compute*, aucun clic UI de calcul).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter164_master_plan.py",
+    "/app/test_reports/pytest/iter164.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "engine_j.py : set/reset ContextVar propre autour de super().compute_auto (finally), aucun impact sur A-I confirmé par le test unitaire ASTAR_TUNING défaut None.",
+    "tiles.py /dalles-npy : la regex _DALLE_NAME_RE ^tile_(-?\\d+\\.\\d)_(-?\\d+\\.\\d)\\.npy$ bloque bien tous les noms hors format + le path traversal est arrêté au niveau ingress (404).",
+    "bathy.ts _pickBathyLayer : condition `map.getZoom() >= 8 && dalles.options.bounds.contains(c)` — les dalles ne s'affichent qu'à z>=8 ET dans les bounds, conforme au master plan."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter164_master_plan.py"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "seed_data_creation": "Aucun. Le cache disque /app/data/tiles/remote_cache est utilisé tel quel (comme demandé, NON purgé).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Suite ITER164 : 21 tests couvrent la mission armateur (STOP calcul UI côté frontend, MASTER PLAN données via endpoints tiles non-invasifs, A* pondéré via ContextVar pour Moteur J uniquement). Le 1er GET /api/tiles/dalles-npy et /api/tiles/dalles/8 peuvent prendre 30-60 s au chaud froid (téléchargement OVH puis cache). RAPPEL ARMATEUR : ne jamais lancer POST /api/routes/compute* ni cliquer UI de calcul. La suite pytest full a 8 échecs connus hors périmètre (voir iter163). Le téléchargement hors-ligne côté frontend (expo-file-system/legacy) est natif-only : ne pas retester sur web preview.",
+  "rca_of_issue": "N/A — pas de bug relevé. Validation d'implémentation. Détails mineurs pendant l'écriture des tests : (1) `../etc/passwd` normalisé par l'ingress → 404 avant l'endpoint (jamais 422). Adapté : test dédié qui vérifie l'absence de contenu system. (2) _CLEAR_PNG au format palette (mode 'P') → il faut convert('RGBA') avant de lire l'alpha. Corrigé."
+}

@@ -55,6 +55,7 @@ import {
   type RouteNavState,
 } from "@/src/lib/route-guard";import { storage } from "@/src/utils/storage";
 import { logger } from "@/src/lib/logger";
+import { checkFineTiles, downloadDalles, listDallesForPolygon, type DalleInfo } from "@/src/lib/offline-dalles";
 import { sendMapCaptureToSupport } from "@/src/lib/support-upload";
 import { formatDM } from "@/src/lib/coords";
 import { CoordsPopup } from "@/src/components/CoordsPopup";
@@ -290,7 +291,7 @@ export default function MapScreen() {
     dest: { lat: number; lng: number };
     from: { lat: number; lng: number };
     tide: number | null;
-    reason: "429" | "net";
+    reason: "429" | "net" | "stop";
   } | null>(null);
   // 20/07 — « Créer une route » : destination mémorisée pendant que
   // l'utilisateur place librement le DÉPART à la croix (auto-recentrage
@@ -373,6 +374,15 @@ export default function MapScreen() {
   // 08/09/2026 — tirant d'eau du bateau (affiché sur le bandeau « Route
   // conseillée »), rafraîchi à chaque calcul.
   const [boatDraftM, setBoatDraftM] = useState<number | null>(null);
+  // ── 08/09/2026 (MASTER PLAN armateur) — CARTES HORS LIGNE : sélection de
+  // zone par points (appuis longs) + téléchargement des dalles 20 m sur
+  // l'appareil, avec progression. Dalles fines 5 m/2 m récupérées
+  // automatiquement quand l'index OVH les publiera (checkFineTiles).
+  const [offlinePoints, setOfflinePoints] = useState<{ lat: number; lng: number }[] | null>(null);
+  const [offlineTiles, setOfflineTiles] = useState<{ tiles: DalleInfo[]; total_bytes: number } | null>(null);
+  const [offlineBusy, setOfflineBusy] = useState(false);
+  const [offlineProg, setOfflineProg] = useState<{ done: number; total: number } | null>(null);
+  const offlineCancelRef = useRef<{ cancelled: boolean } | null>(null);
   const computeSafeRoute = useCallback(async (
     dest: { lat: number; lng: number },
     startOverride?: { lat: number; lng: number },
@@ -446,6 +456,13 @@ export default function MapScreen() {
       // bandeau d'erreur ni ré-essai (le départ/destination restent posés).
       if ((e as Error & { cancelled?: boolean }).cancelled) {
         console.log(`[route] calcul arrêté par l'utilisateur après ${((Date.now() - tStart) / 1000).toFixed(1)}s`);
+        // 08/09/2026 — après l'ARRÊT : bandeau persistant — l'utilisateur
+        // peut MODIFIER SES POINTS (replacer le départ) ou relancer ;
+        // l'admin peut en plus CHANGER DE MOTEUR avant de relancer.
+        setRouteRetry({
+          dest, from: { lat: from.lat, lng: from.lng },
+          tide: tideChoice, reason: "stop",
+        });
         showToast("info", "Calcul arrêté.");
         return null;
       }
@@ -2043,6 +2060,14 @@ export default function MapScreen() {
           if (picking || routePickDest != null) setPickedPoint({ lat, lng });
         }}
         onMapLongPress={(lat, lng) => {
+          // 08/09/2026 (MASTER PLAN) — mode ZONE HORS LIGNE : chaque appui
+          // long AJOUTE un sommet du polygone de sélection.
+          if (offlinePoints != null) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            setOfflineTiles(null);
+            setOfflinePoints((prev) => (prev ? [...prev, { lat, lng }] : [{ lat, lng }]));
+            return;
+          }
           // 22/07/2026 — mode route MANUELLE : chaque appui long AJOUTE une étape.
           if (manualPoints != null) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -2102,7 +2127,7 @@ export default function MapScreen() {
             setRouteMenuOpen(true);
           }
         }}
-        manualPoints={manualPoints ?? editPoints}
+        manualPoints={manualPoints ?? editPoints ?? offlinePoints}
         draftEditIndex={editPoints != null ? editIdx : null}
         onDraftMove={(index, lat, lng) => {
           // 22/07 — drag & drop d'un point (création manuelle OU édition).
@@ -2813,7 +2838,111 @@ export default function MapScreen() {
           setLongPressPoint(null);
           setRouteChoicePt(pt);
         }}
+        onOfflineZone={(pt) => {
+          // 08/09/2026 (MASTER PLAN) — 1er sommet de la zone hors ligne.
+          setLongPressPoint(null);
+          setOfflineTiles(null);
+          setOfflinePoints([pt]);
+          mapRef.current?.suspendFollow(true);
+          showToast("info", "Zone hors ligne : ajoutez des points par appui long, puis « Analyser la zone ».");
+        }}
       />
+
+      {/* ── 08/09/2026 (MASTER PLAN armateur) — BARRE ZONE HORS LIGNE :
+          sélection par points, analyse des dalles 20 m, téléchargement sur
+          l'appareil avec progression, puis dalles fines 5 m/2 m auto dès que
+          l'index OVH les publiera. ── */}
+      {offlinePoints != null ? (
+        <View style={styles.routeCardWrap} pointerEvents="box-none">
+          <View style={styles.blockedCard} testID="offline-zone-bar">
+            <View style={styles.blockedHead}>
+              <Ionicons name="cloud-download" size={18} color="#48CAE4" />
+              <Text style={styles.blockedTitle}>
+                {offlineBusy && offlineProg
+                  ? `Téléchargement ${offlineProg.done}/${offlineProg.total} dalles…`
+                  : offlineTiles
+                    ? `${offlineTiles.tiles.length} dalle(s) · ~${(offlineTiles.total_bytes / 1e6).toFixed(0)} Mo`
+                    : `Zone hors ligne — ${offlinePoints.length} point(s)`}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (offlineCancelRef.current) offlineCancelRef.current.cancelled = true;
+                  setOfflinePoints(null);
+                  setOfflineTiles(null);
+                  setOfflineBusy(false);
+                  setOfflineProg(null);
+                }}
+                hitSlop={10}
+                testID="offline-zone-close"
+              >
+                <Ionicons name="close" size={20} color={theme.textMute} />
+              </TouchableOpacity>
+            </View>
+            {offlineBusy && offlineProg ? (
+              <View style={styles.offlineProgTrack}>
+                <View style={[styles.offlineProgFill, { width: `${Math.round((offlineProg.done / Math.max(1, offlineProg.total)) * 100)}%` }]} />
+              </View>
+            ) : (
+              <Text style={styles.blockedMsg}>
+                {offlineTiles
+                  ? "Les dalles 20 m seront stockées sur l'appareil. Les dalles fines 5 m/2 m seront récupérées automatiquement dès que le serveur les publiera."
+                  : "Ajoutez des points par APPUI LONG pour dessiner la zone (3 points minimum)."}
+              </Text>
+            )}
+            {!offlineBusy ? (
+              <View style={styles.blockedBtnRow}>
+                {offlineTiles ? (
+                  <TouchableOpacity
+                    style={styles.blockedBtn}
+                    onPress={() => {
+                      const tiles = offlineTiles.tiles;
+                      if (!tiles.length) return;
+                      const tok = { cancelled: false };
+                      offlineCancelRef.current = tok;
+                      setOfflineBusy(true);
+                      setOfflineProg({ done: 0, total: tiles.length });
+                      void downloadDalles(tiles, (done, total) => setOfflineProg({ done, total }), tok)
+                        .then(async (res) => {
+                          showToast(res.failed ? "error" : "success",
+                            `${res.done}/${tiles.length} dalles stockées sur l'appareil${res.failed ? ` (${res.failed} échec(s))` : ""}.`);
+                          const fine = await checkFineTiles().catch(() => 0);
+                          if (fine > 0) showToast("success", `${fine} dalle(s) fines 5 m/2 m récupérées.`);
+                          setOfflinePoints(null);
+                          setOfflineTiles(null);
+                        })
+                        .finally(() => {
+                          setOfflineBusy(false);
+                          setOfflineProg(null);
+                        });
+                    }}
+                    testID="offline-zone-download"
+                  >
+                    <Ionicons name="download" size={16} color={theme.bg} />
+                    <Text style={styles.blockedBtnTxt}>Télécharger</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.blockedBtn, offlinePoints.length < 3 && { opacity: 0.5 }]}
+                    disabled={offlinePoints.length < 3}
+                    onPress={() => {
+                      void listDallesForPolygon(offlinePoints)
+                        .then((r) => {
+                          if (!r.tiles.length) showToast("error", "Aucune dalle de l'index dans cette zone.");
+                          setOfflineTiles(r);
+                        })
+                        .catch((e) => showToast("error", (e as Error).message));
+                    }}
+                    testID="offline-zone-analyze"
+                  >
+                    <Ionicons name="scan" size={16} color={theme.bg} />
+                    <Text style={styles.blockedBtnTxt}>Analyser la zone</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
 
       {/* ── Popup « Zone de veille » (bouton cloche+engrenage) — réglages
           rapides uniquement. ── */}
@@ -2890,8 +3019,10 @@ export default function MapScreen() {
         <View style={styles.routeCardWrap} pointerEvents="box-none">
           <View style={styles.blockedCard} testID="route-retry-card">
             <View style={styles.blockedHead}>
-              <Ionicons name="cloud-offline" size={20} color="#FFB703" />
-              <Text style={styles.blockedTitle}>Calcul interrompu</Text>
+              <Ionicons name={routeRetry.reason === "stop" ? "stop-circle" : "cloud-offline"} size={20} color="#FFB703" />
+              <Text style={styles.blockedTitle}>
+                {routeRetry.reason === "stop" ? "Calcul arrêté" : "Calcul interrompu"}
+              </Text>
               <TouchableOpacity
                 onPress={() => setRouteRetry(null)}
                 hitSlop={10}
@@ -2901,9 +3032,11 @@ export default function MapScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.blockedMsg}>
-              {routeRetry.reason === "429"
-                ? "Le serveur a refusé la demande (réseau saturé). Rien n'est perdu : votre départ et votre destination sont conservés."
-                : "Connexion interrompue pendant le calcul. Votre départ et votre destination sont conservés."}
+              {routeRetry.reason === "stop"
+                ? "Calcul arrêté à votre demande. Départ et destination conservés : modifiez vos points ou relancez."
+                : routeRetry.reason === "429"
+                  ? "Le serveur a refusé la demande (réseau saturé). Rien n'est perdu : votre départ et votre destination sont conservés."
+                  : "Connexion interrompue pendant le calcul. Votre départ et votre destination sont conservés."}
             </Text>
             <View style={styles.blockedBtnRow}>
               <TouchableOpacity
@@ -2932,6 +3065,18 @@ export default function MapScreen() {
                 <Ionicons name="locate" size={16} color="#48CAE4" />
                 <Text style={styles.blockedBtnAltTxt}>Replacer le départ</Text>
               </TouchableOpacity>
+              {routeRetry.reason === "stop" && isAdmin ? (
+                /* 08/09/2026 — ADMIN : changer de MOTEUR avant de relancer
+                   (le moteur actif se choisit dans Réglages ▸ Navigation). */
+                <TouchableOpacity
+                  style={[styles.blockedBtn, styles.blockedBtnAlt]}
+                  onPress={() => router.push("/profile/settings")}
+                  testID="route-retry-engine"
+                >
+                  <Ionicons name="cog" size={16} color="#48CAE4" />
+                  <Text style={styles.blockedBtnAltTxt}>Changer de moteur</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
         </View>

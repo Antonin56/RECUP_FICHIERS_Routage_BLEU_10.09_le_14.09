@@ -1,5 +1,38 @@
 # SignalMar — PRD
 
+## ✅ ITER164 (09/09, REFONTE TOTALE UI + STRATÉGIE DONNÉES armateur)
+- INTÉGRITÉ : engine_i.py = 2b000634 (v8.1.0) VÉRIFIÉ intact (git diff vide).
+- ACTION 1 (UI) : bandeau unique/chrono/STOP/tirant/ⓘ/menu = déjà ITER163.
+  NOUVEAU : après STOP → bandeau « Calcul arrêté » (routeRetry reason:"stop")
+  avec Réessayer + Replacer le départ (User) + « Changer de moteur »
+  (route-retry-engine, ADMIN uniquement → /profile/settings).
+- ACTION 2 (MASTER PLAN données) :
+  · Outil de sélection de zone : appui long → menu « Cartes hors ligne »
+    (longpress-offline-zone) → sommets du polygone par appuis longs
+    (affichés via prop manualPoints), barre offline-zone-bar : « Analyser la
+    zone » (≥3 pts) → GET /api/tiles/dalles-list?poly=lat,lng;… (nb dalles +
+    Mo) → « Télécharger » avec barre de progression → dalles .npy stockées
+    sur l'appareil (expo-file-system/legacy, documentDirectory/dalles/ +
+    manifeste AsyncStorage sm.offline.dalles). Lib : src/lib/offline-dalles.ts.
+    NB : téléchargement natif (Expo Go/APK) — pas sur le web preview.
+  · Backend : GET /api/tiles/dalles-list?poly=, GET /api/tiles/dalles-npy/
+    {name} (sert le .npy, 1 000 128 o, testé), GET /api/tiles/dalles-fine-list
+    ?bbox= (lit la clé « tiles_fine » de l'index OVH si publiée — [] sinon).
+  · Dalles fines 5 m/2 m AUTO : checkFineTiles() après chaque téléchargement
+    de zone — INERTE tant que l'index OVH v2 ne publie pas « tiles_fine »
+    (scaffold prêt pour la chaîne PC v3 de l'armateur).
+  · VISUEL : DALLES_MIN_Z 10 → 8 (calque dalles « partout en France » dès z8,
+    fini le flou ATL 100 m au zoom) ; _CLEAR_PNG alpha 0 (le _BLANK_PNG
+    historique était à 50 %).
+  · ZOOM : carte jusqu'à z21 (échelle ~10 m) — L.map maxZoom 21, OSM/seamark/
+    bathy maxNativeZoom 19/18/19 (agrandissement au-delà).
+- ACTION 3 (PERF MOTEUR) : calcul unique + 150 % désactivée = déjà ITER163.
+  NOUVEAU : A* PONDÉRÉ Moteur J UNIQUEMENT — ContextVar ASTAR_TUNING dans
+  signalmar_v1/core.py (défaut None → A-I identiques bit à bit, vérifié sur
+  grille synthétique), armé par engine_j.py à (2.0, 50 000) : poids
+  heuristique 2.0 + plafond 50 000 nœuds. Kernel numba recompilé OK.
+- AUCUN calcul de route moteur exécuté (test A* = grille synthétique 12×12).
+
 ## ✅ ITER163 (08/09, MISSION REMISE À PLAT RADICALE armateur) — Industrial Stable
 1. INTÉGRITÉ : engine_i.py RESTAURÉ à v8.1.0 stable (git checkout 2b000634 —
    les 2 retouches ITER162 need_zh/_marks_strict_ok retirées). Moteur I =

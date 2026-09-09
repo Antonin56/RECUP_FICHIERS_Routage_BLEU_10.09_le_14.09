@@ -15,6 +15,7 @@ produit) = NON navigable par sécurité.
 """
 from __future__ import annotations
 
+import contextvars
 import heapq
 import math
 from typing import Optional
@@ -160,6 +161,12 @@ def _snap(
     return best
 
 
+# ── 08/09/2026 (ordre armateur, PERF Moteur J) — réglage A* par ContextVar :
+# (poids heuristique, plafond de nœuds) ou None (défaut → A-I inchangés).
+ASTAR_TUNING: contextvars.ContextVar = contextvars.ContextVar(
+    "sm_astar_tuning", default=None)
+
+
 def _astar(nav: np.ndarray, cost_extra: np.ndarray, start: tuple[int, int],
            goal: tuple[int, int], cy: float, cx: float) -> Optional[list[tuple[int, int]]]:
     """A* 8-connexe. cy/cx = taille de cellule en m (lignes/colonnes).
@@ -167,11 +174,20 @@ def _astar(nav: np.ndarray, cost_extra: np.ndarray, start: tuple[int, int],
     27/07/2026 (perf, « hyper lent comparé à Navionics ») — le cœur est
     JIT-compilé avec numba (~30-80× plus rapide que la boucle Python) ;
     repli automatique sur l'implémentation Python si numba indisponible.
-    Même algorithme, mêmes règles (pas de coupe de coin en diagonale)."""
+    Même algorithme, mêmes règles (pas de coupe de coin en diagonale).
+
+    08/09/2026 (ordre armateur, PERF Moteur J) — ASTAR_TUNING (ContextVar,
+    défaut None → moteurs A-I STRICTEMENT inchangés) : (poids heuristique,
+    plafond de nœuds). Armé uniquement par le Moteur J : poids 2.0 (A*
+    pondéré, exploration dirigée) + limite 50 000 nœuds (calcul fluide)."""
+    tun = ASTAR_TUNING.get()
+    hw = float(tun[0]) if tun else 1.0
+    node_cap = int(tun[1]) if tun and tun[1] else 0
     if _astar_nb is not None:
         parent = _astar_nb(
             nav.astype(np.uint8), cost_extra.astype(np.float64),
             start[0], start[1], goal[0], goal[1], float(cy), float(cx),
+            hw, node_cap,
         )
         if parent[goal[0], goal[1], 0] < 0 and (start != goal):
             return None
@@ -185,7 +201,7 @@ def _astar(nav: np.ndarray, cost_extra: np.ndarray, start: tuple[int, int],
             path.append((r, c))
         path.reverse()
         return path
-    return _astar_py(nav, cost_extra, start, goal, cy, cx)
+    return _astar_py(nav, cost_extra, start, goal, cy, cx, hw, node_cap)
 
 
 try:  # 27/07 — noyau A* compilé (numba). Import/compile isolés : repli Python sûr.
@@ -199,7 +215,7 @@ try:  # 27/07 — noyau A* compilé (numba). Import/compile isolés : repli Pyth
     # côté ingress → 429. Le résultat numérique est strictement identique
     # (nogil ne change que la gestion du verrou d'interpréteur).
     @njit(cache=True, nogil=True)
-    def _astar_nb_core(nav, cost_extra, sr, sc, gr, gc, cy, cx):  # pragma: no cover
+    def _astar_nb_core(nav, cost_extra, sr, sc, gr, gc, cy, cx, hw, node_cap):  # pragma: no cover
         ny, nx = nav.shape
         diag = (cy * cy + cx * cx) ** 0.5
         dr8 = np.array([-1, 1, 0, 0, -1, -1, 1, 1], dtype=np.int64)
@@ -257,10 +273,12 @@ try:  # 27/07 — noyau A* compilé (numba). Import/compile isolés : repli Pyth
                 i = sm
             return f0, r0, c0, n
 
-        h0 = (((sr - gr) * cy) ** 2 + ((sc - gc) * cx) ** 2) ** 0.5
+        h0 = hw * ((((sr - gr) * cy) ** 2 + ((sc - gc) * cx) ** 2) ** 0.5)
         n = push(h0, sr, sc, n, hf, hr, hc)
         pops = 0
         max_pops = ny * nx
+        if node_cap > 0 and node_cap < max_pops:
+            max_pops = node_cap
         while n > 0:
             _f, r, c, n = pop(n, hf, hr, hc)
             if closed[r, c] == 1:
@@ -299,7 +317,7 @@ try:  # 27/07 — noyau A* compilé (numba). Import/compile isolés : repli Pyth
                         hr = hr2
                         hc = hc2
                         cap = cap2
-                    f2 = g2 + (((r2 - gr) * cy) ** 2 + ((c2 - gc) * cx) ** 2) ** 0.5
+                    f2 = g2 + hw * ((((r2 - gr) * cy) ** 2 + ((c2 - gc) * cx) ** 2) ** 0.5)
                     n = push(f2, r2, c2, n, hf, hr, hc)
         # But jamais fermé : parent[goal] reste -1 → l'appelant échoue proprement,
         # sauf si le but a été atteint (retour anticipé ci-dessus).
@@ -311,7 +329,8 @@ except Exception:  # pragma: no cover
 
 
 def _astar_py(nav: np.ndarray, cost_extra: np.ndarray, start: tuple[int, int],
-              goal: tuple[int, int], cy: float, cx: float) -> Optional[list[tuple[int, int]]]:
+              goal: tuple[int, int], cy: float, cx: float,
+              hw: float = 1.0, node_cap: int = 0) -> Optional[list[tuple[int, int]]]:
     """A* 8-connexe (implémentation Python de repli)."""
     ny, nx = nav.shape
     moves = [(-1, 0, cy), (1, 0, cy), (0, -1, cx), (0, 1, cx),
@@ -324,13 +343,15 @@ def _astar_py(nav: np.ndarray, cost_extra: np.ndarray, start: tuple[int, int],
     gr, gc = goal
 
     def h(r: int, c: int) -> float:
-        return math.hypot((r - gr) * cy, (c - gc) * cx)
+        return hw * math.hypot((r - gr) * cy, (c - gc) * cx)
 
     gscore[sr, sc] = 0.0
     heap: list[tuple[float, int, int]] = [(h(sr, sc), sr, sc)]
     closed = np.zeros((ny, nx), dtype=bool)
     pops = 0
     max_pops = ny * nx  # garde-fou
+    if node_cap > 0:
+        max_pops = min(max_pops, node_cap)
     while heap:
         f, r, c = heapq.heappop(heap)
         if closed[r, c]:

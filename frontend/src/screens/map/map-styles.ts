@@ -371,6 +371,12 @@ export const styles = StyleSheet.create({
     backgroundColor: "#B0231F", borderWidth: 1, borderColor: "#E5383B",
   },
   routeStopTxt: { color: "#fff", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
+  // 08/09/2026 — barre de progression du téléchargement de dalles.
+  offlineProgTrack: {
+    height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.12)",
+    overflow: "hidden", marginBottom: 10,
+  },
+  offlineProgFill: { height: 8, borderRadius: 4, backgroundColor: "#48CAE4" },
   // 23/07 — carte PERSISTANTE « Passage impossible » (réglage en cause +
   // bouton Mon bateau). Remplace le toast de 3,5 s, trop court.
   blockedCard: {

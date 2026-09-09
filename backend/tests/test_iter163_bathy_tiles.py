@@ -43,14 +43,16 @@ class TestDalles:
         assert r.status_code == 200
         assert dt < 5.0, f"relecture cache lente: {dt:.2f}s"
 
-    def test_z8_transparent(self):
-        r = requests.get(f"{BASE_URL}/api/tiles/dalles/8/125/89.png", timeout=30)
+    def test_z7_transparent(self):
+        # 08/09/2026 (Master plan) — dalles rendues dès z8 : la tuile
+        # transparente ne s'applique plus qu'en dessous (z < 8).
+        r = requests.get(f"{BASE_URL}/api/tiles/dalles/7/62/44.png", timeout=30)
         assert r.status_code == 200, r.text
         img = Image.open(io.BytesIO(r.content))
-        # z<10 doit être transparent (taille 1x1 minimale ou 256x256 acceptés)
+        # z<8 doit être transparent (taille 1x1 minimale ou 256x256 acceptés)
         if img.mode == "RGBA":
             alphas = img.split()[3].getextrema()
-            assert alphas[1] == 0, f"z8 non transparent, alpha extrema={alphas}"
+            assert alphas[1] == 0, f"z7 non transparent, alpha extrema={alphas}"
 
 
 class TestSeamarks:

@@ -649,3 +649,26 @@ agent_communication:
           (5) seamarks.json ré-ingéré sur l'emprise des dalles (Gascogne
           incluse) ; Grégan déjà présent et servi (vérifié). AUCUN calcul
           de route exécuté (ordre armateur strict).
+
+  - task: "ITER164 — Refonte UI + Master plan données (armateur 09/09)"
+    implemented: true
+    working: "NA"
+    file: "backend/routers/tiles.py (dalles-list/dalles-npy/dalles-fine-list, MIN_Z=8, _CLEAR_PNG), backend/core/routing_engines/algos/signalmar_v1/core.py (ASTAR_TUNING ContextVar), backend/core/nav/engine_j.py (arme (2.0, 50000)), frontend: map.tsx (zone hors ligne, STOP→retry stop+admin), src/lib/offline-dalles.ts (nouveau), LongPressMenuModal.tsx, bootstrap/tiles/bathy.ts (zoom 21, dalles z≥8)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          engine_i.py vérifié = 2b000634 (v8.1.0, git diff vide). A* pondéré
+          (hw 2.0, cap 50 000 nœuds) via ContextVar armée UNIQUEMENT par le
+          Moteur J — défaut None → A-I inchangés (vérifié sur grille
+          synthétique 12x12, chemins identiques). Cartes hors ligne :
+          sélection de zone par appuis longs + analyse (dalles-list, 12
+          dalles/12 Mo testé sur le Golfe) + téléchargement .npy sur
+          l'appareil (dalles-npy servi, npy 500x500 float32 validé) +
+          scaffold dalles fines 5m/2m (dalles-fine-list → [] tant que
+          l'index OVH ne publie pas tiles_fine). Calque dalles dès z8,
+          zoom carte jusqu'à z21. Tests iter163 adaptés (z7 transparent,
+          _CLEAR_PNG alpha 0) : 6/6. AUCUN calcul de route moteur exécuté.
