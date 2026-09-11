@@ -1,89 +1,45 @@
 // SignalMar — fragment du JS embarqué de la carte Leaflet.
 // Découpé de leaflet-html.ts le 06/06/2026 (refactor N1) : déplacement PUR,
 // aucun changement fonctionnel. Le HTML final est reconstitué par buildHtml.
-// Surcouche bathymétrie SHOM (proxy-cache) + isobathes backend.
+// Surcouche bathymétrie (calque maison rendu par notre backend) + isobathes.
 
-export const JS_BATHY = `  // ── 19/07/2026 — PROTOTYPE bathymétrie SHOM (open data data.shom.fr,
-  // Licence Ouverte, citation SHOM ; PAS pour la navigation officielle).
-  // Le service WMS INSPIRE public refuse les requêtes multi-couches →
-  // un overlay Leaflet PAR couche (façades ATL/MED + côtier Morbihan 20 m).
-  // AUCUNE requête n'est émise tant que window.__setBathy(true) n'est pas
-  // appelé (couches non ajoutées à la carte par défaut → « ne casse rien »).
-  // 23/07/2026 (fluidité + flashs tablette) — les tuiles SHOM passent par
-  // NOTRE PROXY-CACHE backend (/api/tiles/shom/...) : chaque tuile n'est
-  // demandée qu'UNE seule fois au WMS SHOM (lent, cause n°1 du lag), puis
-  // servie instantanément depuis le disque avec cache HTTP 30 jours.
-  // 09/09/2026 (V1.6, ordre armateur « adieu Minecraft ») — le rendu visuel
-  // direct des dalles .npy est DÉSACTIVÉ : retour au calque OFFICIEL SHOM
-  // (WMS, lisse) partout — façade ATL / MED / Corse + côtier Morbihan 20 m
-  // dans sa zone. Les dalles .npy ne servent plus qu'au CALCUL et aux
-  // ALERTES (l'endpoint /api/tiles/dalles reste disponible côté serveur).
-  var _bathyLayers = ['atl', 'gdl', 'corse', 'morbihan'].map(function(key, idx){
-    // 22/07/2026 (lag tablette) — chaque couche est BORNÉE à son emprise
-    // réelle : plus AUCUNE requête MED/Corse en Bretagne. + updateWhenIdle
-    // (téléchargement à l'arrêt du geste) et updateWhenZooming=false.
-    var boundsByLayer = [
-      // 10/09/2026 (V1.6 finale, ordre armateur) — GÉNÉRALISATION : la façade
-      // ATL/HOMONIM couvre Atlantique + Manche + Mer du Nord ; bornes élargies
-      // à TOUTE la France métropolitaine Ouest/Nord (plus de restriction).
-      L.latLngBounds([[41.0, -7.5], [51.6, 2.8]]),   // façade ATL + Manche/Nord
-      L.latLngBounds([[41.0, 1.5], [44.6, 8.5]]),    // MED Golfe du Lion
-      L.latLngBounds([[41.0, 8.0], [43.6, 10.5]]),   // Corse
-      L.latLngBounds([[47.15, -3.45], [47.80, -2.25]]) // côtier 20 m (emprise WMS réelle)
-    ];
-    var url = API_BASE + '/api/tiles/shom/' + key + '/{z}/{x}/{y}.png';
-    var _tl = L.tileLayer(url, {
-      opacity: 0.7, maxZoom: 21, maxNativeZoom: 19,
-      attribution: 'Bathymétrie © SHOM',
-      // 23/07 — le proxy-cache local rend les tuiles quasi instantanées :
-      // on recharge PENDANT le pan (fini les trous puis flashs à l'arrêt).
-      keepBuffer: 6, updateWhenIdle: false, updateWhenZooming: false,
-      bounds: boundsByLayer[idx],
-    });
-    attachTileRetry(_tl, 3);
-    return _tl;
+export const JS_BATHY = `  // ── 10/09/2026 (V1.6 finale, preuves armateur « torchon visuel ») —
+  // CALQUE BATHY MAISON : rendu LISSE (interpolation bilinéaire, palette
+  // bleue continue type SHOM, ESTRAN vert pâle, TERRE TRANSPARENTE) par
+  // NOTRE backend depuis la mosaïque SHOM locale (TANDEM 20 m > Litto3D
+  // 20 m > ATL 100 m). Remplace les 4 WMS SHOM : fini le relief terrestre
+  // orange/rouge, les trous de tuiles amont, la lenteur du WMS et la
+  // limite « Morbihan seulement » — UNE seule couche, toute la façade,
+  // cache disque serveur 30 j, STRICTEMENT COHÉRENTE avec la goutte d'eau
+  // et les isobathes (même mosaïque, même interpolation).
+  var _bathyLayer = L.tileLayer(API_BASE + '/api/tiles/bathy-local/{z}/{x}/{y}.png', {
+    opacity: 0.7, maxZoom: 21, maxNativeZoom: 15, minZoom: 6,
+    attribution: 'Bathymétrie © SHOM',
+    keepBuffer: 6, updateWhenIdle: false, updateWhenZooming: false,
+    bounds: L.latLngBounds([[45.70, -5.45], [49.01, -1.0]]),
   });
+  attachTileRetry(_bathyLayer, 3);
   var _bathyOn = false;
-  var _bathyActive = null; // couche actuellement montée (UNE seule à la fois)
-  // 09/09/2026 (V1.6) — l'élargissement dynamique des bornes de la couche
-  // fine (ITER162) est RETIRÉ : le WMS morbihan ne rend rien hors de son
-  // emprise réelle (tuiles vides). Bornes STATIQUES = emprise WMS.
-  function _pickBathyLayer(){
-    // 22/07/2026 (lag + flashs tablette) — UNE SEULE couche SHOM à la fois :
-    // le côtier Morbihan 20 m en zone pilote, sinon la façade régionale.
-    var c = map.getCenter();
-    var atl = _bathyLayers[0], med = _bathyLayers[1], cor = _bathyLayers[2], morb = _bathyLayers[3];
-    if (morb.options.bounds.contains(c)) return morb;
-    if (med.options.bounds.contains(c)) return med;
-    if (cor.options.bounds.contains(c)) return cor;
-    return atl;
-  }
-  function _syncBathy(){
-    try {
-      var want = _bathyOn ? _pickBathyLayer() : null;
-      if (_bathyActive === want) return;
-      if (_bathyActive){ map.removeLayer(_bathyActive); _bathyActive = null; }
-      if (want){
-        want.addTo(map);
-        _bathyActive = want;
-        // Les seamarks OpenSeaMap restent AU-DESSUS de la bathy.
-        if (_seaTiles.bringToFront) _seaTiles.bringToFront();
-      }
-    } catch(_){}
-  }
   window.__setBathy = function(on){
     on = !!on;
     if (on === _bathyOn) return;
     _bathyOn = on;
-    _syncBathy();
+    try {
+      if (on){
+        _bathyLayer.addTo(map);
+        // Les seamarks OpenSeaMap restent AU-DESSUS de la bathy.
+        if (_seaTiles.bringToFront) _seaTiles.bringToFront();
+      } else {
+        map.removeLayer(_bathyLayer);
+      }
+    } catch(_){}
   };
-  map.on('moveend zoomend', function(){ if (_bathyOn) _syncBathy(); });
   // 19/07/2026 — opacité de la surcouche bathy (0.3-1), réglable depuis le
   // popup appui-long côté RN. setOpacity fonctionne couche montée ou non.
   window.__setBathyOpacity = function(op){
     try {
       op = Math.max(0.1, Math.min(1, Number(op) || 0.7));
-      for (var i = 0; i < _bathyLayers.length; i++) _bathyLayers[i].setOpacity(op);
+      _bathyLayer.setOpacity(op);
     } catch(_){}
   };
   // ── N1 (20/07/2026) — ISOBATHES générées par NOTRE backend depuis le MNT

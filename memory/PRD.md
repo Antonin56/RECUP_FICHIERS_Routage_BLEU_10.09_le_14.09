@@ -1,5 +1,41 @@
 # SignalMar — PRD
 
+## ✅ ITER167 (10/09, RÉPARATION 3 POINTS CRITIQUES — preuves zip 10.09 armateur)
+- CAUSE 1 « HALLUCINATION PROFONDEURS » (reproduite au point exact des
+  captures, Pointe de Saint-Nicolas/Arzon) : la règle « minimum dans un
+  rayon de 25 m » du /api/bathy/depth (29/07) prenait la cellule VOISINE la
+  moins profonde — chenaux à fort gradient (maille 20 m : 0,1→18,5 m en
+  200 m) → affichait 5,1 m pour 17,9 m réels, en CONTRADICTION avec nos
+  isobathes. FIX : interpolation BILINÉAIRE des 4 cellules encadrantes
+  (convention exacte de contourpy), bornée min(cellule proche). Vérifié :
+  19,0 m au point des captures (avant 5-7 m).
+- CAUSE 2 « TORCHON VISUEL » : les tuiles orange/rouges pixélisées des
+  captures = le WMS SHOM lui-même (relief TERRESTRE du MNT + trous de
+  tuiles amont + emprise fine limitée au Morbihan + « 1 couche à la fois »
+  qui vidait tout hors zone). FIX : NOUVEAU calque « maison »
+  GET /api/tiles/bathy-local/{z}/{x}/{y}.png — rendu depuis la MOSAÏQUE
+  SHOM LOCALE (TANDEM 20 m > Litto3D 20 m > ATL 100 m), interpolation
+  bilinéaire LISSE (zéro Minecraft), palette bleue continue type SHOM,
+  estran vert pâle, TERRE TRANSPARENTE, cache disque 30 j, cohérent goutte
+  d'eau/isobathes (même mosaïque). bathy.ts réécrit : UNE couche
+  bathy-local (bounds façade [45.70,-5.45]→[49.01,-1.0], maxNativeZoom 15,
+  maxZoom 21) remplace les 4 WMS ; _pickBathyLayer/_syncBathy supprimés.
+  Isobathes : niveau 25 m ajouté (z13/z14/MAX).
+- CAUSE 3 « LENTEUR » (67 s moteur J, capture R-20260910-074230-M5) :
+  RemoteGrid.window() RÉASSEMBLAIT les dalles OVH à CHAQUE appel (dizaines
+  de fenêtres recouvrantes par calcul : passe grossière, raffinements,
+  couloirs). FIX tile_bathy.py : CACHE des 3 derniers assemblages (marge
+  25 %, réutilisé si bbox contenue à k ≤ requis) — validé sur store
+  synthétique : recouvrement bit-identique, sous-fenêtres servies en ~0 ms
+  (une différence d'1 colonne de BORD possible = sensibilité flottante
+  préexistante des bords de fenêtre). prefetch 8→16 threads.
+  + Téléchargement de zone côté APP (200 Mo en 3 min 25 → note n°1) :
+  downloadDalles passe en 5 téléchargements PARALLÈLES.
+- AUCUN calcul de route exécuté (interdiction armateur) — validations en
+  lecture seule + store synthétique uniquement. test_tile_reader 8/8,
+  iter165 4/4, lint OK. NB : OVH injoignable depuis le pod au moment du
+  test (repli Moteur I documenté inchangé).
+
 ## ✅ ITER166 (10/09, V1.6 FINALE — refonte visuelle + prépa build APK, ordre armateur)
 - ACTION 1 (déjà ITER165 sauf WMS) : rendu .npy désactivé ✔ ; NOUVEAU :
   calque WMS SHOM GÉNÉRALISÉ à toute la France — bornes façade ATL élargies

@@ -43,21 +43,40 @@ async def depth_at_point(
     # (estran découvrant jusqu'à ~-6 m, terre franche en dessous).
     if d < -7.0:
         return {"covered": True, "water": False}
-    # 29/07/2026 (audit sondeur armateur, 1,8 m lus vs 4,2 m affichés à
-    # l'Île Longue) — valeur PRUDENTE : le fond retenu est le MINIMUM dans un
-    # rayon de ~25 m (9 échantillons) au lieu de la seule cellule sous le
-    # doigt. Aux bords de banc à fort gradient (0,9 m → 4,6 m en ±80 m dans
-    # le Golfe), la cellule unique rendait la pastille optimiste.
+    # 10/09/2026 (preuves armateur — « hallucination des profondeurs ») :
+    # l'ancienne règle « minimum dans un rayon de ~25 m » (29/07) prenait la
+    # cellule VOISINE la moins profonde — dans les chenaux à fort gradient
+    # (maille 20 m, Golfe : 0,1 m → 18,5 m en 200 m) elle affichait jusqu'à
+    # 13 m de MOINS que le fond sous le doigt (mesuré : 5,1 m affiché pour
+    # 17,9 m réel) et CONTREDISAIT nos propres isobathes. Remplacée par une
+    # interpolation BILINÉAIRE des 4 cellules encadrantes — la convention
+    # EXACTE des lignes de niveau (contourpy) — bornée par prudence à la
+    # valeur de la cellule la plus proche (jamais plus optimiste que la
+    # carte affichée).
     try:
-        import numpy as _np
-        _offs = (-22.0, 0.0, 22.0)
-        _mlng = 111_320.0 * __import__("math").cos(__import__("math").radians(lat))
-        _la = _np.array([lat + o / 110_574.0 for o in _offs for _ in _offs])
-        _lo = _np.array([lng + o / _mlng for _ in _offs for o in _offs])
-        _ds = grid.sample(_la, _lo)
-        _fin = _ds[_np.isfinite(_ds) & (_ds >= -7.0)]
-        if _fin.size:
-            d = min(d, float(_fin.min()))
+        import math as _math
+        for _gr in (getattr(grid, "grids", None) or [grid]):
+            if not _gr.covers(lat, lng):
+                continue
+            _fr = (lat - _gr.y0) / _gr.dy - 0.5
+            _fc = (lng - _gr.x0) / _gr.dx - 0.5
+            _r0, _c0 = int(_math.floor(_fr)), int(_math.floor(_fc))
+            _wr, _wc = _fr - _r0, _fc - _c0
+            _num = _den = 0.0
+            for _dr in (0, 1):
+                for _dc in (0, 1):
+                    _r, _c = _r0 + _dr, _c0 + _dc
+                    if not (0 <= _r < _gr.nrows and 0 <= _c < _gr.ncols):
+                        continue
+                    _v = float(_gr.grid[_r, _c])
+                    if _math.isnan(_v):
+                        continue
+                    _wt = (_wr if _dr else 1.0 - _wr) * (_wc if _dc else 1.0 - _wc)
+                    _num += _v * _wt
+                    _den += _wt
+            if _den > 1e-9:
+                d = min(d, _num / _den)
+            break
     except Exception:
         pass
     out: dict = {"covered": True, "water": True, "depth_zh_m": round(d, 1)}

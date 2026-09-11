@@ -49,7 +49,10 @@ export async function listDallesForPolygon(
   return r.json();
 }
 
-/** Télécharge les dalles sur l'appareil, avec progression (k, total). */
+/** Télécharge les dalles sur l'appareil, avec progression (k, total).
+ *  10/09/2026 (note armateur n°1 — « 200 Mo en 3 min 25, connexion fibre ») :
+ *  téléchargements PARALLÈLES (5 de front) au lieu de dalle par dalle — la
+ *  latence par requête ne s'additionne plus. */
 export async function downloadDalles(
   tiles: DalleInfo[],
   onProgress: (done: number, total: number) => void,
@@ -59,27 +62,34 @@ export async function downloadDalles(
   const manifest = await getManifest();
   let done = 0;
   let failed = 0;
-  for (const t of tiles) {
-    if (cancel?.cancelled) break;
-    const dest = DIR + t.name;
-    const already = manifest[t.name] && (await FileSystem.getInfoAsync(dest)).exists;
-    if (!already) {
-      try {
-        const res = await FileSystem.downloadAsync(
-          `${API_BASE}/api/tiles/dalles-npy/${t.name}`, dest);
-        if (res.status !== 200) throw new Error(String(res.status));
-        manifest[t.name] = { bbox: t.bbox, ts: Date.now(), ...(t.level ? { level: t.level } : {}) };
-      } catch {
-        failed += 1;
-        onProgress(done, tiles.length);
-        continue;
+  const queue = [...tiles];
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      if (cancel?.cancelled) return;
+      const t = queue.shift();
+      if (!t) return;
+      const dest = DIR + t.name;
+      const already = manifest[t.name] && (await FileSystem.getInfoAsync(dest)).exists;
+      if (!already) {
+        try {
+          const res = await FileSystem.downloadAsync(
+            `${API_BASE}/api/tiles/dalles-npy/${t.name}`, dest);
+          if (res.status !== 200) throw new Error(String(res.status));
+          manifest[t.name] = { bbox: t.bbox, ts: Date.now(), ...(t.level ? { level: t.level } : {}) };
+        } catch {
+          failed += 1;
+          onProgress(done, tiles.length);
+          continue;
+        }
+      } else {
+        manifest[t.name] = manifest[t.name] ?? { bbox: t.bbox, ts: Date.now() };
       }
-    } else {
-      manifest[t.name] = manifest[t.name] ?? { bbox: t.bbox, ts: Date.now() };
+      done += 1;
+      onProgress(done, tiles.length);
     }
-    done += 1;
-    onProgress(done, tiles.length);
-  }
+  };
+  const nWorkers = Math.max(1, Math.min(5, tiles.length));
+  await Promise.all(Array.from({ length: nWorkers }, () => worker()));
   await saveManifest(manifest);
   return { done, failed };
 }

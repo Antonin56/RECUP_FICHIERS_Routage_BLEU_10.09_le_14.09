@@ -281,6 +281,143 @@ async def dalles_tile(
     return _png_response(data, 30 * 86400)
 
 
+# ── 10/09/2026 (V1.6 finale, preuves armateur « torchon visuel ») — CALQUE
+# BATHY « MAISON » : rendu LISSE (interpolation bilinéaire — fini les gros
+# carrés) depuis la MOSAÏQUE SHOM LOCALE (TANDEM 20 m > Litto3D 20 m >
+# ATL 100 m), palette bleue continue type SHOM, estran vert pâle, TERRE
+# TRANSPARENTE (fini le relief orange/rouge du WMS). Couvre TOUTE la
+# France-Ouest d'un seul tenant (fini la limite « Morbihan seulement » et
+# les trous de tuiles du WMS amont). Cache disque 30 j. Ces tuiles sont
+# strictement COHÉRENTES avec la goutte d'eau et les isobathes (même
+# mosaïque, même interpolation). ─────────────────────────────────────────
+_local_sem = asyncio.Semaphore(6)
+_LOCAL_MIN_Z = 6
+
+# Palette continue (profondeur ZH → RGB) — interpolation linéaire entre paliers.
+_LOCAL_STOPS: list[tuple[float, tuple[int, int, int]]] = [
+    (0.0, (198, 231, 244)), (2.0, (172, 216, 238)), (5.0, (137, 198, 232)),
+    (10.0, (100, 173, 221)), (20.0, (65, 147, 209)), (35.0, (42, 120, 190)),
+    (60.0, (20, 90, 160)),
+]
+
+
+def _render_bathy_local(z: int, x: int, y: int) -> bytes | None:
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from core.bathy import get_grid
+
+    g = get_grid()
+    if g is None:
+        return None
+    minx, miny, maxx, maxy = _tile_bbox_3857(z, x, y)
+    R = 6378137.0
+    w, e = math.degrees(minx / R), math.degrees(maxx / R)
+    s = math.degrees(math.atan(math.sinh(miny / R)))
+    n = math.degrees(math.atan(math.sinh(maxy / R)))
+    bw, bs, be, bn = g.bounds
+    if e <= bw or w >= be or n <= bs or s >= bn:
+        return _CLEAR_PNG
+    # Fenêtre native mosaïque (fine > grossière) avec marge d'une cellule.
+    mlat = (n - s) * 0.06 + 0.002
+    mlng = (e - w) * 0.06 + 0.002
+    win = g.window(w - mlng, s - mlat, e + mlng, n + mlat, max_px=560)
+    if win is None:
+        return _CLEAR_PNG
+    dep, lngs, lats, _step = win
+    dep = np.asarray(dep, dtype=np.float32)
+    if dep.shape[0] < 2 or dep.shape[1] < 2:
+        return _CLEAR_PNG
+    N = 256
+    ys = miny + (np.arange(N) + 0.5) * (maxy - miny) / N
+    plats = np.degrees(np.arctan(np.sinh(ys / R)))[::-1]  # ligne 0 = nord
+    plngs = w + (np.arange(N) + 0.5) * (e - w) / N
+    # Interpolation BILINÉAIRE tolérante aux NaN (moyenne pondérée des coins
+    # finis) — même convention que la goutte d'eau et les isobathes.
+    dlat = float(lats[1] - lats[0])   # < 0 (nord → sud)
+    dlng = float(lngs[1] - lngs[0])
+    fr = (plats - float(lats[0])) / dlat
+    fc = (plngs - float(lngs[0])) / dlng
+    r0 = np.clip(np.floor(fr).astype(np.int64), 0, dep.shape[0] - 2)
+    c0 = np.clip(np.floor(fc).astype(np.int64), 0, dep.shape[1] - 2)
+    wr = np.clip(fr - r0, 0.0, 1.0)[:, None]
+    wc = np.clip(fc - c0, 0.0, 1.0)[None, :]
+    R0, C0 = r0[:, None], c0[None, :]
+    num = np.zeros((N, N), dtype=np.float64)
+    den = np.zeros((N, N), dtype=np.float64)
+    for q, wt in (
+        (dep[R0, C0], (1 - wr) * (1 - wc)),
+        (dep[R0, C0 + 1], (1 - wr) * wc),
+        (dep[R0 + 1, C0], wr * (1 - wc)),
+        (dep[R0 + 1, C0 + 1], wr * wc),
+    ):
+        f = np.isfinite(q)
+        np.add.at(num, np.nonzero(f), (q * wt)[f])
+        np.add.at(den, np.nonzero(f), np.broadcast_to(wt, (N, N))[f])
+    d = np.full((N, N), np.nan, dtype=np.float32)
+    okp = den > 0.05
+    d[okp] = (num[okp] / den[okp]).astype(np.float32)
+    rgba = np.zeros((N, N, 4), dtype=np.uint8)
+    fin = np.isfinite(d)
+    # Estran (découvre au ZH, jusqu'à −3,5 m) : vert d'estran pâle.
+    est = fin & (d < 0.0) & (d >= -3.5)
+    rgba[est] = (172, 214, 196, 255)
+    # Eau : dégradé continu clair → foncé (np.interp par canal).
+    water = fin & (d >= 0.0)
+    if water.any():
+        dv = np.clip(d[water], 0.0, 60.0)
+        xs = [st[0] for st in _LOCAL_STOPS]
+        for ch in range(3):
+            rgba[..., ch][water] = np.interp(
+                dv, xs, [st[1][ch] for st in _LOCAL_STOPS]).astype(np.uint8)
+        rgba[..., 3][water] = 255
+    buf = io.BytesIO()
+    Image.fromarray(rgba, "RGBA").save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+@router.get("/bathy-local/{z}/{x}/{y}.png")
+async def bathy_local_tile(
+    z: int = FPath(ge=3, le=21),
+    x: int = FPath(ge=0),
+    y: int = FPath(ge=0),
+):
+    if x >= 2 ** z or y >= 2 ** z:
+        raise HTTPException(404, "Tuile hors grille.")
+    if z < _LOCAL_MIN_Z:
+        return _png_response(_CLEAR_PNG, 30 * 86400)
+    path = CACHE_DIR / "bathylocal" / "v1" / str(z) / str(x) / f"{y}.png"
+    try:
+        if path.exists():
+            return _png_response(path.read_bytes(), 30 * 86400)
+    except OSError:
+        pass
+
+    def _work() -> bytes | None:
+        data = _render_bathy_local(z, x, y)
+        if data is None:
+            return None
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_bytes(data)
+            tmp.replace(path)
+        except OSError:
+            pass
+        return data
+
+    async with _local_sem:
+        data = await asyncio.to_thread(_work)
+    if not data:
+        return Response(
+            content=_CLEAR_PNG, media_type="image/png",
+            headers={"Cache-Control": "no-store"},
+        )
+    return _png_response(data, 30 * 86400)
+
+
 # ── 08/09/2026 (MASTER PLAN données armateur) — CARTES HORS LIGNE ──────────
 # 1. /dalles-list?poly=lat,lng;lat,lng;… → dalles 20 m de l'index OVH
 #    intersectant le polygone dessiné (nom, bbox, taille) ;

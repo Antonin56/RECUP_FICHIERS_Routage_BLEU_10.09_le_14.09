@@ -266,7 +266,7 @@ class RemoteTileBathy:
             self._failed[fname] = time.time()
             return None
 
-    def prefetch(self, fnames: list[str], workers: int = 8) -> None:
+    def prefetch(self, fnames: list[str], workers: int = 16) -> None:
         """04/09/2026 (ordre armateur, VITESSE) — téléchargement CONCURRENT
         (thread pool) des dalles manquantes d'une zone de calcul, au lieu
         de la boucle séquentielle (une fenêtre A* de 20 dalles = 20
@@ -423,6 +423,9 @@ class RemoteGrid:
         self.dx = store.cell_deg
         self.dy = -store.cell_deg
         self.product = f"Dalles OVH v{store.version} (PC armateur)"
+        # 10/09/2026 (PERF armateur « 67 s ») — cache des 3 derniers
+        # assemblages de fenêtres (voir window()).
+        self._mem_cache: list[_MemGrid] = []
         ws = [m["bbox"][0] for m in store.tiles.values()]
         ss = [m["bbox"][1] for m in store.tiles.values()]
         es = [m["bbox"][2] for m in store.tiles.values()]
@@ -554,11 +557,61 @@ class RemoteGrid:
             arr, x0=tx0 * td, y0=(ty1 + 1) * td,
             dx=cd * k, dy=-cd * k, name=self.product)
 
+    def _k_for(self, west: float, south: float, east: float,
+               north: float) -> Optional[int]:
+        """Facteur de pré-pooling qu'exigerait _assemble pour cette bbox."""
+        td = self.store.tile_deg
+        w, s, e, n = self._bounds
+        west, east = max(west, w), min(east, e)
+        south, north = max(south, s), min(north, n)
+        if west >= east or south >= north:
+            return None
+        tx0 = math.floor(west / td)
+        tx1 = math.floor((east - 1e-9) / td)
+        ty0 = math.floor(south / td)
+        ty1 = math.floor((north - 1e-9) / td)
+        ntx, nty = tx1 - tx0 + 1, ty1 - ty0 + 1
+        size = self.store.nrows
+        k = 1
+        while (ntx * nty) * (size // k) ** 2 > _MAX_FULL_TILES * size ** 2:
+            k += 1
+        return k
+
     def window(self, west: float, south: float, east: float, north: float,
                max_px: int = 400, pool: bool = False):
-        mem = self._assemble(west, south, east, north)
+        # 10/09/2026 (PERF armateur — « 67 s, aucune amélioration ») : CACHE
+        # D'ASSEMBLAGE. Le pipeline moteur demande des DIZAINES de fenêtres
+        # qui se recouvrent (passe grossière, raffinements par tronçon,
+        # couloirs de validation…) ; ré-assembler les mêmes dalles à chaque
+        # appel dominait le temps de calcul. On garde les 3 derniers
+        # assemblages (faits avec une marge de 25 %) et on les réutilise dès
+        # que la bbox demandée y tient à résolution égale ou plus fine —
+        # résultat STRICTEMENT identique (lattice alignée sur les dalles,
+        # _MemGrid.window re-découpe/décime exactement pareil).
+        k_req = self._k_for(west, south, east, north)
+        if k_req is None:
+            return None
+        cd = self.store.cell_deg
+        for mem in reversed(self._mem_cache):
+            mw, ms, me, mn = mem.bounds
+            k_mem = max(1, int(round(mem.dx / cd)))
+            if mw <= west and me >= east and ms <= south and mn >= north \
+                    and k_mem <= k_req:
+                return mem.window(west, south, east, north,
+                                  max_px=max_px, pool=pool)
+        pad_lng = (east - west) * 0.25
+        pad_lat = (north - south) * 0.25
+        pw, ps = west - pad_lng, south - pad_lat
+        pe, pn = east + pad_lng, north + pad_lat
+        # La marge n'est prise que si elle ne dégrade pas la résolution.
+        if self._k_for(pw, ps, pe, pn) == k_req:
+            mem = self._assemble(pw, ps, pe, pn)
+        else:
+            mem = self._assemble(west, south, east, north)
         if mem is None:
             return None
+        self._mem_cache.append(mem)
+        del self._mem_cache[:-3]
         return mem.window(west, south, east, north, max_px=max_px, pool=pool)
 
 

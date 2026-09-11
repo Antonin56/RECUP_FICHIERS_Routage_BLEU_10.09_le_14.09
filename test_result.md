@@ -730,3 +730,24 @@ agent_communication:
           reports/computed_routes/support_screenshots). Login seedé OK avec
           TEST_PASSWORD depuis backend/.env. Secrets à saisir au Publish :
           JWT_SECRET, TEST_PASSWORD, TILE_SERVER_TOKEN. Smoke frontend OK.
+
+  - task: "ITER167 — Réparation 3 points critiques (preuves zip 10.09 armateur)"
+    implemented: true
+    working: "NA"
+    file: "backend: routers/bathy.py (/depth bilinéaire), routers/tiles.py (bathy-local renderer + endpoint), core/bathy.py (niveau iso 25 m), core/tile_bathy.py (cache assemblage RemoteGrid + prefetch 16) ; frontend: src/components/marine-map/js/bathy.ts (réécrit — 1 couche bathy-local), src/lib/offline-dalles.ts (5 téléchargements parallèles)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          (1) Goutte d'eau : min-25m remplacé par bilinéaire — 19,0 m vérifié
+          au point des captures (avant 5-7 m affichés pour ~18-20 m réels).
+          (2) Calque visuel maison /api/tiles/bathy-local (lisse, bleu, terre
+          transparente, façade entière, cache 30 j) remplace les 4 WMS SHOM ;
+          tuiles vérifiées z11/z12/z13 (Golfe + Lorient), cache 1,2 ms.
+          (3) RemoteGrid : cache des 3 derniers assemblages (validé bit-
+          identique sur store synthétique), prefetch 16 ; downloadDalles 5
+          parallèles côté app. AUCUN calcul de route (ordre armateur).
+          test_tile_reader 8/8, iter165 4/4.
