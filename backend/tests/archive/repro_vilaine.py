@@ -7,7 +7,7 @@ load_dotenv("/app/backend/.env")
 from core.auth import make_jwt
 
 tok = make_jwt("user_0b6070a69154")
-B = "https://routing-offline.preview.emergentagent.com/api"
+B = "https://nav-routing-speed.preview.emergentagent.com/api"
 h = {"Authorization": f"Bearer {tok}"}
 
 def compute(end_lat, end_lng, label, use_tide=True, extra=0.0):

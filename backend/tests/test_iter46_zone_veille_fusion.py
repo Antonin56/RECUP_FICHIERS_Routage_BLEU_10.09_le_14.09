@@ -10,7 +10,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_BACKEND_URL") or "https://routing-offline.preview.emergentagent.com"
+BASE_URL = os.environ.get("EXPO_BACKEND_URL") or "https://nav-routing-speed.preview.emergentagent.com"
 BASE_URL = BASE_URL.rstrip("/")
 
 PHONE = "0760071445"

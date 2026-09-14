@@ -19,7 +19,7 @@ import requests
 
 BASE_URL = os.environ.get("EXPO_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://routing-offline.preview.emergentagent.com"
+    BASE_URL = "https://nav-routing-speed.preview.emergentagent.com"
 RL_BYPASS = "qa-bypass-7f3d9a2e4c8b1f60"
 ADMIN_PHONE = "0760071445"
 OTP_CODE = "123456"

@@ -29,7 +29,7 @@ from core.auth import make_jwt  # noqa: E402
 
 BASE_URL = os.environ.get(
     "EXPO_PUBLIC_BACKEND_URL",
-    "https://routing-offline.preview.emergentagent.com",
+    "https://nav-routing-speed.preview.emergentagent.com",
 ).rstrip("/")
 QA = {"X-RateLimit-Bypass": "qa-bypass-7f3d9a2e4c8b1f60"}
 ADMIN_USER_ID = "user_0b6070a69154"        # SignalMar (admin/testeur)
